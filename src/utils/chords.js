@@ -122,19 +122,49 @@ function getChordIntervals(type) {
   }
 }
 
+function normalizeInversionValue(inversion) {
+  const value = String(inversion || '').trim().toLowerCase()
+  if (!value || value === 'root') return ''
+  if (value === 'first' || value === '1st') return 'first'
+  if (value === 'second' || value === '2nd') return 'second'
+  if (value === 'third' || value === '3rd') return 'third'
+  return ''
+}
+
+function splitChordWithOptionalInversion(chord, inversion = '') {
+  const value = String(chord || '').trim()
+  if (!value) return null
+
+  const match = value.match(/^([A-G](?:#|b)?)([^/]*)?(?:\/([A-G](?:#|b)?))?$/)
+  if (!match) return null
+
+  const [, root, rawSuffix = '', bass = ''] = match
+  const suffixWithSpaces = String(rawSuffix || '')
+  const suffixMatch = suffixWithSpaces.match(/^(.*?)(?:\s*[\(\[]?\s*(1st|2nd|3rd|first|second|third)\s*[\)\]]?\s*)$/i)
+  const suffix = suffixMatch ? String(suffixMatch[1] || '').trim() : suffixWithSpaces.trim()
+  const parsedInversion = suffixMatch ? normalizeInversionValue(suffixMatch[2]) : ''
+  const effectiveInversion = normalizeInversionValue(inversion) || parsedInversion
+
+  return { root, suffix, bass, inversion: effectiveInversion }
+}
+
+export function getChordEffectiveInversion(chord, inversion = '') {
+  return splitChordWithOptionalInversion(chord, inversion)?.inversion || ''
+}
+
 export function formatChordLabel(chord, inversion = '') {
   const value = String(chord || '').trim()
   if (!value) return ''
 
-  const match = value.match(/^([A-G](?:#|b)?)(maj7|m7|sus4|dim|aug|m|7)?(?:\/([A-G](?:#|b)?))?$/)
-  if (!match) return value
-
-  const [, root, type = '', bass = ''] = match
+  const parsed = splitChordWithOptionalInversion(value, inversion)
+  if (!parsed) return value
+  const { root, suffix = '', bass = '', inversion: effectiveInversion = '' } = parsed
   const rootIndex = NOTE_INDEX[root]
   if (rootIndex === undefined) return value
 
-  const base = `${root}${type ? ` ${type}` : ''}`
-  const inversionLabel = inversion === 'first' ? '1st' : inversion === 'second' ? '2nd' : inversion === 'third' ? '3rd' : ''
+  const base = `${root}${suffix ? ` ${suffix}` : ''}`
+  const inversionLabel =
+    effectiveInversion === 'first' ? '1st' : effectiveInversion === 'second' ? '2nd' : effectiveInversion === 'third' ? '3rd' : ''
 
   if (bass && inversionLabel) {
     return `${base} /${bass} ${inversionLabel}`
@@ -213,16 +243,15 @@ export function getChordNoteIndexes(chord, inversion = '') {
   const value = String(chord || '').trim()
   if (!value) return []
 
-  const match = value.match(/^([A-G](?:#|b)?)([^/]*)?(?:\/([A-G](?:#|b)?))?$/)
-  if (!match) return []
-
-  const [, root, suffix = '', bass = ''] = match
+  const parsed = splitChordWithOptionalInversion(value, inversion)
+  if (!parsed) return []
+  const { root, suffix = '', bass = '', inversion: effectiveInversion = '' } = parsed
   const rootIndex = NOTE_INDEX[root]
   if (rootIndex === undefined) return []
 
   const baseIntervals = inferIntervalsFromSuffix(suffix)
   const inversionSteps =
-    inversion === 'first' ? 1 : inversion === 'second' ? 2 : inversion === 'third' ? 3 : 0
+    effectiveInversion === 'first' ? 1 : effectiveInversion === 'second' ? 2 : effectiveInversion === 'third' ? 3 : 0
 
   const reorderedIntervals = baseIntervals.map((_, idx) => baseIntervals[(idx + inversionSteps) % baseIntervals.length])
 
@@ -255,10 +284,9 @@ export function getChordOrderedNoteNames(chord, inversion = '') {
   const value = String(chord || '').trim()
   if (!value) return []
 
-  const match = value.match(/^([A-G](?:#|b)?)([^/]*)?(?:\/([A-G](?:#|b)?))?$/)
-  if (!match) return []
-
-  const [, root, suffix = '', bass = ''] = match
+  const parsed = splitChordWithOptionalInversion(value, inversion)
+  if (!parsed) return []
+  const { root, suffix = '', bass = '', inversion: effectiveInversion = '' } = parsed
   const rootIndex = NOTE_INDEX[root]
   if (rootIndex === undefined) return []
 
@@ -266,7 +294,7 @@ export function getChordOrderedNoteNames(chord, inversion = '') {
   const noteNames = preferFlat ? FLAT_NOTES : SHARP_NOTES
   const baseIntervals = inferIntervalsFromSuffix(suffix)
   const uniquePitchClasses = [...new Set(baseIntervals.map((interval) => (rootIndex + interval) % 12))]
-  let orderedPitchClasses = rotateArray(uniquePitchClasses, toInversionIndex(inversion))
+  let orderedPitchClasses = rotateArray(uniquePitchClasses, toInversionIndex(effectiveInversion))
 
   if (bass) {
     const bassIndex = NOTE_INDEX[bass]
@@ -276,4 +304,61 @@ export function getChordOrderedNoteNames(chord, inversion = '') {
   }
 
   return orderedPitchClasses.map((pitchClass) => noteNames[pitchClass])
+}
+
+export function getChordBassNoteIndex(chord, inversion = '') {
+  const parsed = splitChordWithOptionalInversion(chord, inversion)
+  if (!parsed) return null
+  const { root, suffix = '', bass = '', inversion: effectiveInversion = '' } = parsed
+  const rootIndex = NOTE_INDEX[root]
+  if (rootIndex === undefined) return null
+
+  if (bass) {
+    const bassIndex = NOTE_INDEX[bass]
+    return bassIndex === undefined ? null : bassIndex
+  }
+
+  const baseIntervals = inferIntervalsFromSuffix(suffix)
+  if (baseIntervals.length === 0) return null
+  const inversionSteps =
+    effectiveInversion === 'first' ? 1 : effectiveInversion === 'second' ? 2 : effectiveInversion === 'third' ? 3 : 0
+  const orderedIntervals = rotateArray(baseIntervals, inversionSteps)
+  return (rootIndex + orderedIntervals[0]) % 12
+}
+
+export function getChordVoicingKeyIndexes(chord, inversion = '') {
+  const parsed = splitChordWithOptionalInversion(chord, inversion)
+  if (!parsed) return []
+  const { root, suffix = '', bass = '', inversion: effectiveInversion = '' } = parsed
+  const rootIndex = NOTE_INDEX[root]
+  if (rootIndex === undefined) return []
+
+  const baseIntervals = [...new Set(inferIntervalsFromSuffix(suffix))]
+  if (baseIntervals.length === 0) return []
+
+  const inversionSteps =
+    effectiveInversion === 'first' ? 1 : effectiveInversion === 'second' ? 2 : effectiveInversion === 'third' ? 3 : 0
+
+  let orderedIntervals = rotateArray(baseIntervals, inversionSteps).map((item) => ((item % 12) + 12) % 12)
+
+  if (bass) {
+    const bassIndex = NOTE_INDEX[bass]
+    if (bassIndex !== undefined) {
+      const bassInterval = ((bassIndex - rootIndex) % 12 + 12) % 12
+      orderedIntervals = [bassInterval, ...orderedIntervals.filter((item) => item !== bassInterval)]
+    }
+  }
+
+  const ascendingIntervals = []
+  orderedIntervals.forEach((interval) => {
+    let next = interval
+    if (ascendingIntervals.length > 0) {
+      while (next <= ascendingIntervals[ascendingIntervals.length - 1]) {
+        next += 12
+      }
+    }
+    ascendingIntervals.push(next)
+  })
+
+  return ascendingIntervals.map((interval) => rootIndex + interval)
 }

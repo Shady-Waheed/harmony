@@ -686,6 +686,8 @@ body {
   position: relative;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  direction: ltr;
+  unicode-bidi: isolate;
   height: 60px;
   border: 1px solid color-mix(in srgb, var(--border) 80%, #fff 20%);
   border-radius: 8px;
@@ -696,6 +698,7 @@ body {
 .miniKey.white {
   border-left: 1px solid #c8cbd6;
   background: #ffffff;
+  position: relative;
 }
 
 .miniKey.white:first-child {
@@ -704,6 +707,11 @@ body {
 
 .miniKey.white.active {
   background: color-mix(in srgb, var(--primary) 45%, #ffffff 55%);
+}
+
+.miniKey.white.bass {
+  background: color-mix(in srgb, #ff9f43 58%, #ffffff 42%);
+  box-shadow: inset 0 -3px 0 color-mix(in srgb, #ff8b1f 72%, #000 28%);
 }
 
 .miniKey.black {
@@ -717,8 +725,35 @@ body {
   transform: translateX(-50%);
 }
 
+.miniKeyOrder {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sheet-bg) 72%, #fff 28%);
+  color: var(--sheet-text);
+  font-size: 0.55rem;
+  line-height: 12px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.miniKey.black .miniKeyOrder {
+  bottom: 2px;
+  background: color-mix(in srgb, #fff 28%, #1f2433 72%);
+  color: #10131f;
+}
+
 .miniKey.black.active {
   background: color-mix(in srgb, var(--primary) 72%, #111 28%);
+}
+
+.miniKey.black.bass {
+  background: color-mix(in srgb, #ff9f43 74%, #111 26%);
+  border-color: color-mix(in srgb, #ff8b1f 75%, #000 25%);
 }
 
 .chordPreviewNotes {

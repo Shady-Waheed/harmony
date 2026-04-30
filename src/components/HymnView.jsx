@@ -1,7 +1,14 @@
 import { forwardRef } from 'react'
 import { useHymnStore } from '../store/hymnStore.jsx'
 import { buildDisplayCells } from '../utils/lineChords'
-import { formatChordLabel, getChordNoteIndexes, getChordOrderedNoteNames } from '../utils/chords'
+import {
+  formatChordLabel,
+  getChordBassNoteIndex,
+  getChordEffectiveInversion,
+  getChordNoteIndexes,
+  getChordOrderedNoteNames,
+  getChordVoicingKeyIndexes,
+} from '../utils/chords'
 
 const WHITE_KEYS = [
   { note: 'C', index: 0 },
@@ -23,9 +30,20 @@ const BLACK_KEYS = [
 
 function ChordPianoPreview({ chord, inversion }) {
   const activeNotes = new Set(getChordNoteIndexes(chord, inversion))
+  const bassNoteIndex = getChordBassNoteIndex(chord, inversion)
+  const voicingIndexes = getChordVoicingKeyIndexes(chord, inversion)
   const orderedNoteNames = getChordOrderedNoteNames(chord, inversion)
-  const inversionLabel = inversion === 'first' ? '1st' : inversion === 'second' ? '2nd' : inversion === 'third' ? '3rd' : 'Root'
+  const effectiveInversion = getChordEffectiveInversion(chord, inversion)
   if (activeNotes.size === 0) return null
+  const orderByPitchClass = new Map()
+  voicingIndexes.forEach((absoluteIndex, idx) => {
+    const pitchClass = ((absoluteIndex % 12) + 12) % 12
+    if (!orderByPitchClass.has(pitchClass)) {
+      orderByPitchClass.set(pitchClass, idx + 1)
+    }
+  })
+  const inversionLabel =
+    effectiveInversion === 'first' ? '1st' : effectiveInversion === 'second' ? '2nd' : effectiveInversion === 'third' ? '3rd' : 'Root'
 
   return (
     <span className="chordPreviewPopup" role="tooltip" aria-hidden="true">
@@ -33,14 +51,21 @@ function ChordPianoPreview({ chord, inversion }) {
       <span className="chordPreviewMeta">{inversionLabel}</span>
       <span className="miniPiano" aria-hidden="true">
         {WHITE_KEYS.map((key) => (
-          <span key={key.note} className={`miniKey white ${activeNotes.has(key.index) ? 'active' : ''}`} />
+          <span
+            key={key.note}
+            className={`miniKey white ${activeNotes.has(key.index) ? 'active' : ''} ${bassNoteIndex === key.index ? 'bass' : ''}`}
+          >
+            {orderByPitchClass.has(key.index) ? <span className="miniKeyOrder">{orderByPitchClass.get(key.index)}</span> : null}
+          </span>
         ))}
         {BLACK_KEYS.map((key) => (
           <span
             key={key.note}
-            className={`miniKey black ${activeNotes.has(key.index) ? 'active' : ''}`}
+            className={`miniKey black ${activeNotes.has(key.index) ? 'active' : ''} ${bassNoteIndex === key.index ? 'bass' : ''}`}
             style={{ left: `${key.left}%` }}
-          />
+          >
+            {orderByPitchClass.has(key.index) ? <span className="miniKeyOrder">{orderByPitchClass.get(key.index)}</span> : null}
+          </span>
         ))}
       </span>
       {orderedNoteNames.length > 0 ? <span className="chordPreviewNotes">{orderedNoteNames.join(' - ')}</span> : null}
