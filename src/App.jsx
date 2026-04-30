@@ -13,6 +13,8 @@ import {
   readTextFile,
 } from './utils/projectFile'
 
+const EXPORT_LOGO_URL = '/harmony-notes-logo.png'
+
 function encodeSectionsForFirestore(sections = []) {
   return (sections || []).map((section) => ({
     ...section,
@@ -217,7 +219,9 @@ function AppShell() {
     if (!viewRef.current) return
     try {
       setLoadingExport(true)
-      await exportNodeToPng(viewRef.current, `${state.hymn.title || 'harmony-notes'}.png`, isDark)
+      await exportNodeToPng(viewRef.current, `${state.hymn.title || 'harmony-notes'}.png`, isDark, {
+        logoUrl: EXPORT_LOGO_URL,
+      })
     } catch (error) {
       showNotice(`فشل التصدير: ${error.message}`, 'error')
     } finally {
