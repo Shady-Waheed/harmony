@@ -56,6 +56,21 @@ function createFreshState(theme = 'dark') {
   }
 }
 
+function createEmptyHymn() {
+  return normalizeHymn({
+    id: uid('hymn'),
+    title: '',
+    key: '',
+    sections: [
+      {
+        id: uid('sec'),
+        title: 'قسم 1',
+        lines: [normalizeLineStructure({ id: uid('line'), lyrics: '', wordChords: [], gapChords: [] })],
+      },
+    ],
+  })
+}
+
 function loadInitial() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -87,6 +102,14 @@ export function HymnProvider({ children }) {
   const actions = useMemo(() => {
     const updateHymn = (patch) => {
       setState((prev) => ({ ...prev, hymn: { ...prev.hymn, ...patch } }))
+    }
+
+    const loadHymn = (hymn) => {
+      setState((prev) => ({ ...prev, hymn: normalizeHymn(hymn), mode: 'edit' }))
+    }
+
+    const createNewHymn = () => {
+      setState((prev) => ({ ...prev, hymn: createEmptyHymn(), mode: 'edit' }))
     }
 
     const addSection = () => {
@@ -219,6 +242,8 @@ export function HymnProvider({ children }) {
 
     return {
       updateHymn,
+      loadHymn,
+      createNewHymn,
       addSection,
       removeSection,
       updateSectionTitle,

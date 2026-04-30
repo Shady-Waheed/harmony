@@ -13,6 +13,13 @@ function normalizeGapChords(gapChords, count) {
   return next
 }
 
+function normalizeGapInversions(gapInversions, gapChords) {
+  return gapChords.map((group, i) => {
+    const inversionGroup = Array.isArray(gapInversions?.[i]) ? gapInversions[i] : []
+    return Array.from({ length: group.length }, (_, j) => String(inversionGroup[j] || ''))
+  })
+}
+
 export function normalizeLineStructure(line) {
   const lyrics = String(line?.lyrics || '')
   const words = splitWords(lyrics)
@@ -31,12 +38,18 @@ export function normalizeLineStructure(line) {
   })
 
   const gapChords = normalizeGapChords(line?.gapChords, words.length - 1)
+  const wordInversions = Array.from({ length: words.length }, (_, i) =>
+    String(Array.isArray(line?.wordInversions) ? line.wordInversions[i] || '' : ''),
+  )
+  const gapInversions = normalizeGapInversions(line?.gapInversions, gapChords)
 
   return {
     ...line,
     lyrics,
     wordChords,
     gapChords,
+    wordInversions,
+    gapInversions,
   }
 }
 
@@ -51,6 +64,7 @@ export function buildDisplayCells(line) {
       type: 'word',
       word,
       chord: normalized.wordChords[index] || '',
+      inversion: normalized.wordInversions[index] || '',
       wordIndex: index,
     })
 
@@ -62,6 +76,7 @@ export function buildDisplayCells(line) {
           type: 'gap',
           word: '',
           chord: gapChord || '',
+          inversion: normalized.gapInversions[index]?.[slotIndex] || '',
           gapIndex: index,
           slotIndex,
         })

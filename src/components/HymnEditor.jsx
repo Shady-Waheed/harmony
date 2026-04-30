@@ -1,11 +1,193 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useHymnStore } from '../store/hymnStore.jsx'
 import { normalizeLineStructure, splitWords } from '../utils/lineChords'
+import { ROOT_NOTES, formatChordLabel } from '../utils/chords'
+
+const EMPTY_BASS = '__no_bass__'
+const EMPTY_INVERSION = '__no_inversion__'
+const CHORD_TYPES = ['', 'm', '7', 'm7', 'maj7', 'sus4', 'dim', 'aug']
+const SHARP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+const FLAT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
+const NOTE_INDEX = {
+  C: 0,
+  'C#': 1,
+  Db: 1,
+  D: 2,
+  'D#': 3,
+  Eb: 3,
+  E: 4,
+  F: 5,
+  'F#': 6,
+  Gb: 6,
+  G: 7,
+  'G#': 8,
+  Ab: 8,
+  A: 9,
+  'A#': 10,
+  Bb: 10,
+  B: 11,
+}
+
+function parseChordParts(chord) {
+  if (!chord?.trim()) {
+    return { root: '', type: '', bass: '', custom: false }
+  }
+
+  const match = chord.trim().match(/^([A-G](?:#|b)?)(maj7|m7|sus4|dim|aug|m|7)?(?:\/([A-G](?:#|b)?))?$/)
+  if (!match) {
+    return { root: '', type: '', bass: '', custom: true }
+  }
+
+  const [, root, type = '', bass = ''] = match
+  if (!ROOT_NOTES.includes(root) || !CHORD_TYPES.includes(type) || (bass && !ROOT_NOTES.includes(bass))) {
+    return { root: '', type: '', bass: '', custom: true }
+  }
+
+  return { root, type, bass, custom: false }
+}
+
+function composeChord({ root, type, bass }) {
+  if (!root) {
+    return ''
+  }
+  return `${root}${type}${bass ? `/${bass}` : ''}`
+}
+
+function getChordIntervals(type) {
+  switch (type) {
+    case 'm':
+      return [0, 3, 7]
+    case '7':
+      return [0, 4, 7, 10]
+    case 'm7':
+      return [0, 3, 7, 10]
+    case 'maj7':
+      return [0, 4, 7, 11]
+    case 'sus4':
+      return [0, 5, 7]
+    case 'dim':
+      return [0, 3, 6]
+    case 'aug':
+      return [0, 4, 8]
+    default:
+      return [0, 4, 7]
+  }
+}
+
+function getInversionOptions(root, type) {
+  if (!root) {
+    return []
+  }
+  const rootIndex = NOTE_INDEX[root]
+  if (rootIndex === undefined) {
+    return []
+  }
+
+  const preferFlat = root.includes('b')
+  const notes = preferFlat ? FLAT_NOTES : SHARP_NOTES
+  const intervals = getChordIntervals(type)
+  const chordNotes = intervals.map((interval) => notes[(rootIndex + interval) % 12])
+
+  const options = [{ id: EMPTY_INVERSION, label: 'بدون Inversion' }]
+  if (chordNotes[1]) options.push({ id: 'first', label: '1st Inversion' })
+  if (chordNotes[2]) options.push({ id: 'second', label: '2nd Inversion' })
+  if (chordNotes[3]) options.push({ id: 'third', label: '3rd Inversion' })
+  return options
+}
+
+function ChordPicker({ value, inversion, onChange, onInversionChange, compact = false }) {
+  const parts = parseChordParts(value)
+  const bassSelectValue = parts.bass || EMPTY_BASS
+  const inversionOptions = getInversionOptions(parts.root, parts.type)
+  const inversionValue = inversionOptions.some((option) => option.id === inversion) ? inversion : EMPTY_INVERSION
+
+  if (parts.custom) {
+    return (
+      <div className="chordBuilder">
+        <input className="input chordInput chordCustomInput" value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder="اكتب الكورد" />
+        <button className="btn chordModeBtn" onClick={() => onChange('')} type="button">
+          رجوع للتقسيم
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="chordBuilder">
+      <div className={`chordParts ${compact ? 'compact' : ''}`}>
+        <select
+          className="input chordInput chordSelect"
+          value={parts.root}
+          onChange={(e) => onChange(composeChord({ root: e.target.value, type: parts.type, bass: parts.bass }))}
+        >
+          <option value="">النغمة</option>
+          {ROOT_NOTES.map((note) => (
+            <option key={note} value={note}>
+              {note}
+            </option>
+          ))}
+        </select>
+        <select
+          className="input chordInput chordSelect"
+          value={parts.type}
+          onChange={(e) => onChange(composeChord({ root: parts.root, type: e.target.value, bass: parts.bass }))}
+        >
+          <option value="">Major</option>
+          {CHORD_TYPES.filter(Boolean).map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+        <select
+          className="input chordInput chordSelect"
+          value={bassSelectValue}
+          onChange={(e) =>
+            onChange(
+              composeChord({
+                root: parts.root,
+                type: parts.type,
+                bass: e.target.value === EMPTY_BASS ? '' : e.target.value,
+              }),
+            )
+          }
+        >
+          <option value={EMPTY_BASS}>بدون Bass</option>
+          {ROOT_NOTES.map((note) => (
+            <option key={note} value={note}>
+              /{note}
+            </option>
+          ))}
+        </select>
+        <select
+          className="input chordInput chordSelect"
+          value={inversionValue}
+          onChange={(e) => onInversionChange(e.target.value === EMPTY_INVERSION ? '' : e.target.value)}
+          disabled={!parts.root}
+        >
+          {inversionOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <button className="btn chordModeBtn" onClick={() => onChange('X')} type="button">
+        كورد مخصص
+      </button>
+    </div>
+  )
+}
+
+function getEditorId(lineId, kind, wordIndex, slotIndex = -1) {
+  return `${lineId}:${kind}:${wordIndex}:${slotIndex}`
+}
 
 function HymnEditor() {
   const { state, updateHymn, addSection, removeSection, updateSectionTitle, addLine, removeLine, updateLine, transposeHymn } =
     useHymnStore()
   const { hymn } = state
+  const [activeEditorId, setActiveEditorId] = useState('')
 
   const sectionCount = useMemo(() => hymn.sections.length, [hymn.sections.length])
 
@@ -76,17 +258,40 @@ function HymnEditor() {
                       {words.map((word, wordIndex) => (
                         <div key={`${line.id}-${wordIndex}`} className="wordBlockWrap">
                           <div className="wordChordCell word">
-                            <input
-                              className="input chordInput"
-                              value={normalizedLine.wordChords[wordIndex] || ''}
-                              onChange={(e) => {
-                                const nextWordChords = [...normalizedLine.wordChords]
-                                nextWordChords[wordIndex] = e.target.value
-                                updateLine(section.id, line.id, { wordChords: nextWordChords })
-                              }}
-                              placeholder="Chord"
-                            />
-                            <span className="wordLabel">{word}</span>
+                            <button
+                              className="wordTokenBtn"
+                              type="button"
+                              onClick={() => setActiveEditorId(getEditorId(line.id, 'word', wordIndex))}
+                            >
+                              <span className="wordTokenChord">
+                                {formatChordLabel(
+                                  normalizedLine.wordChords[wordIndex] || '',
+                                  normalizedLine.wordInversions[wordIndex] || '',
+                                ) || 'بدون كورد'}
+                              </span>
+                              <span className="wordLabel">{word}</span>
+                            </button>
+                            {activeEditorId === getEditorId(line.id, 'word', wordIndex) && (
+                              <div className="inlineEditorPanel">
+                                <ChordPicker
+                                  value={normalizedLine.wordChords[wordIndex] || ''}
+                                  inversion={normalizedLine.wordInversions[wordIndex] || ''}
+                                  onChange={(nextChord) => {
+                                    const nextWordChords = [...normalizedLine.wordChords]
+                                    nextWordChords[wordIndex] = nextChord
+                                    updateLine(section.id, line.id, { wordChords: nextWordChords })
+                                  }}
+                                  onInversionChange={(nextInversion) => {
+                                    const nextWordInversions = [...normalizedLine.wordInversions]
+                                    nextWordInversions[wordIndex] = nextInversion
+                                    updateLine(section.id, line.id, { wordInversions: nextWordInversions })
+                                  }}
+                                />
+                                <button className="btn chordModeBtn" type="button" onClick={() => setActiveEditorId('')}>
+                                  تم
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {wordIndex < words.length - 1 && (
@@ -96,36 +301,73 @@ function HymnEditor() {
                                 onClick={() => {
                                   const nextGapChords = normalizedLine.gapChords.map((group) => [...group])
                                   nextGapChords[wordIndex] = [...(nextGapChords[wordIndex] || []), '']
-                                  updateLine(section.id, line.id, { gapChords: nextGapChords })
+                                  const nextGapInversions = normalizedLine.gapInversions.map((group) => [...group])
+                                  nextGapInversions[wordIndex] = [...(nextGapInversions[wordIndex] || []), '']
+                                  updateLine(section.id, line.id, { gapChords: nextGapChords, gapInversions: nextGapInversions })
                                 }}
                               >
                                 + مسافة
                               </button>
 
-                              {(normalizedLine.gapChords[wordIndex] || []).map((gapChord, slotIndex) => (
-                                <div key={`${line.id}-gap-${wordIndex}-${slotIndex}`} className="gapSlotItem">
-                                  <input
-                                    className="input chordInput gapInput"
-                                    value={gapChord}
-                                    onChange={(e) => {
-                                      const nextGapChords = normalizedLine.gapChords.map((group) => [...group])
-                                      nextGapChords[wordIndex][slotIndex] = e.target.value
-                                      updateLine(section.id, line.id, { gapChords: nextGapChords })
-                                    }}
-                                    placeholder="Chord"
-                                  />
+                              <div className="gapSlotList">
+                                {(normalizedLine.gapChords[wordIndex] || []).map((gapChord, slotIndex) => (
                                   <button
-                                    className="miniRemoveBtn"
-                                    onClick={() => {
-                                      const nextGapChords = normalizedLine.gapChords.map((group) => [...group])
-                                      nextGapChords[wordIndex].splice(slotIndex, 1)
-                                      updateLine(section.id, line.id, { gapChords: nextGapChords })
-                                    }}
+                                    key={`${line.id}-gap-${wordIndex}-${slotIndex}`}
+                                    className="gapTokenBtn"
+                                    type="button"
+                                    onClick={() => setActiveEditorId(getEditorId(line.id, 'gap', wordIndex, slotIndex))}
                                   >
-                                    ×
+                                    {formatChordLabel(
+                                      gapChord,
+                                      normalizedLine.gapInversions[wordIndex]?.[slotIndex] || '',
+                                    ) || `مسافة ${slotIndex + 1}`}
                                   </button>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
+                              {(() => {
+                                const activeGapIndex = (normalizedLine.gapChords[wordIndex] || []).findIndex(
+                                  (_, slotIndex) => activeEditorId === getEditorId(line.id, 'gap', wordIndex, slotIndex),
+                                )
+                                if (activeGapIndex === -1) return null
+                                return (
+                                  <div className="inlineEditorPanel">
+                                    <ChordPicker
+                                      value={normalizedLine.gapChords[wordIndex][activeGapIndex] || ''}
+                                      inversion={normalizedLine.gapInversions[wordIndex]?.[activeGapIndex] || ''}
+                                      compact
+                                      onChange={(nextChord) => {
+                                        const nextGapChords = normalizedLine.gapChords.map((group) => [...group])
+                                        nextGapChords[wordIndex][activeGapIndex] = nextChord
+                                        updateLine(section.id, line.id, { gapChords: nextGapChords })
+                                      }}
+                                      onInversionChange={(nextInversion) => {
+                                        const nextGapInversions = normalizedLine.gapInversions.map((group) => [...group])
+                                        nextGapInversions[wordIndex][activeGapIndex] = nextInversion
+                                        updateLine(section.id, line.id, { gapInversions: nextGapInversions })
+                                      }}
+                                    />
+                                    <div className="row wrap">
+                                      <button className="btn chordModeBtn" type="button" onClick={() => setActiveEditorId('')}>
+                                        تم
+                                      </button>
+                                      <button
+                                        className="btn chordModeBtn danger"
+                                        type="button"
+                                        onClick={() => {
+                                          const nextGapChords = normalizedLine.gapChords.map((group) => [...group])
+                                          nextGapChords[wordIndex].splice(activeGapIndex, 1)
+                                          const nextGapInversions = normalizedLine.gapInversions.map((group) => [...group])
+                                          nextGapInversions[wordIndex].splice(activeGapIndex, 1)
+                                          updateLine(section.id, line.id, { gapChords: nextGapChords, gapInversions: nextGapInversions })
+                                          setActiveEditorId('')
+                                        }}
+                                      >
+                                        حذف المسافة
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })()}
                             </div>
                           )}
                         </div>

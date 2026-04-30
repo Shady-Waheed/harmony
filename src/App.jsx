@@ -1,8 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import HymnEditor from './components/HymnEditor'
 import HymnView from './components/HymnView'
 import { HymnProvider, useHymnStore } from './store/hymnStore.jsx'
 import { exportNodeToPng } from './utils/exportImage'
+import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
+import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore'
+import { auth, db, googleProvider, hasFirebaseConfig } from './firebase'
 import {
   downloadProjectFile,
   parseProjectFileContent,
@@ -10,13 +13,205 @@ import {
   readTextFile,
 } from './utils/projectFile'
 
+function encodeSectionsForFirestore(sections = []) {
+  return (sections || []).map((section) => ({
+    ...section,
+    lines: (section.lines || []).map((line) => {
+      const { gapChords = [], gapInversions = [], ...lineRest } = line
+      const gapEntries = gapChords.map((group, index) => ({
+        chords: Array.isArray(group) ? group : [],
+        inversions: Array.isArray(gapInversions[index]) ? gapInversions[index] : [],
+      }))
+
+      return {
+        ...lineRest,
+        wordInversions: Array.isArray(line.wordInversions) ? line.wordInversions : [],
+        gapEntries,
+      }
+    }),
+  }))
+}
+
+function decodeSectionsFromFirestore(sections = []) {
+  return (sections || []).map((section) => ({
+    ...section,
+    lines: (section.lines || []).map((line) => {
+      const { gapEntries = [], ...lineRest } = line
+      return {
+        ...lineRest,
+        gapChords: gapEntries.map((entry) => (Array.isArray(entry?.chords) ? entry.chords : [])),
+        gapInversions: gapEntries.map((entry) => (Array.isArray(entry?.inversions) ? entry.inversions : [])),
+      }
+    }),
+  }))
+}
+
+function isAdminUser(user) {
+  if (!user) return false
+  const allowedEmails = String(import.meta.env.VITE_ADMIN_EMAILS || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+  const allowedUids = String(import.meta.env.VITE_ADMIN_UIDS || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  const email = String(user.email || '').toLowerCase()
+  const uid = String(user.uid || '')
+  return allowedEmails.includes(email) || allowedUids.includes(uid)
+}
+
 function AppShell() {
-  const { state, setMode, toggleTheme, importProject, resetProject } = useHymnStore()
+  const { state, setMode, toggleTheme, importProject, resetProject, loadHymn, createNewHymn } = useHymnStore()
   const [loadingExport, setLoadingExport] = useState(false)
+  const [hymns, setHymns] = useState([])
+  const [loadingHymns, setLoadingHymns] = useState(true)
+  const [selectedHymnId, setSelectedHymnId] = useState('')
+  const [savingHymn, setSavingHymn] = useState(false)
+  const [deletingHymn, setDeletingHymn] = useState(false)
+  const [notice, setNotice] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const viewRef = useRef(null)
   const projectFileInputRef = useRef(null)
+  const noticeTimeoutRef = useRef(null)
 
   const isDark = state.theme === 'dark'
+  const isAdmin = isAdminUser(currentUser)
+
+  const showNotice = (message, type = 'info') => {
+    setNotice({ message, type })
+    window.clearTimeout(noticeTimeoutRef.current)
+    noticeTimeoutRef.current = window.setTimeout(() => setNotice(null), 2800)
+  }
+
+  useEffect(() => {
+    if (!auth) {
+      setAuthLoading(false)
+      return
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user)
+      setAuthLoading(false)
+    })
+    return () => unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!db || !hasFirebaseConfig || authLoading) {
+      if (!authLoading) {
+        setLoadingHymns(false)
+      }
+      return
+    }
+
+    setLoadingHymns(true)
+    const hymnsQuery = query(collection(db, 'hymns'), orderBy('createdAt', 'desc'))
+    const unsubscribe = onSnapshot(
+      hymnsQuery,
+      (snapshot) => {
+        const nextHymns = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        setHymns(nextHymns)
+        setLoadingHymns(false)
+      },
+      () => {
+        setHymns([])
+        setLoadingHymns(false)
+      },
+    )
+
+    return () => unsubscribe()
+  }, [authLoading, currentUser?.uid])
+
+  useEffect(() => {
+    if (!isAdmin && state.mode !== 'view') {
+      setMode('view')
+    }
+  }, [isAdmin, setMode, state.mode])
+
+  useEffect(() => {
+    return () => window.clearTimeout(noticeTimeoutRef.current)
+  }, [])
+
+  const onSelectHymn = (hymnDoc) => {
+    setSelectedHymnId(hymnDoc.id)
+    loadHymn({
+      id: hymnDoc.id,
+      title: hymnDoc.title || '',
+      key: hymnDoc.key || '',
+      sections: decodeSectionsFromFirestore(hymnDoc.sections || []),
+    })
+  }
+
+  const onNewNote = () => {
+    if (!isAdmin) return
+    setSelectedHymnId('')
+    createNewHymn()
+  }
+
+  const onSaveHymnToFirebase = async () => {
+    if (!isAdmin) {
+      showNotice('الوضع الحالي للقراءة فقط. سجّل دخول أدمن للتعديل.', 'error')
+      return
+    }
+    if (!db || !hasFirebaseConfig) return
+    const title = String(state.hymn.title || '').trim()
+    if (!title) {
+      showNotice('اكتب عنوان الترانيمة قبل الحفظ.', 'error')
+      return
+    }
+
+    const payload = {
+      title,
+      key: state.hymn.key || '',
+      sections: encodeSectionsForFirestore(state.hymn.sections || []),
+      updatedAt: serverTimestamp(),
+    }
+
+    try {
+      setSavingHymn(true)
+      if (selectedHymnId) {
+        await setDoc(doc(db, 'hymns', selectedHymnId), payload, { merge: true })
+        showNotice('تم تحديث الترانيمة.', 'success')
+        return
+      }
+
+      const created = await addDoc(collection(db, 'hymns'), {
+        ...payload,
+        createdAt: serverTimestamp(),
+      })
+      setSelectedHymnId(created.id)
+      loadHymn({ ...state.hymn, id: created.id })
+      showNotice('تم حفظ ترنيمة جديدة.', 'success')
+    } catch (error) {
+      showNotice(`فشل الحفظ: ${error.message}`, 'error')
+    } finally {
+      setSavingHymn(false)
+    }
+  }
+
+  const onDeleteHymnFromFirebase = async () => {
+    if (!isAdmin) {
+      showNotice('الوضع الحالي للقراءة فقط. سجّل دخول أدمن للتعديل.', 'error')
+      return
+    }
+    if (!db || !hasFirebaseConfig || !selectedHymnId) return
+    const confirmed = window.confirm('هل تريد حذف هذه الترانيمة نهائيًا؟')
+    if (!confirmed) return
+
+    try {
+      setDeletingHymn(true)
+      await deleteDoc(doc(db, 'hymns', selectedHymnId))
+      onNewNote()
+      showNotice('تم حذف الترانيمة.', 'success')
+    } catch (error) {
+      showNotice(`فشل الحذف: ${error.message}`, 'error')
+    } finally {
+      setDeletingHymn(false)
+    }
+  }
 
   const onExport = async () => {
     if (!viewRef.current) return
@@ -24,7 +219,7 @@ function AppShell() {
       setLoadingExport(true)
       await exportNodeToPng(viewRef.current, `${state.hymn.title || 'harmony-notes'}.png`, isDark)
     } catch (error) {
-      alert(`فشل التصدير: ${error.message}`)
+      showNotice(`فشل التصدير: ${error.message}`, 'error')
     } finally {
       setLoadingExport(false)
     }
@@ -34,7 +229,7 @@ function AppShell() {
     try {
       downloadProjectFile(state)
     } catch (error) {
-      alert(`فشل حفظ الملف: ${error.message}`)
+      showNotice(`فشل حفظ الملف: ${error.message}`, 'error')
     }
   }
 
@@ -52,18 +247,46 @@ function AppShell() {
       const content = await readTextFile(file)
       const project = parseProjectFileContent(content)
       importProject(project)
-      alert('تم استيراد المشروع بنجاح')
+      showNotice('تم استيراد المشروع بنجاح.', 'success')
     } catch (error) {
-      alert(`فشل استيراد الملف: ${error.message}`)
+      showNotice(`فشل استيراد الملف: ${error.message}`, 'error')
     } finally {
       event.target.value = ''
     }
   }
 
   const onResetProject = () => {
+    if (!isAdmin) {
+      showNotice('الوضع الحالي للقراءة فقط. سجّل دخول أدمن للتعديل.', 'error')
+      return
+    }
     const confirmed = window.confirm('هل تريد البدء من الأول؟ سيتم مسح كل التعديلات الحالية.')
     if (!confirmed) return
     resetProject()
+  }
+
+  const onAdminSignIn = async () => {
+    if (!auth) return
+    try {
+      await signInWithPopup(auth, googleProvider)
+      showNotice('تم تسجيل الدخول.', 'success')
+    } catch (error) {
+      const message =
+        error?.code === 'auth/operation-not-allowed'
+          ? 'طريقة تسجيل الدخول غير مفعلة. فعّل Google من Firebase Authentication > Sign-in method.'
+          : `فشل تسجيل الدخول: ${error.message}`
+      showNotice(message, 'error')
+    }
+  }
+
+  const onAdminSignOut = async () => {
+    if (!auth) return
+    try {
+      await signOut(auth)
+      showNotice('تم تسجيل الخروج.', 'success')
+    } catch (error) {
+      showNotice(`فشل تسجيل الخروج: ${error.message}`, 'error')
+    }
   }
 
   return (
@@ -75,7 +298,7 @@ function AppShell() {
         </div>
 
         <div className="row wrap">
-          <button className={`btn ${state.mode === 'edit' ? 'primary' : ''}`} onClick={() => setMode('edit')}>
+          <button className={`btn ${state.mode === 'edit' ? 'primary' : ''}`} onClick={() => setMode('edit')} disabled={!isAdmin}>
             وضع التعديل
           </button>
           <button className={`btn ${state.mode === 'view' ? 'primary' : ''}`} onClick={() => setMode('view')}>
@@ -93,6 +316,16 @@ function AppShell() {
           <button className="btn" onClick={onExport} disabled={loadingExport}>
             {loadingExport ? 'جاري التصدير...' : 'تصدير PNG (HD)'}
           </button>
+          {!authLoading && !currentUser ? (
+            <button className="btn primary" onClick={onAdminSignIn}>
+              دخول أدمن
+            </button>
+          ) : null}
+          {!authLoading && currentUser ? (
+            <button className="btn" onClick={onAdminSignOut}>
+              خروج
+            </button>
+          ) : null}
           <input
             ref={projectFileInputRef}
             type="file"
@@ -103,11 +336,66 @@ function AppShell() {
         </div>
       </header>
 
-      <main className="content">
-        {state.mode === 'edit' ? <HymnEditor /> : <HymnView ref={viewRef} />}
+      <main className="content withSidebar">
+        <aside className="card hymnsSidebar">
+          <p className={`roleBadge ${isAdmin ? 'admin' : 'viewer'}`}>
+            {isAdmin
+              ? `أدمن: ${currentUser?.email || currentUser?.uid || 'مُسجل'}`
+              : currentUser
+                ? 'مستخدم مسجل (قراءة فقط)'
+                : 'وضع القراءة فقط'}
+          </p>
+          <div className="row between sidebarHeader">
+            <h3>الترانيم المحفوظة</h3>
+            <button className="btn primary" onClick={onNewNote} disabled={!isAdmin}>
+              New Note
+            </button>
+          </div>
+          <div className="row wrap sidebarActions">
+            <button className="btn primary" onClick={onSaveHymnToFirebase} disabled={!hasFirebaseConfig || savingHymn || !isAdmin}>
+              {savingHymn ? 'جاري الحفظ...' : selectedHymnId ? 'تحديث' : 'حفظ'}
+            </button>
+            <button
+              className="btn danger"
+              onClick={onDeleteHymnFromFirebase}
+              disabled={!hasFirebaseConfig || !selectedHymnId || deletingHymn || !isAdmin}
+            >
+              {deletingHymn ? 'جاري الحذف...' : 'حذف الترانيمة'}
+            </button>
+          </div>
+
+          {!hasFirebaseConfig ? (
+            <p className="sidebarHint">Firebase غير مهيأ. أضف متغيرات VITE_FIREBASE_* لعرض القائمة.</p>
+          ) : null}
+
+          {hasFirebaseConfig && loadingHymns ? <p className="sidebarHint">جاري تحميل الترانيم...</p> : null}
+
+          {hasFirebaseConfig && !loadingHymns && hymns.length === 0 ? (
+            <p className="sidebarHint">لا توجد ترانيم محفوظة حاليًا.</p>
+          ) : null}
+
+          {hasFirebaseConfig && !loadingHymns && hymns.length > 0 ? (
+            <ul className="hymnList">
+              {hymns.map((hymnItem) => (
+                <li key={hymnItem.id}>
+                  <button
+                    className={`hymnListItem ${selectedHymnId === hymnItem.id ? 'active' : ''}`}
+                    onClick={() => onSelectHymn(hymnItem)}
+                  >
+                    <span>{hymnItem.title || 'ترنيمة بدون عنوان'}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </aside>
+
+        <div className="editorPane">
+          {state.mode === 'edit' && isAdmin ? <HymnEditor /> : <HymnView ref={viewRef} />}
+        </div>
       </main>
 
-      {state.mode === 'edit' ? (
+      {state.mode === 'edit' && isAdmin ? (
         <section className="previewWrap">
           <h3>معاينة مباشرة</h3>
           <HymnView ref={viewRef} />
@@ -117,6 +405,8 @@ function AppShell() {
       <button className="floatingResetBtn" onClick={onResetProject}>
         ابدأ من الأول
       </button>
+
+      {notice ? <div className={`toastNotice ${notice.type}`}>{notice.message}</div> : null}
     </div>
   )
 }
