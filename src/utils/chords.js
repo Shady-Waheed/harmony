@@ -148,3 +148,132 @@ export function formatChordLabel(chord, inversion = '') {
 
   return base
 }
+
+function inferIntervalsFromSuffix(rawSuffix) {
+  const suffix = String(rawSuffix || '').replace(/\s+/g, '').toLowerCase()
+  if (!suffix) return [0, 4, 7]
+
+  let intervals
+  if (suffix.includes('dim')) {
+    intervals = [0, 3, 6]
+  } else if (suffix.includes('aug') || suffix.includes('+')) {
+    intervals = [0, 4, 8]
+  } else if (suffix.includes('sus2')) {
+    intervals = [0, 2, 7]
+  } else if (suffix.includes('sus4') || suffix.includes('sus')) {
+    intervals = [0, 5, 7]
+  } else if (suffix.includes('m') && !suffix.includes('maj')) {
+    intervals = [0, 3, 7]
+  } else {
+    intervals = [0, 4, 7]
+  }
+
+  if (suffix.includes('maj7')) {
+    intervals.push(11)
+  } else if (suffix.includes('7')) {
+    intervals.push(10)
+  }
+
+  if (suffix.includes('6')) {
+    intervals.push(9)
+  }
+
+  if (suffix.includes('add9') || suffix.includes('9')) {
+    intervals.push(14)
+  }
+  if (suffix.includes('11')) {
+    intervals.push(17)
+  }
+  if (suffix.includes('13')) {
+    intervals.push(21)
+  }
+
+  if (suffix.includes('b5')) {
+    intervals = intervals.filter((item) => item % 12 !== 7)
+    intervals.push(6)
+  }
+  if (suffix.includes('#5') || suffix.includes('+5')) {
+    intervals = intervals.filter((item) => item % 12 !== 7)
+    intervals.push(8)
+  }
+
+  if (suffix.includes('b9')) {
+    intervals = intervals.filter((item) => item % 12 !== 2)
+    intervals.push(13)
+  }
+  if (suffix.includes('#9')) {
+    intervals = intervals.filter((item) => item % 12 !== 2)
+    intervals.push(15)
+  }
+
+  return [...new Set(intervals.map((item) => ((item % 12) + 12) % 12))]
+}
+
+export function getChordNoteIndexes(chord, inversion = '') {
+  const value = String(chord || '').trim()
+  if (!value) return []
+
+  const match = value.match(/^([A-G](?:#|b)?)([^/]*)?(?:\/([A-G](?:#|b)?))?$/)
+  if (!match) return []
+
+  const [, root, suffix = '', bass = ''] = match
+  const rootIndex = NOTE_INDEX[root]
+  if (rootIndex === undefined) return []
+
+  const baseIntervals = inferIntervalsFromSuffix(suffix)
+  const inversionSteps =
+    inversion === 'first' ? 1 : inversion === 'second' ? 2 : inversion === 'third' ? 3 : 0
+
+  const reorderedIntervals = baseIntervals.map((_, idx) => baseIntervals[(idx + inversionSteps) % baseIntervals.length])
+
+  const notes = reorderedIntervals.map((interval) => (rootIndex + interval) % 12)
+
+  if (bass) {
+    const bassIndex = NOTE_INDEX[bass]
+    if (bassIndex !== undefined) {
+      notes.unshift(bassIndex)
+    }
+  }
+
+  return [...new Set(notes)]
+}
+
+function toInversionIndex(inversion) {
+  if (inversion === 'first') return 1
+  if (inversion === 'second') return 2
+  if (inversion === 'third') return 3
+  return 0
+}
+
+function rotateArray(list, steps) {
+  if (!Array.isArray(list) || list.length === 0 || !steps) return [...(list || [])]
+  const amount = ((steps % list.length) + list.length) % list.length
+  return list.slice(amount).concat(list.slice(0, amount))
+}
+
+export function getChordOrderedNoteNames(chord, inversion = '') {
+  const value = String(chord || '').trim()
+  if (!value) return []
+
+  const match = value.match(/^([A-G](?:#|b)?)([^/]*)?(?:\/([A-G](?:#|b)?))?$/)
+  if (!match) return []
+
+  const [, root, suffix = '', bass = ''] = match
+  const rootIndex = NOTE_INDEX[root]
+  if (rootIndex === undefined) return []
+
+  const preferFlat = value.includes('b')
+  const noteNames = preferFlat ? FLAT_NOTES : SHARP_NOTES
+  const baseIntervals = inferIntervalsFromSuffix(suffix)
+  const uniquePitchClasses = [...new Set(baseIntervals.map((interval) => (rootIndex + interval) % 12))]
+  let orderedPitchClasses = rotateArray(uniquePitchClasses, toInversionIndex(inversion))
+
+  if (bass) {
+    const bassIndex = NOTE_INDEX[bass]
+    if (bassIndex !== undefined) {
+      orderedPitchClasses = [bassIndex, ...orderedPitchClasses.filter((item) => item !== bassIndex)]
+    }
+  }
+
+  return orderedPitchClasses.map((pitchClass) => noteNames[pitchClass])
+}

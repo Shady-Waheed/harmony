@@ -636,6 +636,101 @@ body {
   display: inline-block;
 }
 
+.hymnSheet .chord.hasPreview {
+  position: relative;
+  cursor: help;
+}
+
+.chordPreviewPopup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 25;
+  min-width: 160px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--sheet-bg);
+  box-shadow: var(--shadow);
+  padding: 0.35rem 0.4rem 0.42rem;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.hymnSheet .chord.hasPreview:hover .chordPreviewPopup {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.chordPreviewTitle {
+  display: block;
+  margin-bottom: 0.1rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.chordPreviewMeta {
+  display: block;
+  margin-bottom: 0.28rem;
+  color: color-mix(in srgb, var(--primary) 68%, var(--sheet-text) 32%);
+  font-size: 0.68rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+.miniPiano {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  height: 60px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, #fff 20%);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f6f7fa;
+}
+
+.miniKey.white {
+  border-left: 1px solid #c8cbd6;
+  background: #ffffff;
+}
+
+.miniKey.white:first-child {
+  border-left: 0;
+}
+
+.miniKey.white.active {
+  background: color-mix(in srgb, var(--primary) 45%, #ffffff 55%);
+}
+
+.miniKey.black {
+  position: absolute;
+  top: 0;
+  width: 10%;
+  height: 62%;
+  background: #1f2433;
+  border: 1px solid #0f1422;
+  border-radius: 0 0 5px 5px;
+  transform: translateX(-50%);
+}
+
+.miniKey.black.active {
+  background: color-mix(in srgb, var(--primary) 72%, #111 28%);
+}
+
+.chordPreviewNotes {
+  display: block;
+  margin-top: 0.24rem;
+  text-align: center;
+  font-size: 0.67rem;
+  color: var(--sheet-text);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .hymnSheet .lyric {
   color: var(--lyric);
   font-size: clamp(1.02rem, 2.35vw + 0.35rem, 1.42rem);
