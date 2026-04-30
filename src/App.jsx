@@ -330,15 +330,6 @@ function AppShell() {
           <button className={`btn ${state.mode === 'view' ? 'primary' : ''}`} onClick={() => setMode('view')}>
             وضع العرض
           </button>
-          <button className="btn" onClick={toggleTheme}>
-            {isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
-          </button>
-          <button className="btn" onClick={() => transposeHymn(-1)}>
-            خفض نصف درجة
-          </button>
-          <button className="btn" onClick={() => transposeHymn(1)}>
-            رفع نصف درجة
-          </button>
           <button className="btn" onClick={onSaveProjectFile}>
             حفظ ملف المشروع
           </button>
@@ -395,6 +386,14 @@ function AppShell() {
               {deletingHymn ? 'جاري الحذف...' : 'حذف الترانيمة'}
             </button>
           </div>
+          <div className="row sidebarTransposeActions">
+            <button className="btn" onClick={() => transposeHymn(-1)} title="Transpose -1 semitone" aria-label="Transpose down">
+              -
+            </button>
+            <button className="btn" onClick={() => transposeHymn(1)} title="Transpose +1 semitone" aria-label="Transpose up">
+              +
+            </button>
+          </div>
 
           {!hasFirebaseConfig ? (
             <p className="sidebarHint">Firebase غير مهيأ. أضف متغيرات VITE_FIREBASE_* لعرض القائمة.</p>
@@ -436,6 +435,15 @@ function AppShell() {
 
       <button className="floatingResetBtn" onClick={onResetProject}>
         ابدأ من الأول
+      </button>
+
+      <button
+        className={`floatingThemeBtn ${isDark ? 'toLight' : 'toDark'}`}
+        onClick={toggleTheme}
+        title={isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
+        aria-label={isDark ? 'التحويل إلى الوضع النهاري' : 'التحويل إلى الوضع الليلي'}
+      >
+        {isDark ? '☀' : '✦'}
       </button>
 
       {notice ? <div className={`toastNotice ${notice.type}`}>{notice.message}</div> : null}

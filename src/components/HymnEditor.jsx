@@ -209,11 +209,11 @@ function HymnEditor() {
         />
       </div>
       <div className="row wrap transposeRow">
-        <button className="btn" onClick={() => transposeHymn(-1)}>
-          خفض نصف درجة
+        <button className="btn" onClick={() => transposeHymn(-1)} title="Transpose -1 semitone" aria-label="Transpose down">
+          -
         </button>
-        <button className="btn" onClick={() => transposeHymn(1)}>
-          رفع نصف درجة
+        <button className="btn" onClick={() => transposeHymn(1)} title="Transpose +1 semitone" aria-label="Transpose up">
+          +
         </button>
       </div>
 
