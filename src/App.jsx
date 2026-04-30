@@ -64,6 +64,26 @@ function isAdminUser(user) {
   return allowedEmails.includes(email) || allowedUids.includes(uid)
 }
 
+function canDeleteHymns(user) {
+  if (!user) return false
+  const allowedEmails = String(import.meta.env.VITE_DELETE_EMAILS || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+  const allowedUids = String(import.meta.env.VITE_DELETE_UIDS || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  if (allowedEmails.length === 0 && allowedUids.length === 0) {
+    return isAdminUser(user)
+  }
+
+  const email = String(user.email || '').toLowerCase()
+  const uid = String(user.uid || '')
+  return allowedEmails.includes(email) || allowedUids.includes(uid)
+}
+
 function AppShell() {
   const { state, setMode, toggleTheme, importProject, resetProject, loadHymn, createNewHymn } = useHymnStore()
   const [loadingExport, setLoadingExport] = useState(false)
@@ -81,6 +101,7 @@ function AppShell() {
 
   const isDark = state.theme === 'dark'
   const isAdmin = isAdminUser(currentUser)
+  const canDelete = canDeleteHymns(currentUser)
 
   const showNotice = (message, type = 'info') => {
     setNotice({ message, type })
@@ -195,8 +216,8 @@ function AppShell() {
   }
 
   const onDeleteHymnFromFirebase = async () => {
-    if (!isAdmin) {
-      showNotice('الوضع الحالي للقراءة فقط. سجّل دخول أدمن للتعديل.', 'error')
+    if (!canDelete) {
+      showNotice('ليس لديك صلاحية حذف الترانيم.', 'error')
       return
     }
     if (!db || !hasFirebaseConfig || !selectedHymnId) return
@@ -363,7 +384,7 @@ function AppShell() {
             <button
               className="btn danger"
               onClick={onDeleteHymnFromFirebase}
-              disabled={!hasFirebaseConfig || !selectedHymnId || deletingHymn || !isAdmin}
+              disabled={!hasFirebaseConfig || !selectedHymnId || deletingHymn || !canDelete}
             >
               {deletingHymn ? 'جاري الحذف...' : 'حذف الترانيمة'}
             </button>
