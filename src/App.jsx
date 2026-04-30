@@ -85,7 +85,7 @@ function canDeleteHymns(user) {
 }
 
 function AppShell() {
-  const { state, setMode, toggleTheme, importProject, resetProject, loadHymn, createNewHymn } = useHymnStore()
+  const { state, setMode, toggleTheme, importProject, resetProject, loadHymn, createNewHymn, transposeHymn } = useHymnStore()
   const [loadingExport, setLoadingExport] = useState(false)
   const [hymns, setHymns] = useState([])
   const [loadingHymns, setLoadingHymns] = useState(true)
@@ -332,6 +332,12 @@ function AppShell() {
           </button>
           <button className="btn" onClick={toggleTheme}>
             {isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
+          </button>
+          <button className="btn" onClick={() => transposeHymn(-1)}>
+            خفض نصف درجة
+          </button>
+          <button className="btn" onClick={() => transposeHymn(1)}>
+            رفع نصف درجة
           </button>
           <button className="btn" onClick={onSaveProjectFile}>
             حفظ ملف المشروع
