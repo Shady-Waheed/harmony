@@ -38,24 +38,35 @@ function loadImage(src) {
   })
 }
 
-function createExportClone(node) {
+function createExportClone(node, desktopWidth = 1140) {
   const wrapper = document.createElement('div')
   wrapper.style.position = 'fixed'
   wrapper.style.left = '-100000px'
   wrapper.style.top = '0'
   wrapper.style.pointerEvents = 'none'
   wrapper.style.opacity = '0'
+  wrapper.style.width = `${desktopWidth}px`
 
   const clone = node.cloneNode(true)
   clone.style.overflow = 'visible'
-  clone.style.width = `${node.scrollWidth}px`
+  clone.style.width = `${desktopWidth}px`
   clone.style.maxWidth = 'none'
   clone.style.height = 'auto'
+  clone.style.minWidth = `${desktopWidth}px`
 
   clone.querySelectorAll('.hymnSheet').forEach((sheet) => {
     sheet.style.overflow = 'visible'
-    sheet.style.width = `${node.scrollWidth}px`
+    sheet.style.width = `${desktopWidth}px`
     sheet.style.maxWidth = 'none'
+    sheet.style.minWidth = `${desktopWidth}px`
+  })
+
+  clone.querySelectorAll('.hymnSheet .chord').forEach((item) => {
+    item.style.fontSize = '1.05rem'
+  })
+
+  clone.querySelectorAll('.hymnSheet .lyric').forEach((item) => {
+    item.style.fontSize = '1.4rem'
   })
 
   wrapper.appendChild(clone)
@@ -103,14 +114,15 @@ async function appendLogoToDataUrl(dataUrl, logoUrl) {
 
 export async function exportNodeToPng(node, fileName = 'harmony-notes.png', dark = true, options = {}) {
   const htmlToImage = await loadHtmlToImage()
-  const { wrapper, clone } = createExportClone(node)
+  const desktopWidth = options.desktopWidth || 1140
+  const { wrapper, clone } = createExportClone(node, desktopWidth)
   let dataUrl = ''
   try {
     dataUrl = await htmlToImage.toPng(clone, {
       cacheBust: true,
       pixelRatio: 3,
       backgroundColor: dark ? '#0e1117' : '#ffffff',
-      width: clone.scrollWidth,
+      width: desktopWidth,
       height: clone.scrollHeight,
     })
   } finally {

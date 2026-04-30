@@ -221,6 +221,7 @@ function AppShell() {
       setLoadingExport(true)
       await exportNodeToPng(viewRef.current, `${state.hymn.title || 'harmony-notes'}.png`, isDark, {
         logoUrl: EXPORT_LOGO_URL,
+        desktopWidth: 1140,
       })
     } catch (error) {
       showNotice(`فشل التصدير: ${error.message}`, 'error')
