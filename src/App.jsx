@@ -324,9 +324,11 @@ function AppShell() {
         </div>
 
         <div className="row wrap">
-          <button className={`btn ${state.mode === 'edit' ? 'primary' : ''}`} onClick={() => setMode('edit')} disabled={!isAdmin}>
-            وضع التعديل
-          </button>
+          {isAdmin ? (
+            <button className={`btn ${state.mode === 'edit' ? 'primary' : ''}`} onClick={() => setMode('edit')}>
+              وضع التعديل
+            </button>
+          ) : null}
           <button className={`btn ${state.mode === 'view' ? 'primary' : ''}`} onClick={() => setMode('view')}>
             وضع العرض
           </button>
@@ -370,22 +372,26 @@ function AppShell() {
           </p>
           <div className="row between sidebarHeader">
             <h3>الترانيم المحفوظة</h3>
-            <button className="btn primary" onClick={onNewNote} disabled={!isAdmin}>
-              New Note
-            </button>
+            {isAdmin ? (
+              <button className="btn primary" onClick={onNewNote}>
+                New Note
+              </button>
+            ) : null}
           </div>
-          <div className="row wrap sidebarActions">
-            <button className="btn primary" onClick={onSaveHymnToFirebase} disabled={!hasFirebaseConfig || savingHymn || !isAdmin}>
-              {savingHymn ? 'جاري الحفظ...' : selectedHymnId ? 'تحديث' : 'حفظ'}
-            </button>
-            <button
-              className="btn danger"
-              onClick={onDeleteHymnFromFirebase}
-              disabled={!hasFirebaseConfig || !selectedHymnId || deletingHymn || !canDelete}
-            >
-              {deletingHymn ? 'جاري الحذف...' : 'حذف الترانيمة'}
-            </button>
-          </div>
+          {isAdmin || canDelete ? (
+            <div className="row wrap sidebarActions">
+              {isAdmin ? (
+                <button className="btn primary" onClick={onSaveHymnToFirebase} disabled={!hasFirebaseConfig || savingHymn}>
+                  {savingHymn ? 'جاري الحفظ...' : selectedHymnId ? 'تحديث' : 'حفظ'}
+                </button>
+              ) : null}
+              {canDelete ? (
+                <button className="btn danger" onClick={onDeleteHymnFromFirebase} disabled={!hasFirebaseConfig || !selectedHymnId || deletingHymn}>
+                  {deletingHymn ? 'جاري الحذف...' : 'حذف الترانيمة'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <div className="row sidebarTransposeActions">
             <button className="btn" onClick={() => transposeHymn(-1)} title="Transpose -1 semitone" aria-label="Transpose down">
               -
@@ -433,9 +439,11 @@ function AppShell() {
         </section>
       ) : null}
 
-      <button className="floatingResetBtn" onClick={onResetProject}>
-        ابدأ من الأول
-      </button>
+      {isAdmin ? (
+        <button className="floatingResetBtn" onClick={onResetProject}>
+          ابدأ من الأول
+        </button>
+      ) : null}
 
       <button
         className={`floatingThemeBtn ${isDark ? 'toLight' : 'toDark'}`}

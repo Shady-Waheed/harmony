@@ -865,10 +865,14 @@ body {
 
   .topBar .row.wrap {
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
   }
 
   .topBar .row.wrap .btn {
-    flex: 1 1 calc(50% - 0.25rem);
+    width: 100%;
+    min-width: 0;
   }
 
   .metaGrid {
@@ -899,6 +903,17 @@ body {
   .hymnSheet .lyric {
     font-size: clamp(0.96rem, 2.1vw + 0.3rem, 1.22rem);
   }
+
+  .sidebarActions .btn,
+  .sidebarTransposeActions .btn {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 0;
+  }
+
+  .toastNotice {
+    right: 10px;
+    bottom: 62px;
+  }
 }
 
 @media (max-width: 576px) {
@@ -915,8 +930,11 @@ body {
   }
 
   .topBar .row.wrap .btn {
-    flex: 1 1 100%;
     width: 100%;
+  }
+
+  .topBar .row.wrap {
+    grid-template-columns: 1fr;
   }
 
   .transposeRow .btn {
@@ -976,6 +994,12 @@ body {
     bottom: 10px;
     width: 44px;
     height: 44px;
+  }
+
+  .sidebarActions .btn,
+  .sidebarTransposeActions .btn {
+    flex: 1 1 100%;
+    width: 100%;
   }
 }
 
