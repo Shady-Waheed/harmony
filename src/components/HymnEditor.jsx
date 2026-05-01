@@ -5,6 +5,13 @@ import { ROOT_NOTES, formatChordLabel } from '../utils/chords'
 
 const EMPTY_BASS = '__no_bass__'
 const EMPTY_INVERSION = '__no_inversion__'
+
+const CUSTOM_INVERSION_OPTIONS = [
+  { id: EMPTY_INVERSION, label: 'Root / بدون انقلاب' },
+  { id: 'first', label: '1st Inversion' },
+  { id: 'second', label: '2nd Inversion' },
+  { id: 'third', label: '3rd Inversion' },
+]
 const CHORD_TYPES = ['', 'm', '7', 'm7', 'maj7', 'sus4', 'dim', 'aug']
 const SHARP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const FLAT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
@@ -102,9 +109,22 @@ function ChordPicker({ value, inversion, onChange, onInversionChange, compact = 
   const inversionValue = inversionOptions.some((option) => option.id === inversion) ? inversion : EMPTY_INVERSION
 
   if (parts.custom) {
+    const customInversionValue = ['first', 'second', 'third'].includes(inversion) ? inversion : EMPTY_INVERSION
     return (
-      <div className="chordBuilder">
+      <div className="chordBuilder chordBuilderCustom">
         <input className="input chordInput chordCustomInput" value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder="اكتب الكورد" />
+        <select
+          className="input chordInput chordSelect"
+          value={customInversionValue}
+          onChange={(e) => onInversionChange(e.target.value === EMPTY_INVERSION ? '' : e.target.value)}
+          aria-label="انقلاب الكورد"
+        >
+          {CUSTOM_INVERSION_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
         <button className="btn chordModeBtn" onClick={() => onChange('')} type="button">
           رجوع للتقسيم
         </button>

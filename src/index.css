@@ -121,6 +121,28 @@ body {
   font-size: 1rem;
 }
 
+.hymnSearchWrap {
+  margin-bottom: 0.65rem;
+}
+
+.hymnSearchInput {
+  width: 100%;
+  min-height: 40px;
+  font-size: 0.95rem;
+  margin-bottom: 0.35rem;
+}
+
+.hymnSearchInput:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.hymnSearchMeta {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .roleBadge {
   margin: 0 0 0.5rem;
   border: 1px solid var(--border);
@@ -502,6 +524,10 @@ body {
   margin-top: 0.28rem;
 }
 
+.chordBuilderCustom .chordCustomInput {
+  margin-top: 0;
+}
+
 .chordBuilder {
   display: flex;
   flex-direction: column;
@@ -696,12 +722,15 @@ body {
   visibility: hidden;
   pointer-events: none;
   z-index: 25;
-  min-width: 160px;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 1.25rem));
+  min-width: min(260px, calc(100vw - 1.25rem));
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--sheet-bg);
   box-shadow: var(--shadow);
-  padding: 0.35rem 0.4rem 0.42rem;
+  padding: 0.4rem 0.5rem 0.55rem;
   transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
@@ -729,22 +758,31 @@ body {
 }
 
 .miniPiano {
+  --mini-white-count: 7;
   position: relative;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   direction: ltr;
   unicode-bidi: isolate;
-  height: 60px;
+  width: 100%;
+  max-width: min(320px, 100%);
+  margin-inline: auto;
+  height: clamp(5rem, 3.5rem + 3.5vw, 6rem);
+  min-height: 5rem;
   border: 1px solid color-mix(in srgb, var(--border) 80%, #fff 20%);
   border-radius: 8px;
   overflow: hidden;
   background: #f6f7fa;
+  box-sizing: border-box;
 }
 
 .miniKey.white {
   border-left: 1px solid #c8cbd6;
   background: #ffffff;
   position: relative;
+  min-height: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
 }
 
 .miniKey.white:first-child {
@@ -763,32 +801,41 @@ body {
 .miniKey.black {
   position: absolute;
   top: 0;
-  width: 10%;
-  height: 62%;
+  z-index: 2;
+  width: calc(100% / var(--mini-white-count) * 0.58);
+  min-width: 4px;
+  height: 64%;
   background: #1f2433;
   border: 1px solid #0f1422;
-  border-radius: 0 0 5px 5px;
+  border-radius: 0 0 4px 4px;
+  box-sizing: border-box;
   transform: translateX(-50%);
 }
 
 .miniKeyOrder {
   position: absolute;
-  bottom: 3px;
+  bottom: 6px;
   left: 50%;
   transform: translateX(-50%);
-  min-width: 12px;
-  height: 12px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 2px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--sheet-bg) 72%, #fff 28%);
   color: var(--sheet-text);
-  font-size: 0.55rem;
-  line-height: 12px;
+  font-size: 0.58rem;
+  line-height: 14px;
   text-align: center;
   font-weight: 700;
+  box-sizing: border-box;
 }
 
 .miniKey.black .miniKeyOrder {
-  bottom: 2px;
+  bottom: 5px;
+  min-width: 13px;
+  height: 13px;
+  line-height: 13px;
+  font-size: 0.52rem;
   background: color-mix(in srgb, #fff 28%, #1f2433 72%);
   color: #10131f;
 }
@@ -804,7 +851,8 @@ body {
 
 .chordPreviewNotes {
   display: block;
-  margin-top: 0.24rem;
+  margin-top: 0.35rem;
+  padding-bottom: 0.06rem;
   text-align: center;
   font-size: 0.67rem;
   color: var(--sheet-text);
@@ -914,6 +962,65 @@ body {
     right: 10px;
     bottom: 62px;
   }
+
+  /* معاينة الكورد: ثابتة أعلى الشاشة وموسّطة أفقياً — تفادي القص عند حافة اليمين أو أسفل الشاشة */
+  .chordPreviewPopup {
+    position: fixed;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: max(0.5rem, env(safe-area-inset-top, 0px));
+    z-index: 100;
+    width: min(300px, calc(100vw - 1.1rem));
+    max-width: calc(100vw - 1.1rem);
+    min-width: min(240px, calc(100vw - 1.1rem));
+    transform: translateX(-50%) translateY(-8px);
+    padding: 0.36rem 0.45rem 0.48rem;
+  }
+
+  .hymnSheet .chord.hasPreview:hover .chordPreviewPopup {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .chordPreviewTitle {
+    font-size: 0.7rem;
+  }
+
+  .chordPreviewMeta {
+    font-size: 0.64rem;
+    margin-bottom: 0.22rem;
+  }
+
+  .miniPiano {
+    max-width: 100%;
+    min-height: 4.4rem;
+    height: clamp(4.4rem, 3rem + 2.5vw, 5.35rem);
+  }
+
+  .miniKey.black {
+    height: 62%;
+  }
+
+  .miniKeyOrder {
+    min-width: 12px;
+    height: 12px;
+    line-height: 12px;
+    font-size: 0.52rem;
+    bottom: 5px;
+  }
+
+  .miniKey.black .miniKeyOrder {
+    min-width: 11px;
+    height: 11px;
+    line-height: 11px;
+    font-size: 0.48rem;
+    bottom: 4px;
+  }
+
+  .chordPreviewNotes {
+    font-size: 0.64rem;
+    margin-top: 0.28rem;
+  }
 }
 
 @media (max-width: 576px) {
@@ -1001,6 +1108,55 @@ body {
     flex: 1 1 100%;
     width: 100%;
   }
+
+  .chordPreviewPopup {
+    max-width: calc(100vw - 0.9rem);
+    min-width: 0;
+    width: min(280px, calc(100vw - 0.9rem));
+    padding: 0.32rem 0.38rem 0.42rem;
+    border-radius: 9px;
+  }
+
+  .chordPreviewTitle {
+    font-size: 0.67rem;
+  }
+
+  .chordPreviewMeta {
+    font-size: 0.6rem;
+    margin-bottom: 0.18rem;
+  }
+
+  .miniPiano {
+    min-height: 4.1rem;
+    height: clamp(4.1rem, 2.75rem + 2.2vw, 4.9rem);
+    border-radius: 7px;
+  }
+
+  .miniKey.black {
+    height: 60%;
+    border-radius: 0 0 3px 3px;
+  }
+
+  .miniKeyOrder {
+    min-width: 11px;
+    height: 11px;
+    line-height: 11px;
+    font-size: 0.5rem;
+    bottom: 4px;
+  }
+
+  .miniKey.black .miniKeyOrder {
+    min-width: 10px;
+    height: 10px;
+    line-height: 10px;
+    font-size: 0.46rem;
+    bottom: 3px;
+  }
+
+  .chordPreviewNotes {
+    font-size: 0.62rem;
+    margin-top: 0.26rem;
+  }
 }
 
 @media (max-width: 390px) {
@@ -1022,6 +1178,21 @@ body {
 
   .miniAddBtn {
     font-size: 0.7rem;
+  }
+
+  .chordPreviewPopup {
+    max-width: calc(100vw - 0.65rem);
+    width: calc(100vw - 0.65rem);
+    padding: 0.3rem 0.34rem 0.38rem;
+  }
+
+  .miniPiano {
+    min-height: 3.85rem;
+    height: clamp(3.85rem, 2.5rem + 2vw, 4.5rem);
+  }
+
+  .chordPreviewNotes {
+    font-size: 0.6rem;
   }
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import HymnEditor from './components/HymnEditor'
 import HymnView from './components/HymnView'
 import { HymnProvider, useHymnStore } from './store/hymnStore.jsx'
@@ -64,6 +64,23 @@ function isAdminUser(user) {
   return allowedEmails.includes(email) || allowedUids.includes(uid)
 }
 
+function normalizeHymnSearchText(value) {
+  return String(value || '')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[إأآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+}
+
+function hymnTitleMatches(title, query) {
+  const q = normalizeHymnSearchText(query)
+  if (!q) return true
+  return normalizeHymnSearchText(title).includes(q)
+}
+
 function canDeleteHymns(user) {
   if (!user) return false
   const allowedEmails = String(import.meta.env.VITE_DELETE_EMAILS || '')
@@ -93,6 +110,7 @@ function AppShell() {
   const [savingHymn, setSavingHymn] = useState(false)
   const [deletingHymn, setDeletingHymn] = useState(false)
   const [notice, setNotice] = useState(null)
+  const [hymnSearchQuery, setHymnSearchQuery] = useState('')
   const [currentUser, setCurrentUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const viewRef = useRef(null)
@@ -102,6 +120,11 @@ function AppShell() {
   const isDark = state.theme === 'dark'
   const isAdmin = isAdminUser(currentUser)
   const canDelete = canDeleteHymns(currentUser)
+
+  const filteredHymns = useMemo(
+    () => hymns.filter((item) => hymnTitleMatches(item.title, hymnSearchQuery)),
+    [hymns, hymnSearchQuery],
+  )
 
   const showNotice = (message, type = 'info') => {
     setNotice({ message, type })
@@ -378,6 +401,31 @@ function AppShell() {
               </button>
             ) : null}
           </div>
+
+          {hasFirebaseConfig ? (
+            <div className="hymnSearchWrap">
+              <input
+                id="hymn-search"
+                type="search"
+                className="input hymnSearchInput"
+                placeholder="بحث باسم الترنيمة…"
+                value={hymnSearchQuery}
+                onChange={(e) => setHymnSearchQuery(e.target.value)}
+                disabled={loadingHymns}
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="بحث باسم الترنيمة"
+              />
+              {!loadingHymns && hymns.length > 0 ? (
+                <p className="hymnSearchMeta" aria-live="polite">
+                  {filteredHymns.length === hymns.length
+                    ? `${hymns.length} ترنيمة`
+                    : `${filteredHymns.length} من ${hymns.length}`}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           {isAdmin || canDelete ? (
             <div className="row wrap sidebarActions">
               {isAdmin ? (
@@ -411,9 +459,13 @@ function AppShell() {
             <p className="sidebarHint">لا توجد ترانيم محفوظة حاليًا.</p>
           ) : null}
 
-          {hasFirebaseConfig && !loadingHymns && hymns.length > 0 ? (
+          {hasFirebaseConfig && !loadingHymns && hymns.length > 0 && filteredHymns.length === 0 ? (
+            <p className="sidebarHint">لا توجد ترانيم تطابق «{hymnSearchQuery.trim() || '…'}». جرّب حروف أقل أو امسح البحث.</p>
+          ) : null}
+
+          {hasFirebaseConfig && !loadingHymns && filteredHymns.length > 0 ? (
             <ul className="hymnList">
-              {hymns.map((hymnItem) => (
+              {filteredHymns.map((hymnItem) => (
                 <li key={hymnItem.id}>
                   <button
                     className={`hymnListItem ${selectedHymnId === hymnItem.id ? 'active' : ''}`}

@@ -3,68 +3,94 @@ import { useHymnStore } from '../store/hymnStore.jsx'
 import { buildDisplayCells } from '../utils/lineChords'
 import {
   formatChordLabel,
-  getChordBassNoteIndex,
   getChordEffectiveInversion,
-  getChordNoteIndexes,
   getChordOrderedNoteNames,
   getChordVoicingKeyIndexes,
 } from '../utils/chords'
 
-const WHITE_KEYS = [
-  { note: 'C', index: 0 },
-  { note: 'D', index: 2 },
-  { note: 'E', index: 4 },
-  { note: 'F', index: 5 },
-  { note: 'G', index: 7 },
-  { note: 'A', index: 9 },
-  { note: 'B', index: 11 },
+const WHITE_KEY_STEPS = [
+  { rel: 0, note: 'C' },
+  { rel: 2, note: 'D' },
+  { rel: 4, note: 'E' },
+  { rel: 5, note: 'F' },
+  { rel: 7, note: 'G' },
+  { rel: 9, note: 'A' },
+  { rel: 11, note: 'B' },
 ]
 
-const BLACK_KEYS = [
-  { note: 'C#', index: 1, left: 11.5 },
-  { note: 'D#', index: 3, left: 25.7 },
-  { note: 'F#', index: 6, left: 54.2 },
-  { note: 'G#', index: 8, left: 68.4 },
-  { note: 'A#', index: 10, left: 82.6 },
+const BLACK_KEY_STEPS = [
+  { rel: 1, note: 'C#', left: 11.5 },
+  { rel: 3, note: 'D#', left: 25.7 },
+  { rel: 6, note: 'F#', left: 54.2 },
+  { rel: 8, note: 'G#', left: 68.4 },
+  { rel: 10, note: 'A#', left: 82.6 },
 ]
+
+function buildMiniKeyboardKeys(baseC, nOctaves) {
+  const whites = []
+  const blacks = []
+  for (let o = 0; o < nOctaves; o += 1) {
+    const octaveBase = baseC + o * 12
+    for (const { rel, note } of WHITE_KEY_STEPS) {
+      const abs = octaveBase + rel
+      whites.push({ abs, note, key: `w-${abs}` })
+    }
+    for (const { rel, note, left } of BLACK_KEY_STEPS) {
+      const abs = octaveBase + rel
+      blacks.push({ abs, note, left, o, key: `b-${abs}` })
+    }
+  }
+  return { whites, blacks }
+}
 
 function ChordPianoPreview({ chord, inversion }) {
-  const activeNotes = new Set(getChordNoteIndexes(chord, inversion))
-  const bassNoteIndex = getChordBassNoteIndex(chord, inversion)
   const voicingIndexes = getChordVoicingKeyIndexes(chord, inversion)
   const orderedNoteNames = getChordOrderedNoteNames(chord, inversion)
   const effectiveInversion = getChordEffectiveInversion(chord, inversion)
-  if (activeNotes.size === 0) return null
-  const orderByPitchClass = new Map()
-  voicingIndexes.forEach((absoluteIndex, idx) => {
-    const pitchClass = ((absoluteIndex % 12) + 12) % 12
-    if (!orderByPitchClass.has(pitchClass)) {
-      orderByPitchClass.set(pitchClass, idx + 1)
-    }
-  })
+  if (voicingIndexes.length === 0) return null
+
+  const minV = Math.min(...voicingIndexes)
+  const maxV = Math.max(...voicingIndexes)
+  const baseC = Math.floor(minV / 12) * 12
+  const nOctaves = Math.max(2, Math.ceil((maxV + 1 - baseC) / 12))
+  const { whites, blacks } = buildMiniKeyboardKeys(baseC, nOctaves)
+
+  const activeAbs = new Set(voicingIndexes)
+  const bassAbs = voicingIndexes[0]
+  const orderByAbs = new Map(voicingIndexes.map((abs, idx) => [abs, idx + 1]))
+
   const inversionLabel =
     effectiveInversion === 'first' ? '1st' : effectiveInversion === 'second' ? '2nd' : effectiveInversion === 'third' ? '3rd' : 'Root'
+
+  const octaveWidthPct = 100 / nOctaves
 
   return (
     <span className="chordPreviewPopup" role="tooltip" aria-hidden="true">
       <span className="chordPreviewTitle">{formatChordLabel(chord, inversion)}</span>
       <span className="chordPreviewMeta">{inversionLabel}</span>
-      <span className="miniPiano" aria-hidden="true">
-        {WHITE_KEYS.map((key) => (
+      <span
+        className="miniPiano"
+        aria-hidden="true"
+        style={{
+          gridTemplateColumns: `repeat(${whites.length}, minmax(0, 1fr))`,
+          '--mini-white-count': whites.length,
+        }}
+      >
+        {whites.map((key) => (
           <span
-            key={key.note}
-            className={`miniKey white ${activeNotes.has(key.index) ? 'active' : ''} ${bassNoteIndex === key.index ? 'bass' : ''}`}
+            key={key.key}
+            className={`miniKey white ${activeAbs.has(key.abs) ? 'active' : ''} ${bassAbs === key.abs ? 'bass' : ''}`}
           >
-            {orderByPitchClass.has(key.index) ? <span className="miniKeyOrder">{orderByPitchClass.get(key.index)}</span> : null}
+            {orderByAbs.has(key.abs) ? <span className="miniKeyOrder">{orderByAbs.get(key.abs)}</span> : null}
           </span>
         ))}
-        {BLACK_KEYS.map((key) => (
+        {blacks.map((key) => (
           <span
-            key={key.note}
-            className={`miniKey black ${activeNotes.has(key.index) ? 'active' : ''} ${bassNoteIndex === key.index ? 'bass' : ''}`}
-            style={{ left: `${key.left}%` }}
+            key={key.key}
+            className={`miniKey black ${activeAbs.has(key.abs) ? 'active' : ''} ${bassAbs === key.abs ? 'bass' : ''}`}
+            style={{ left: `${octaveWidthPct * (key.o + key.left / 100)}%` }}
           >
-            {orderByPitchClass.has(key.index) ? <span className="miniKeyOrder">{orderByPitchClass.get(key.index)}</span> : null}
+            {orderByAbs.has(key.abs) ? <span className="miniKeyOrder">{orderByAbs.get(key.abs)}</span> : null}
           </span>
         ))}
       </span>
