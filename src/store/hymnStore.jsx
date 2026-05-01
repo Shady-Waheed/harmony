@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeLineStructure } from '../utils/lineChords'
 import { transposeChord } from '../utils/chords'
 
@@ -41,16 +41,20 @@ function normalizeHymn(hymn) {
 }
 
 function normalizeProject(project) {
+  const hymn = normalizeHymn(project?.hymn || defaultHymn)
   return {
-    hymn: normalizeHymn(project?.hymn || defaultHymn),
+    hymn,
+    committedHymn: hymn,
     mode: project?.mode === 'view' ? 'view' : 'edit',
     theme: project?.theme === 'light' ? 'light' : 'dark',
   }
 }
 
 function createFreshState(theme = 'dark') {
+  const hymn = normalizeHymn(defaultHymn)
   return {
-    hymn: normalizeHymn(defaultHymn),
+    hymn,
+    committedHymn: hymn,
     mode: 'edit',
     theme: theme === 'light' ? 'light' : 'dark',
   }
@@ -75,47 +79,79 @@ function loadInitial() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) {
-      return {
-        hymn: normalizeHymn(defaultHymn),
-        mode: 'edit',
-        theme: 'dark',
-      }
+      return createFreshState('dark')
     }
     const parsed = JSON.parse(raw)
     return normalizeProject(parsed)
   } catch {
-    return {
-      hymn: normalizeHymn(defaultHymn),
-      mode: 'edit',
-      theme: 'dark',
-    }
+    return createFreshState('dark')
+  }
+}
+
+function transposeHymnShape(hymn, steps) {
+  if (!steps) return hymn
+  return {
+    ...hymn,
+    key: transposeChord(hymn.key || '', steps),
+    sections: hymn.sections.map((section) => ({
+      ...section,
+      lines: section.lines.map((line) => {
+        const normalized = normalizeLineStructure(line)
+        return {
+          ...normalized,
+          wordChords: normalized.wordChords.map((chord) => transposeChord(chord || '', steps)),
+          gapChords: normalized.gapChords.map((group) => group.map((chord) => transposeChord(chord || '', steps))),
+        }
+      }),
+    })),
   }
 }
 
 export function HymnProvider({ children }) {
+  const persistFullHymnRef = useRef(true)
   const [state, setState] = useState(loadInitial)
+  const [persistRevision, setPersistRevision] = useState(0)
+
+  const setPersistFullHymn = useCallback((value) => {
+    persistFullHymnRef.current = Boolean(value)
+    setPersistRevision((r) => r + 1)
+  }, [])
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  }, [state])
+    const persistFull = persistFullHymnRef.current
+    const hymnToStore = persistFull ? state.hymn : state.committedHymn
+    const payload = {
+      hymn: hymnToStore,
+      mode: persistFull ? state.mode : 'view',
+      theme: state.theme,
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+  }, [state, persistRevision])
 
   const actions = useMemo(() => {
+    const withCommitted = (prev, nextHymn) => ({
+      ...prev,
+      hymn: nextHymn,
+      committedHymn: persistFullHymnRef.current ? nextHymn : prev.committedHymn,
+    })
+
     const updateHymn = (patch) => {
-      setState((prev) => ({ ...prev, hymn: { ...prev.hymn, ...patch } }))
+      setState((prev) => withCommitted(prev, { ...prev.hymn, ...patch }))
     }
 
     const loadHymn = (hymn) => {
-      setState((prev) => ({ ...prev, hymn: normalizeHymn(hymn), mode: 'edit' }))
+      const normalized = normalizeHymn(hymn)
+      setState((prev) => ({ ...prev, hymn: normalized, committedHymn: normalized, mode: 'edit' }))
     }
 
     const createNewHymn = () => {
-      setState((prev) => ({ ...prev, hymn: createEmptyHymn(), mode: 'edit' }))
+      const empty = createEmptyHymn()
+      setState((prev) => ({ ...prev, hymn: empty, committedHymn: empty, mode: 'edit' }))
     }
 
     const addSection = () => {
-      setState((prev) => ({
-        ...prev,
-        hymn: {
+      setState((prev) =>
+        withCommitted(prev, {
           ...prev.hymn,
           sections: [
             ...prev.hymn.sections,
@@ -125,34 +161,31 @@ export function HymnProvider({ children }) {
               lines: [normalizeLineStructure({ id: uid('line'), lyrics: '', wordChords: [], gapChords: [] })],
             },
           ],
-        },
-      }))
+        }),
+      )
     }
 
     const removeSection = (sectionId) => {
-      setState((prev) => ({
-        ...prev,
-        hymn: {
+      setState((prev) =>
+        withCommitted(prev, {
           ...prev.hymn,
           sections: prev.hymn.sections.filter((sec) => sec.id !== sectionId),
-        },
-      }))
+        }),
+      )
     }
 
     const updateSectionTitle = (sectionId, title) => {
-      setState((prev) => ({
-        ...prev,
-        hymn: {
+      setState((prev) =>
+        withCommitted(prev, {
           ...prev.hymn,
           sections: prev.hymn.sections.map((sec) => (sec.id === sectionId ? { ...sec, title } : sec)),
-        },
-      }))
+        }),
+      )
     }
 
     const addLine = (sectionId) => {
-      setState((prev) => ({
-        ...prev,
-        hymn: {
+      setState((prev) =>
+        withCommitted(prev, {
           ...prev.hymn,
           sections: prev.hymn.sections.map((sec) => {
             if (sec.id !== sectionId) return sec
@@ -161,14 +194,13 @@ export function HymnProvider({ children }) {
               lines: [...sec.lines, normalizeLineStructure({ id: uid('line'), lyrics: '', wordChords: [], gapChords: [] })],
             }
           }),
-        },
-      }))
+        }),
+      )
     }
 
     const removeLine = (sectionId, lineId) => {
-      setState((prev) => ({
-        ...prev,
-        hymn: {
+      setState((prev) =>
+        withCommitted(prev, {
           ...prev.hymn,
           sections: prev.hymn.sections.map((sec) => {
             if (sec.id !== sectionId) return sec
@@ -177,14 +209,13 @@ export function HymnProvider({ children }) {
               lines: sec.lines.filter((line) => line.id !== lineId),
             }
           }),
-        },
-      }))
+        }),
+      )
     }
 
     const updateLine = (sectionId, lineId, patch) => {
-      setState((prev) => ({
-        ...prev,
-        hymn: {
+      setState((prev) =>
+        withCommitted(prev, {
           ...prev.hymn,
           sections: prev.hymn.sections.map((sec) => {
             if (sec.id !== sectionId) return sec
@@ -196,33 +227,21 @@ export function HymnProvider({ children }) {
               }),
             }
           }),
-        },
-      }))
+        }),
+      )
     }
 
     const transposeHymn = (steps) => {
       if (!steps) return
 
-      setState((prev) => ({
-        ...prev,
-        hymn: {
-          ...prev.hymn,
-          key: transposeChord(prev.hymn.key || '', steps),
-          sections: prev.hymn.sections.map((section) => ({
-            ...section,
-            lines: section.lines.map((line) => {
-              const normalized = normalizeLineStructure(line)
-              return {
-                ...normalized,
-                wordChords: normalized.wordChords.map((chord) => transposeChord(chord || '', steps)),
-                gapChords: normalized.gapChords.map((group) =>
-                  group.map((chord) => transposeChord(chord || '', steps)),
-                ),
-              }
-            }),
-          })),
-        },
-      }))
+      setState((prev) => {
+        const nextHymn = transposeHymnShape(prev.hymn, steps)
+        return {
+          ...prev,
+          hymn: nextHymn,
+          committedHymn: persistFullHymnRef.current ? nextHymn : prev.committedHymn,
+        }
+      })
     }
 
     const setMode = (mode) => setState((prev) => ({ ...prev, mode }))
@@ -233,11 +252,11 @@ export function HymnProvider({ children }) {
       }))
 
     const importProject = (project) => {
-      setState(normalizeProject(project))
+      setState((prev) => ({ ...prev, ...normalizeProject(project) }))
     }
 
     const resetProject = () => {
-      setState((prev) => createFreshState(prev.theme))
+      setState((prev) => ({ ...prev, ...createFreshState(prev.theme) }))
     }
 
     return {
@@ -255,6 +274,7 @@ export function HymnProvider({ children }) {
       toggleTheme,
       importProject,
       resetProject,
+      setPersistFullHymn,
     }
   }, [])
 

@@ -102,7 +102,8 @@ function canDeleteHymns(user) {
 }
 
 function AppShell() {
-  const { state, setMode, toggleTheme, importProject, resetProject, loadHymn, createNewHymn, transposeHymn } = useHymnStore()
+  const { state, setMode, toggleTheme, importProject, resetProject, loadHymn, createNewHymn, transposeHymn, setPersistFullHymn } =
+    useHymnStore()
   const [loadingExport, setLoadingExport] = useState(false)
   const [hymns, setHymns] = useState([])
   const [loadingHymns, setLoadingHymns] = useState(true)
@@ -176,6 +177,10 @@ function AppShell() {
       setMode('view')
     }
   }, [isAdmin, setMode, state.mode])
+
+  useEffect(() => {
+    setPersistFullHymn(isAdmin)
+  }, [isAdmin, setPersistFullHymn])
 
   useEffect(() => {
     return () => window.clearTimeout(noticeTimeoutRef.current)
