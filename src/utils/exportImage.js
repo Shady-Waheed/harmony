@@ -38,7 +38,7 @@ function loadImage(src) {
   })
 }
 
-function createExportClone(node, desktopWidth = 1140) {
+function createExportClone(node, desktopWidth = 1140, dark = true) {
   const wrapper = document.createElement('div')
   wrapper.style.position = 'fixed'
   wrapper.style.left = '-100000px'
@@ -46,6 +46,18 @@ function createExportClone(node, desktopWidth = 1140) {
   wrapper.style.pointerEvents = 'none'
   wrapper.style.opacity = '0'
   wrapper.style.width = `${desktopWidth}px`
+
+  // النسخة تُلحق بـ body خارج `.app.light` / `.app.dark` فـ `var(--sheet-text)` و `--lyric`
+  // تفضّل قيم الداكن (نص فاتح) مع خلفية تصدير بيضاء. لفّ الشجرة بنفس ثيم التصدير.
+  const themeRoot = document.createElement('div')
+  themeRoot.className = dark ? 'app dark' : 'app light'
+  themeRoot.lang = 'ar'
+  themeRoot.setAttribute('dir', 'rtl')
+  themeRoot.style.width = `${desktopWidth}px`
+  themeRoot.style.minHeight = '0'
+  themeRoot.style.padding = '0'
+  themeRoot.style.margin = '0'
+  themeRoot.style.background = 'transparent'
 
   const clone = node.cloneNode(true)
   clone.style.overflow = 'visible'
@@ -69,9 +81,10 @@ function createExportClone(node, desktopWidth = 1140) {
     item.style.fontSize = '1.4rem'
   })
 
-  wrapper.appendChild(clone)
+  themeRoot.appendChild(clone)
+  wrapper.appendChild(themeRoot)
   document.body.appendChild(wrapper)
-  return { wrapper, clone }
+  return { wrapper, rootForCapture: themeRoot }
 }
 
 async function appendLogoToDataUrl(dataUrl, logoUrl) {
@@ -115,15 +128,15 @@ async function appendLogoToDataUrl(dataUrl, logoUrl) {
 export async function exportNodeToPng(node, fileName = 'harmony-notes.png', dark = true, options = {}) {
   const htmlToImage = await loadHtmlToImage()
   const desktopWidth = options.desktopWidth || 1140
-  const { wrapper, clone } = createExportClone(node, desktopWidth)
+  const { wrapper, rootForCapture } = createExportClone(node, desktopWidth, dark)
   let dataUrl = ''
   try {
-    dataUrl = await htmlToImage.toPng(clone, {
+    dataUrl = await htmlToImage.toPng(rootForCapture, {
       cacheBust: true,
       pixelRatio: 3,
       backgroundColor: dark ? '#0e1117' : '#ffffff',
       width: desktopWidth,
-      height: clone.scrollHeight,
+      height: rootForCapture.scrollHeight,
     })
   } finally {
     wrapper.remove()
