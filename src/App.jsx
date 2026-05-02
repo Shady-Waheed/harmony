@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import AdminDashboard from './components/AdminDashboard'
 import HymnEditor from './components/HymnEditor'
 import HymnView from './components/HymnView'
 import { HymnProvider, useHymnStore } from './store/hymnStore.jsx'
@@ -6,6 +7,7 @@ import { exportNodeToPng } from './utils/exportImage'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider, hasFirebaseConfig } from './firebase'
+import { isSuperAdminUser, resolvePermissions, SETTINGS_TEAM_DOC } from './utils/permissions'
 import {
   downloadProjectFile,
   parseProjectFileContent,
@@ -48,22 +50,6 @@ function decodeSectionsFromFirestore(sections = []) {
   }))
 }
 
-function isAdminUser(user) {
-  if (!user) return false
-  const allowedEmails = String(import.meta.env.VITE_ADMIN_EMAILS || '')
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean)
-  const allowedUids = String(import.meta.env.VITE_ADMIN_UIDS || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-
-  const email = String(user.email || '').toLowerCase()
-  const uid = String(user.uid || '')
-  return allowedEmails.includes(email) || allowedUids.includes(uid)
-}
-
 function normalizeHymnSearchText(value) {
   return String(value || '')
     .replace(/[\u064B-\u065F\u0670]/g, '')
@@ -79,48 +65,6 @@ function hymnTitleMatches(title, query) {
   const q = normalizeHymnSearchText(query)
   if (!q) return true
   return normalizeHymnSearchText(title).includes(q)
-}
-
-function canDeleteHymns(user) {
-  if (!user) return false
-  const allowedEmails = String(import.meta.env.VITE_DELETE_EMAILS || '')
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean)
-  const allowedUids = String(import.meta.env.VITE_DELETE_UIDS || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-
-  if (allowedEmails.length === 0 && allowedUids.length === 0) {
-    return isAdminUser(user)
-  }
-
-  const email = String(user.email || '').toLowerCase()
-  const uid = String(user.uid || '')
-  return allowedEmails.includes(email) || allowedUids.includes(uid)
-}
-
-/** حفظ/تحديث على Firebase: افتراضياً كل الأدمن؛ أو قيّم VITE_SAVE_EMAILS / VITE_SAVE_UIDS */
-function canSaveHymnsToFirebase(user) {
-  if (!user) return false
-  const allowedEmails = String(import.meta.env.VITE_SAVE_EMAILS || '')
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean)
-  const allowedUids = String(import.meta.env.VITE_SAVE_UIDS || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-
-  const email = String(user.email || '').toLowerCase()
-  const uid = String(user.uid || '')
-
-  if (allowedEmails.length === 0 && allowedUids.length === 0) {
-    return isAdminUser(user)
-  }
-
-  return allowedEmails.includes(email) || allowedUids.includes(uid)
 }
 
 function AppShell() {
@@ -140,10 +84,16 @@ function AppShell() {
   const projectFileInputRef = useRef(null)
   const noticeTimeoutRef = useRef(null)
 
+  const [teamData, setTeamData] = useState(null)
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false)
+  const [savingTeam, setSavingTeam] = useState(false)
+
   const isDark = state.theme === 'dark'
-  const isAdmin = isAdminUser(currentUser)
-  const canDelete = canDeleteHymns(currentUser)
-  const canSaveFirebase = canSaveHymnsToFirebase(currentUser)
+  const perms = useMemo(() => resolvePermissions(currentUser, teamData || {}), [currentUser, teamData])
+  const isAdmin = perms.isAdmin
+  const canDelete = perms.canDelete
+  const canSaveFirebase = perms.canSaveFirebase
+  const isSuperAdmin = perms.isSuperAdmin
 
   const showFirebaseSaveBtn = canSaveFirebase && hasFirebaseConfig
   const showFirebaseDeleteBtn = canDelete && hasFirebaseConfig
@@ -153,6 +103,8 @@ function AppShell() {
     () => hymns.filter((item) => hymnTitleMatches(item.title, hymnSearchQuery)),
     [hymns, hymnSearchQuery],
   )
+
+  const teamMembersForDashboard = useMemo(() => teamData?.members || [], [teamData])
 
   const showNotice = (message, type = 'info') => {
     setNotice({ message, type })
@@ -198,6 +150,31 @@ function AppShell() {
 
     return () => unsubscribe()
   }, [authLoading, currentUser?.uid])
+
+  useEffect(() => {
+    if (!db || !hasFirebaseConfig) {
+      setTeamData(null)
+      return
+    }
+
+    const teamRef = doc(db, SETTINGS_TEAM_DOC.collection, SETTINGS_TEAM_DOC.id)
+    const unsubscribe = onSnapshot(
+      teamRef,
+      (snapshot) => {
+        setTeamData(snapshot.exists() ? snapshot.data() : { members: [] })
+      },
+      () => {
+        setTeamData({ members: [] })
+      },
+    )
+    return () => unsubscribe()
+  }, [hasFirebaseConfig])
+
+  useEffect(() => {
+    if (!isSuperAdminUser(currentUser)) {
+      setShowAdminDashboard(false)
+    }
+  }, [currentUser])
 
   useEffect(() => {
     if (!isAdmin && state.mode !== 'view') {
@@ -370,6 +347,63 @@ function AppShell() {
     }
   }
 
+  const onSaveTeamMembers = async (members) => {
+    if (!db || !hasFirebaseConfig || !isSuperAdmin) {
+      return
+    }
+    try {
+      setSavingTeam(true)
+      await setDoc(
+        doc(db, SETTINGS_TEAM_DOC.collection, SETTINGS_TEAM_DOC.id),
+        {
+          members,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      )
+      showNotice('تم حفظ صلاحيات الفريق.', 'success')
+    } catch (error) {
+      showNotice(`فشل حفظ الصلاحيات: ${error.message}`, 'error')
+    } finally {
+      setSavingTeam(false)
+    }
+  }
+
+  if (showAdminDashboard && isSuperAdmin) {
+    return (
+      <div className={`app ${state.theme}`} dir="rtl" lang="ar">
+        <header className="topBar">
+          <div>
+            <h1>Harmony Notes — لوحة المشرف</h1>
+            <p>إدارة صلاحيات الحسابات المسجّلة</p>
+          </div>
+          <div className="row wrap">
+            <button type="button" className="btn primary" onClick={() => setShowAdminDashboard(false)}>
+              العودة للتطبيق
+            </button>
+            <button className="btn" onClick={toggleTheme}>
+              {isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
+            </button>
+            {!authLoading && currentUser ? (
+              <button className="btn" onClick={onAdminSignOut}>
+                خروج
+              </button>
+            ) : null}
+          </div>
+        </header>
+        <main className="content adminDashboardPage">
+          <AdminDashboard
+            members={teamMembersForDashboard}
+            saving={savingTeam}
+            onSave={onSaveTeamMembers}
+            onBack={() => setShowAdminDashboard(false)}
+          />
+        </main>
+        {notice ? <div className={`toastNotice ${notice.type}`}>{notice.message}</div> : null}
+      </div>
+    )
+  }
+
   return (
     <div className={`app ${state.theme}`} dir="rtl" lang="ar">
       <header className="topBar">
@@ -408,6 +442,11 @@ function AppShell() {
           {!authLoading && currentUser ? (
             <button className="btn" onClick={onAdminSignOut}>
               خروج
+            </button>
+          ) : null}
+          {isSuperAdmin ? (
+            <button type="button" className="btn primary" onClick={() => setShowAdminDashboard(true)}>
+              لوحة الصلاحيات
             </button>
           ) : null}
           {isAdmin ? (

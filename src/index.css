@@ -1196,6 +1196,108 @@ body {
   }
 }
 
+.adminDashboardPage {
+  max-width: 1140px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.adminDashboard {
+  padding: 1rem 1.1rem 1.2rem;
+}
+
+.adminDashboardHeader h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+}
+
+.adminDashboardHint {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  max-width: 52rem;
+  line-height: 1.45;
+}
+
+.adminDashboardHint code {
+  font-size: 0.82rem;
+}
+
+.adminDashboardTableWrap {
+  overflow-x: auto;
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.adminDashboardTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.adminDashboardTable th,
+.adminDashboardTable td {
+  padding: 0.55rem 0.65rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.adminDashboardTable th {
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.adminDashboardEmpty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.adminDashEmail {
+  font-size: 0.86rem;
+}
+
+.adminDashToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.adminDashToggle input {
+  width: 16px;
+  height: 16px;
+}
+
+.adminDashboardAdd {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.adminDashboardAdd h3 {
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+}
+
+.adminDashboardAddRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.65rem;
+  align-items: center;
+}
+
+.adminDashboardAddRow .modernInput {
+  min-width: min(100%, 260px);
+  flex: 1 1 200px;
+}
+
+.adminDashboardFooter {
+  margin-top: 1.1rem;
+}
+
 @media print {
   body,
   .app {
