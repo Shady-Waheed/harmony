@@ -68,7 +68,7 @@ function hymnTitleMatches(title, query) {
 }
 
 function AppShell() {
-  const { state, setMode, toggleTheme, importProject, resetProject, loadHymn, createNewHymn, transposeHymn, setPersistFullHymn } =
+  const { state, updateHymn, setMode, toggleTheme, importProject, resetProject, loadHymn, createNewHymn, transposeHymn, setPersistFullHymn } =
     useHymnStore()
   const [loadingExport, setLoadingExport] = useState(false)
   const [hymns, setHymns] = useState([])
@@ -91,6 +91,7 @@ function AppShell() {
   const isDark = state.theme === 'dark'
   const perms = useMemo(() => resolvePermissions(currentUser, teamData || {}), [currentUser, teamData])
   const isAdmin = perms.isAdmin
+  const isSuperAdmin = perms.isSuperAdmin
   const canDelete = perms.canDelete
   const canSaveFirebase = perms.canSaveFirebase
   const canManageTeam = useMemo(
@@ -102,9 +103,21 @@ function AppShell() {
   const showFirebaseDeleteBtn = canDelete && hasFirebaseConfig
   const showFirebaseSidebarActions = showFirebaseSaveBtn || showFirebaseDeleteBtn
 
+  const visibleHymns = useMemo(
+    () =>
+      hymns.filter((item) => {
+        const exclusiveOwnerUid = String(item.exclusiveOwnerUid || '')
+        const isExclusive = Boolean(item.isExclusive) || exclusiveOwnerUid.length > 0
+        if (!isExclusive) return true
+        if (!currentUser) return false
+        return exclusiveOwnerUid === String(currentUser.uid || '')
+      }),
+    [hymns, currentUser],
+  )
+
   const filteredHymns = useMemo(
-    () => hymns.filter((item) => hymnTitleMatches(item.title, hymnSearchQuery)),
-    [hymns, hymnSearchQuery],
+    () => visibleHymns.filter((item) => hymnTitleMatches(item.title, hymnSearchQuery)),
+    [visibleHymns, hymnSearchQuery],
   )
 
   const teamMembersForDashboard = useMemo(() => teamData?.members || [], [teamData])
@@ -198,12 +211,21 @@ function AppShell() {
   }, [])
 
   const onSelectHymn = (hymnDoc) => {
+    const exclusiveOwnerUid = String(hymnDoc.exclusiveOwnerUid || '')
+    const isExclusive = Boolean(hymnDoc.isExclusive) || exclusiveOwnerUid.length > 0
+    const canOpenExclusive = !isExclusive || (currentUser && exclusiveOwnerUid === String(currentUser.uid || ''))
+    if (!canOpenExclusive) {
+      showNotice('هذه الترانيمة حصرية وغير متاحة لهذا الحساب.', 'error')
+      return
+    }
     setSelectedHymnId(hymnDoc.id)
     loadHymn({
       id: hymnDoc.id,
       title: hymnDoc.title || '',
       key: hymnDoc.key || '',
       sections: decodeSectionsFromFirestore(hymnDoc.sections || []),
+      isExclusive,
+      exclusiveOwnerUid,
     })
   }
 
@@ -229,6 +251,8 @@ function AppShell() {
       title,
       key: state.hymn.key || '',
       sections: encodeSectionsForFirestore(state.hymn.sections || []),
+      isExclusive: isSuperAdmin ? Boolean(state.hymn.isExclusive) : false,
+      exclusiveOwnerUid: isSuperAdmin && state.hymn.isExclusive ? String(currentUser?.uid || '') : '',
       updatedAt: serverTimestamp(),
     }
 
@@ -506,9 +530,9 @@ function AppShell() {
               />
               {!loadingHymns && hymns.length > 0 ? (
                 <p className="hymnSearchMeta" aria-live="polite">
-                  {filteredHymns.length === hymns.length
-                    ? `${hymns.length} ترنيمة`
-                    : `${filteredHymns.length} من ${hymns.length}`}
+                  {filteredHymns.length === visibleHymns.length
+                    ? `${visibleHymns.length} ترنيمة`
+                    : `${filteredHymns.length} من ${visibleHymns.length}`}
                 </p>
               ) : null}
             </div>
@@ -516,6 +540,16 @@ function AppShell() {
 
           {showFirebaseSidebarActions ? (
             <div className="row wrap sidebarActions">
+              {isSuperAdmin ? (
+                <label className="adminDashToggle">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(state.hymn.isExclusive)}
+                    onChange={(e) => updateHymn({ isExclusive: e.target.checked })}
+                  />
+                  <span>حصرية لي فقط</span>
+                </label>
+              ) : null}
               {showFirebaseSaveBtn ? (
                 <button className="btn primary" onClick={onSaveHymnToFirebase} disabled={savingHymn}>
                   {savingHymn ? 'جاري الحفظ...' : selectedHymnId ? 'تحديث' : 'حفظ'}
@@ -560,6 +594,7 @@ function AppShell() {
                     onClick={() => onSelectHymn(hymnItem)}
                   >
                     <span>{hymnItem.title || 'ترنيمة بدون عنوان'}</span>
+                    {Boolean(hymnItem.isExclusive) ? <small> (حصرية)</small> : null}
                   </button>
                 </li>
               ))}

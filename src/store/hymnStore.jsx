@@ -33,6 +33,8 @@ function uid(prefix) {
 function normalizeHymn(hymn) {
   return {
     ...hymn,
+    isExclusive: Boolean(hymn?.isExclusive),
+    exclusiveOwnerUid: String(hymn?.exclusiveOwnerUid || ''),
     sections: (hymn.sections || []).map((section) => ({
       ...section,
       lines: (section.lines || []).map((line) => normalizeLineStructure(line)),
@@ -65,6 +67,8 @@ function createEmptyHymn() {
     id: uid('hymn'),
     title: '',
     key: '',
+    isExclusive: false,
+    exclusiveOwnerUid: '',
     sections: [
       {
         id: uid('sec'),
