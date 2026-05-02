@@ -923,6 +923,19 @@ body {
     min-width: 0;
   }
 
+  .sidebarHeader {
+    gap: 0.55rem;
+    flex-wrap: wrap;
+  }
+
+  .sidebarHeader .btn {
+    flex: 1 1 100%;
+  }
+
+  .hymnList {
+    max-height: none;
+  }
+
   .metaGrid {
     grid-template-columns: 1fr;
   }
@@ -934,6 +947,12 @@ body {
 
   .wordBlockWrap {
     width: 100%;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
   }
 
   .sectionHeaderRow {
@@ -946,6 +965,32 @@ body {
 
   .wordChordCell {
     min-width: 74px;
+    width: 100%;
+  }
+
+  .wordChordCell .wordTokenBtn {
+    min-height: 64px;
+  }
+
+  .gapEditor {
+    width: 100%;
+  }
+
+  .gapSlotList {
+    width: 100%;
+  }
+
+  .gapTokenBtn {
+    flex: 1 1 auto;
+    min-height: 32px;
+  }
+
+  .inlineEditorPanel {
+    width: 100%;
+  }
+
+  .chordParts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .hymnSheet .lyric {
@@ -1060,12 +1105,18 @@ body {
     padding: 0.62rem;
   }
 
+  .topBar,
+  .content,
+  .previewWrap {
+    gap: 0.6rem;
+  }
+
   .wordComposer {
     gap: 0.38rem;
   }
 
   .wordChordCell {
-    min-width: 68px;
+    min-width: 0;
   }
 
   .gapInput {
@@ -1107,6 +1158,17 @@ body {
   .sidebarTransposeActions .btn {
     flex: 1 1 100%;
     width: 100%;
+  }
+
+  .row.wrap.sidebarActions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .sidebarTransposeActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .chordPreviewPopup {
@@ -1319,6 +1381,176 @@ body {
 
 .adminDashboardFooter {
   margin-top: 1.1rem;
+}
+
+@media (max-width: 768px) {
+  .adminDashboard {
+    padding: 0.85rem;
+  }
+
+  .adminDashboardHeader {
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .adminDashboardHeader .btn {
+    width: 100%;
+  }
+
+  .adminDashboardTableWrap {
+    border: 0;
+    margin: 0.8rem 0;
+    overflow: visible;
+  }
+
+  .adminDashboardTable {
+    display: block;
+    width: 100%;
+    font-size: 0.88rem;
+  }
+
+  .adminDashboardTable thead {
+    display: none;
+  }
+
+  .adminDashboardTable tbody {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .adminDashboardTable tr {
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 0.45rem 0.5rem;
+  }
+
+  .adminDashboardTable td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    border-bottom: 0;
+    padding: 0.32rem 0.12rem;
+  }
+
+  .adminDashboardTable td::before {
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 0.78rem;
+  }
+
+  .adminDashboardTable td:nth-child(1)::before {
+    content: 'البريد';
+  }
+
+  .adminDashboardTable td:nth-child(2)::before {
+    content: 'محرر';
+  }
+
+  .adminDashboardTable td:nth-child(3)::before {
+    content: 'حفظ';
+  }
+
+  .adminDashboardTable td:nth-child(4)::before {
+    content: 'حذف';
+  }
+
+  .adminDashboardTable td:nth-child(5)::before {
+    content: 'لوحة';
+  }
+
+  .adminDashboardTable td:nth-child(6)::before {
+    content: 'إجراء';
+  }
+
+  .adminDashboardTable td .btn {
+    width: 100%;
+  }
+
+  .adminDashboardAdd {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+  }
+
+  .adminDashboardAddRow {
+    gap: 0.45rem;
+  }
+
+  .adminDashboardAddRow .modernInput {
+    min-width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .adminDashboardAddRow .adminDashToggle {
+    width: calc(50% - 0.25rem);
+    min-height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.45rem 0.5rem;
+    background: var(--surface);
+    justify-content: center;
+  }
+
+  .adminDashboardAddRow .btn.primary {
+    width: 100%;
+  }
+
+  .adminDashboardFooter .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 576px) {
+  .adminDashboard {
+    padding: 0.72rem;
+    border-radius: 12px;
+  }
+
+  .adminDashboardHeader h2 {
+    font-size: 1.12rem;
+  }
+
+  .adminDashboardHint {
+    font-size: 0.82rem;
+  }
+
+  .adminDashboardTable tr {
+    padding: 0.38rem 0.42rem;
+  }
+
+  .adminDashboardTable td {
+    padding: 0.28rem 0.08rem;
+  }
+
+  .adminDashboardTable td::before {
+    font-size: 0.74rem;
+  }
+
+  .adminDashEmail {
+    font-size: 0.79rem;
+  }
+
+  .adminDashboardAddRow .adminDashToggle {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 390px) {
+  .adminDashboardHeader h2 {
+    font-size: 1.02rem;
+  }
+
+  .adminDashboardPolicy {
+    padding: 0.5rem 0.55rem;
+    margin-bottom: 0.78rem;
+  }
+
+  .adminDashboardPolicyLabel {
+    font-size: 0.84rem;
+  }
 }
 
 @media print {
