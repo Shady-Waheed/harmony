@@ -21,16 +21,34 @@ function encodeSectionsForFirestore(sections = []) {
   return (sections || []).map((section) => ({
     ...section,
     lines: (section.lines || []).map((line) => {
-      const { gapChords = [], gapInversions = [], ...lineRest } = line
+      const {
+        gapChords = [],
+        gapInversions = [],
+        beforeWordChords = [],
+        beforeWordInversions = [],
+        afterWordChords = [],
+        afterWordInversions = [],
+        ...lineRest
+      } = line
       const gapEntries = gapChords.map((group, index) => ({
         chords: Array.isArray(group) ? group : [],
         inversions: Array.isArray(gapInversions[index]) ? gapInversions[index] : [],
+      }))
+      const beforeWordEntries = beforeWordChords.map((group, index) => ({
+        chords: Array.isArray(group) ? group : [],
+        inversions: Array.isArray(beforeWordInversions[index]) ? beforeWordInversions[index] : [],
+      }))
+      const afterWordEntries = afterWordChords.map((group, index) => ({
+        chords: Array.isArray(group) ? group : [],
+        inversions: Array.isArray(afterWordInversions[index]) ? afterWordInversions[index] : [],
       }))
 
       return {
         ...lineRest,
         wordInversions: Array.isArray(line.wordInversions) ? line.wordInversions : [],
         gapEntries,
+        beforeWordEntries,
+        afterWordEntries,
       }
     }),
   }))
@@ -40,11 +58,15 @@ function decodeSectionsFromFirestore(sections = []) {
   return (sections || []).map((section) => ({
     ...section,
     lines: (section.lines || []).map((line) => {
-      const { gapEntries = [], ...lineRest } = line
+      const { gapEntries = [], beforeWordEntries = [], afterWordEntries = [], ...lineRest } = line
       return {
         ...lineRest,
         gapChords: gapEntries.map((entry) => (Array.isArray(entry?.chords) ? entry.chords : [])),
         gapInversions: gapEntries.map((entry) => (Array.isArray(entry?.inversions) ? entry.inversions : [])),
+        beforeWordChords: beforeWordEntries.map((entry) => (Array.isArray(entry?.chords) ? entry.chords : [])),
+        beforeWordInversions: beforeWordEntries.map((entry) => (Array.isArray(entry?.inversions) ? entry.inversions : [])),
+        afterWordChords: afterWordEntries.map((entry) => (Array.isArray(entry?.chords) ? entry.chords : [])),
+        afterWordInversions: afterWordEntries.map((entry) => (Array.isArray(entry?.inversions) ? entry.inversions : [])),
       }
     }),
   }))
