@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useHymnStore } from '../store/hymnStore.jsx'
 import { normalizeLineStructure, splitWords } from '../utils/lineChords'
 import { ROOT_NOTES, formatChordLabel } from '../utils/chords'
-import ImageImportDialog from './ImageImportDialog.jsx'
 
 const EMPTY_BASS = '__no_bass__'
 const EMPTY_INVERSION = '__no_inversion__'
@@ -218,7 +217,6 @@ function HymnEditor() {
   const [activeEditorId, setActiveEditorId] = useState('')
   const [openSectionId, setOpenSectionId] = useState(() => hymn.sections[0]?.id ?? null)
   const [openLineId, setOpenLineId] = useState(() => hymn.sections[0]?.lines[0]?.id ?? null)
-  const [imageImportOpen, setImageImportOpen] = useState(false)
   const sectionCount = useMemo(() => hymn.sections.length, [hymn.sections.length])
 
   useEffect(() => {
@@ -241,28 +239,6 @@ function HymnEditor() {
     }
     setOpenLineId((prev) => (prev && section.lines.some((line) => line.id === prev) ? prev : section.lines[0].id))
   }, [hymn.sections, openSectionId])
-
-  const handleImageImportAppend = (preview) => {
-    updateHymn({
-      sections: [...hymn.sections, ...preview.sections],
-    })
-    const lastSec = preview.sections[preview.sections.length - 1]
-    if (lastSec?.id) {
-      setOpenSectionId(lastSec.id)
-      setOpenLineId(lastSec.lines[0]?.id ?? null)
-    }
-    setActiveEditorId('')
-  }
-
-  const handleImageImportReplace = (preview) => {
-    updateHymn({
-      title: preview.suggestedTitle || hymn.title,
-      sections: preview.sections,
-    })
-    setOpenSectionId(preview.sections[0]?.id ?? null)
-    setOpenLineId(preview.sections[0]?.lines[0]?.id ?? null)
-    setActiveEditorId('')
-  }
 
   return (
     <section className="card">
@@ -287,9 +263,6 @@ function HymnEditor() {
         </button>
         <button className="btn" onClick={() => transposeHymn(1)} title="Transpose +1 semitone" aria-label="Transpose up">
           +
-        </button>
-        <button type="button" className="btn" onClick={() => setImageImportOpen(true)}>
-          استيراد من صورة (OCR)
         </button>
       </div>
 
@@ -614,13 +587,6 @@ function HymnEditor() {
       <button className="btn primary" onClick={addSection}>
         + إضافة قسم
       </button>
-
-      <ImageImportDialog
-        open={imageImportOpen}
-        onClose={() => setImageImportOpen(false)}
-        onApplyReplace={handleImageImportReplace}
-        onApplyAppend={handleImageImportAppend}
-      />
     </section>
   )
 }
