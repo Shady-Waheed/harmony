@@ -155,8 +155,10 @@ function AppShell() {
   }, [authLoading, currentUser?.uid])
 
   useEffect(() => {
-    if (!db || !hasFirebaseConfig) {
-      setTeamData(null)
+    if (!db || !hasFirebaseConfig || authLoading || !currentUser) {
+      if (!authLoading && !currentUser) {
+        setTeamData(null)
+      }
       return
     }
 
@@ -166,12 +168,14 @@ function AppShell() {
       (snapshot) => {
         setTeamData(snapshot.exists() ? snapshot.data() : { members: [] })
       },
-      () => {
-        setTeamData({ members: [] })
+      (err) => {
+        // قراءة settings/team تتطلب تسجيل دخول؛ لا نعرض خطأ القراءة كقائمة فارغة (يُربك وقد يُفسّر كمسح من السيرفر)
+        console.warn('[settings/team snapshot]', err?.code || err?.message || err)
+        setTeamData(null)
       },
     )
     return () => unsubscribe()
-  }, [hasFirebaseConfig])
+  }, [hasFirebaseConfig, authLoading, currentUser?.uid])
 
   useEffect(() => {
     if (!canAccessTeamDashboard(currentUser, teamData || {})) {
