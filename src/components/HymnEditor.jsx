@@ -273,10 +273,91 @@ function HymnEditor() {
                   <div className="emptyHint">اكتب كلمات السطر الأول، وبعدها ستظهر خانات الكورد فوق كل كلمة.</div>
                 ) : (
                   <>
-                    <label>الكوردات فوق الكلمات + إضافة مسافة يدويًا بين كلمتين</label>
+                    <label>الكوردات فوق الكلمات + إضافة كورد قبل/بعد أي كلمة</label>
                     <div className="wordComposer">
                       {words.map((word, wordIndex) => (
                         <div key={`${line.id}-${wordIndex}`} className="wordBlockWrap">
+                          <div className="gapEditor">
+                            <button
+                              className="miniAddBtn"
+                              onClick={() => {
+                                const nextBeforeWordChords = normalizedLine.beforeWordChords.map((group) => [...group])
+                                nextBeforeWordChords[wordIndex] = [...(nextBeforeWordChords[wordIndex] || []), '']
+                                const nextBeforeWordInversions = normalizedLine.beforeWordInversions.map((group) => [...group])
+                                nextBeforeWordInversions[wordIndex] = [...(nextBeforeWordInversions[wordIndex] || []), '']
+                                updateLine(section.id, line.id, {
+                                  beforeWordChords: nextBeforeWordChords,
+                                  beforeWordInversions: nextBeforeWordInversions,
+                                })
+                              }}
+                            >
+                              + قبل
+                            </button>
+
+                            <div className="gapSlotList">
+                              {(normalizedLine.beforeWordChords[wordIndex] || []).map((beforeChord, slotIndex) => (
+                                <button
+                                  key={`${line.id}-before-${wordIndex}-${slotIndex}`}
+                                  className="gapTokenBtn"
+                                  type="button"
+                                  onClick={() => setActiveEditorId(getEditorId(line.id, 'before', wordIndex, slotIndex))}
+                                >
+                                  {formatChordLabel(
+                                    beforeChord,
+                                    normalizedLine.beforeWordInversions[wordIndex]?.[slotIndex] || '',
+                                  ) || `قبل ${slotIndex + 1}`}
+                                </button>
+                              ))}
+                            </div>
+                            {(() => {
+                              const activeBeforeIndex = (normalizedLine.beforeWordChords[wordIndex] || []).findIndex(
+                                (_, slotIndex) => activeEditorId === getEditorId(line.id, 'before', wordIndex, slotIndex),
+                              )
+                              if (activeBeforeIndex === -1) return null
+                              return (
+                                <div className="inlineEditorPanel">
+                                  <ChordPicker
+                                    value={normalizedLine.beforeWordChords[wordIndex][activeBeforeIndex] || ''}
+                                    inversion={normalizedLine.beforeWordInversions[wordIndex]?.[activeBeforeIndex] || ''}
+                                    compact
+                                    onChange={(nextChord) => {
+                                      const nextBeforeWordChords = normalizedLine.beforeWordChords.map((group) => [...group])
+                                      nextBeforeWordChords[wordIndex][activeBeforeIndex] = nextChord
+                                      updateLine(section.id, line.id, { beforeWordChords: nextBeforeWordChords })
+                                    }}
+                                    onInversionChange={(nextInversion) => {
+                                      const nextBeforeWordInversions = normalizedLine.beforeWordInversions.map((group) => [...group])
+                                      nextBeforeWordInversions[wordIndex][activeBeforeIndex] = nextInversion
+                                      updateLine(section.id, line.id, { beforeWordInversions: nextBeforeWordInversions })
+                                    }}
+                                  />
+                                  <div className="row wrap">
+                                    <button className="btn chordModeBtn" type="button" onClick={() => setActiveEditorId('')}>
+                                      تم
+                                    </button>
+                                    <button
+                                      className="btn chordModeBtn danger"
+                                      type="button"
+                                      onClick={() => {
+                                        const nextBeforeWordChords = normalizedLine.beforeWordChords.map((group) => [...group])
+                                        nextBeforeWordChords[wordIndex].splice(activeBeforeIndex, 1)
+                                        const nextBeforeWordInversions = normalizedLine.beforeWordInversions.map((group) => [...group])
+                                        nextBeforeWordInversions[wordIndex].splice(activeBeforeIndex, 1)
+                                        updateLine(section.id, line.id, {
+                                          beforeWordChords: nextBeforeWordChords,
+                                          beforeWordInversions: nextBeforeWordInversions,
+                                        })
+                                        setActiveEditorId('')
+                                      }}
+                                    >
+                                      حذف
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                          </div>
+
                           <div className="wordChordCell word">
                             <button
                               className="wordTokenBtn"
@@ -314,82 +395,86 @@ function HymnEditor() {
                             )}
                           </div>
 
-                          {wordIndex < words.length - 1 && (
-                            <div className="gapEditor">
-                              <button
-                                className="miniAddBtn"
-                                onClick={() => {
-                                  const nextGapChords = normalizedLine.gapChords.map((group) => [...group])
-                                  nextGapChords[wordIndex] = [...(nextGapChords[wordIndex] || []), '']
-                                  const nextGapInversions = normalizedLine.gapInversions.map((group) => [...group])
-                                  nextGapInversions[wordIndex] = [...(nextGapInversions[wordIndex] || []), '']
-                                  updateLine(section.id, line.id, { gapChords: nextGapChords, gapInversions: nextGapInversions })
-                                }}
-                              >
-                                + مسافة
-                              </button>
+                          <div className="gapEditor">
+                            <button
+                              className="miniAddBtn"
+                              onClick={() => {
+                                const nextAfterWordChords = normalizedLine.afterWordChords.map((group) => [...group])
+                                nextAfterWordChords[wordIndex] = [...(nextAfterWordChords[wordIndex] || []), '']
+                                const nextAfterWordInversions = normalizedLine.afterWordInversions.map((group) => [...group])
+                                nextAfterWordInversions[wordIndex] = [...(nextAfterWordInversions[wordIndex] || []), '']
+                                updateLine(section.id, line.id, {
+                                  afterWordChords: nextAfterWordChords,
+                                  afterWordInversions: nextAfterWordInversions,
+                                })
+                              }}
+                            >
+                              + بعد
+                            </button>
 
-                              <div className="gapSlotList">
-                                {(normalizedLine.gapChords[wordIndex] || []).map((gapChord, slotIndex) => (
-                                  <button
-                                    key={`${line.id}-gap-${wordIndex}-${slotIndex}`}
-                                    className="gapTokenBtn"
-                                    type="button"
-                                    onClick={() => setActiveEditorId(getEditorId(line.id, 'gap', wordIndex, slotIndex))}
-                                  >
-                                    {formatChordLabel(
-                                      gapChord,
-                                      normalizedLine.gapInversions[wordIndex]?.[slotIndex] || '',
-                                    ) || `مسافة ${slotIndex + 1}`}
-                                  </button>
-                                ))}
-                              </div>
-                              {(() => {
-                                const activeGapIndex = (normalizedLine.gapChords[wordIndex] || []).findIndex(
-                                  (_, slotIndex) => activeEditorId === getEditorId(line.id, 'gap', wordIndex, slotIndex),
-                                )
-                                if (activeGapIndex === -1) return null
-                                return (
-                                  <div className="inlineEditorPanel">
-                                    <ChordPicker
-                                      value={normalizedLine.gapChords[wordIndex][activeGapIndex] || ''}
-                                      inversion={normalizedLine.gapInversions[wordIndex]?.[activeGapIndex] || ''}
-                                      compact
-                                      onChange={(nextChord) => {
-                                        const nextGapChords = normalizedLine.gapChords.map((group) => [...group])
-                                        nextGapChords[wordIndex][activeGapIndex] = nextChord
-                                        updateLine(section.id, line.id, { gapChords: nextGapChords })
-                                      }}
-                                      onInversionChange={(nextInversion) => {
-                                        const nextGapInversions = normalizedLine.gapInversions.map((group) => [...group])
-                                        nextGapInversions[wordIndex][activeGapIndex] = nextInversion
-                                        updateLine(section.id, line.id, { gapInversions: nextGapInversions })
-                                      }}
-                                    />
-                                    <div className="row wrap">
-                                      <button className="btn chordModeBtn" type="button" onClick={() => setActiveEditorId('')}>
-                                        تم
-                                      </button>
-                                      <button
-                                        className="btn chordModeBtn danger"
-                                        type="button"
-                                        onClick={() => {
-                                          const nextGapChords = normalizedLine.gapChords.map((group) => [...group])
-                                          nextGapChords[wordIndex].splice(activeGapIndex, 1)
-                                          const nextGapInversions = normalizedLine.gapInversions.map((group) => [...group])
-                                          nextGapInversions[wordIndex].splice(activeGapIndex, 1)
-                                          updateLine(section.id, line.id, { gapChords: nextGapChords, gapInversions: nextGapInversions })
-                                          setActiveEditorId('')
-                                        }}
-                                      >
-                                        حذف المسافة
-                                      </button>
-                                    </div>
-                                  </div>
-                                )
-                              })()}
+                            <div className="gapSlotList">
+                              {(normalizedLine.afterWordChords[wordIndex] || []).map((afterChord, slotIndex) => (
+                                <button
+                                  key={`${line.id}-after-${wordIndex}-${slotIndex}`}
+                                  className="gapTokenBtn"
+                                  type="button"
+                                  onClick={() => setActiveEditorId(getEditorId(line.id, 'after', wordIndex, slotIndex))}
+                                >
+                                  {formatChordLabel(
+                                    afterChord,
+                                    normalizedLine.afterWordInversions[wordIndex]?.[slotIndex] || '',
+                                  ) || `بعد ${slotIndex + 1}`}
+                                </button>
+                              ))}
                             </div>
-                          )}
+                            {(() => {
+                              const activeAfterIndex = (normalizedLine.afterWordChords[wordIndex] || []).findIndex(
+                                (_, slotIndex) => activeEditorId === getEditorId(line.id, 'after', wordIndex, slotIndex),
+                              )
+                              if (activeAfterIndex === -1) return null
+                              return (
+                                <div className="inlineEditorPanel">
+                                  <ChordPicker
+                                    value={normalizedLine.afterWordChords[wordIndex][activeAfterIndex] || ''}
+                                    inversion={normalizedLine.afterWordInversions[wordIndex]?.[activeAfterIndex] || ''}
+                                    compact
+                                    onChange={(nextChord) => {
+                                      const nextAfterWordChords = normalizedLine.afterWordChords.map((group) => [...group])
+                                      nextAfterWordChords[wordIndex][activeAfterIndex] = nextChord
+                                      updateLine(section.id, line.id, { afterWordChords: nextAfterWordChords })
+                                    }}
+                                    onInversionChange={(nextInversion) => {
+                                      const nextAfterWordInversions = normalizedLine.afterWordInversions.map((group) => [...group])
+                                      nextAfterWordInversions[wordIndex][activeAfterIndex] = nextInversion
+                                      updateLine(section.id, line.id, { afterWordInversions: nextAfterWordInversions })
+                                    }}
+                                  />
+                                  <div className="row wrap">
+                                    <button className="btn chordModeBtn" type="button" onClick={() => setActiveEditorId('')}>
+                                      تم
+                                    </button>
+                                    <button
+                                      className="btn chordModeBtn danger"
+                                      type="button"
+                                      onClick={() => {
+                                        const nextAfterWordChords = normalizedLine.afterWordChords.map((group) => [...group])
+                                        nextAfterWordChords[wordIndex].splice(activeAfterIndex, 1)
+                                        const nextAfterWordInversions = normalizedLine.afterWordInversions.map((group) => [...group])
+                                        nextAfterWordInversions[wordIndex].splice(activeAfterIndex, 1)
+                                        updateLine(section.id, line.id, {
+                                          afterWordChords: nextAfterWordChords,
+                                          afterWordInversions: nextAfterWordInversions,
+                                        })
+                                        setActiveEditorId('')
+                                      }}
+                                    >
+                                      حذف
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                          </div>
                         </div>
                       ))}
                     </div>

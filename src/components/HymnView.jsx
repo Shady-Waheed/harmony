@@ -118,7 +118,10 @@ const HymnView = forwardRef(function HymnView(_, ref) {
             return (
               <div key={line.id} className="sheetLine">
                 {cells.map((cell, i) => (
-                  <div key={`${line.id}-${i}`} className={`cell ${cell.type}`}>
+                  <div
+                    key={`${line.id}-${i}`}
+                    className={`cell ${cell.type === 'before' || cell.type === 'after' ? 'gap' : cell.type}`}
+                  >
                     <span className={`chord ${cell.chord ? 'hasPreview' : ''}`}>
                       {formatChordLabel(cell.chord, cell.inversion) || '\u00A0'}
                       {cell.chord ? <ChordPianoPreview chord={cell.chord} inversion={cell.inversion} /> : null}

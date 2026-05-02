@@ -20,6 +20,20 @@ function normalizeGapInversions(gapInversions, gapChords) {
   })
 }
 
+function normalizeWordSlotGroups(slotGroups, count) {
+  return Array.from({ length: Math.max(count, 0) }, (_, i) => {
+    const group = Array.isArray(slotGroups?.[i]) ? slotGroups[i] : []
+    return group.map((item) => String(item || ''))
+  })
+}
+
+function normalizeWordSlotInversions(slotInversions, slotChords) {
+  return slotChords.map((group, i) => {
+    const inversionGroup = Array.isArray(slotInversions?.[i]) ? slotInversions[i] : []
+    return Array.from({ length: group.length }, (_, j) => String(inversionGroup[j] || ''))
+  })
+}
+
 export function normalizeLineStructure(line) {
   const lyrics = String(line?.lyrics || '')
   const words = splitWords(lyrics)
@@ -42,6 +56,16 @@ export function normalizeLineStructure(line) {
     String(Array.isArray(line?.wordInversions) ? line.wordInversions[i] || '' : ''),
   )
   const gapInversions = normalizeGapInversions(line?.gapInversions, gapChords)
+  const beforeWordChords = normalizeWordSlotGroups(line?.beforeWordChords, words.length)
+  const beforeWordInversions = normalizeWordSlotInversions(line?.beforeWordInversions, beforeWordChords)
+  const afterWordChords = normalizeWordSlotGroups(
+    line?.afterWordChords || words.map((_, i) => (i < gapChords.length ? gapChords[i] : [])),
+    words.length,
+  )
+  const afterWordInversions = normalizeWordSlotInversions(
+    line?.afterWordInversions || words.map((_, i) => (i < gapInversions.length ? gapInversions[i] : [])),
+    afterWordChords,
+  )
 
   return {
     ...line,
@@ -50,6 +74,10 @@ export function normalizeLineStructure(line) {
     gapChords,
     wordInversions,
     gapInversions,
+    beforeWordChords,
+    beforeWordInversions,
+    afterWordChords,
+    afterWordInversions,
   }
 }
 
@@ -59,6 +87,19 @@ export function buildDisplayCells(line) {
 
   const cells = []
   words.forEach((word, index) => {
+    const beforeSlots = normalized.beforeWordChords[index] || []
+    beforeSlots.forEach((beforeChord, slotIndex) => {
+      cells.push({
+        id: `before-${index}-${slotIndex}`,
+        type: 'before',
+        word: '',
+        chord: beforeChord || '',
+        inversion: normalized.beforeWordInversions[index]?.[slotIndex] || '',
+        wordIndex: index,
+        slotIndex,
+      })
+    })
+
     cells.push({
       id: `word-${index}`,
       type: 'word',
@@ -68,20 +109,18 @@ export function buildDisplayCells(line) {
       wordIndex: index,
     })
 
-    if (index < words.length - 1) {
-      const gaps = normalized.gapChords[index] || []
-      gaps.forEach((gapChord, slotIndex) => {
-        cells.push({
-          id: `gap-${index}-${slotIndex}`,
-          type: 'gap',
-          word: '',
-          chord: gapChord || '',
-          inversion: normalized.gapInversions[index]?.[slotIndex] || '',
-          gapIndex: index,
-          slotIndex,
-        })
+    const afterSlots = normalized.afterWordChords[index] || []
+    afterSlots.forEach((afterChord, slotIndex) => {
+      cells.push({
+        id: `after-${index}-${slotIndex}`,
+        type: 'after',
+        word: '',
+        chord: afterChord || '',
+        inversion: normalized.afterWordInversions[index]?.[slotIndex] || '',
+        wordIndex: index,
+        slotIndex,
       })
-    }
+    })
   })
 
   return cells

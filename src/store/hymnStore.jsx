@@ -105,6 +105,8 @@ function transposeHymnShape(hymn, steps) {
           ...normalized,
           wordChords: normalized.wordChords.map((chord) => transposeChord(chord || '', steps)),
           gapChords: normalized.gapChords.map((group) => group.map((chord) => transposeChord(chord || '', steps))),
+          beforeWordChords: normalized.beforeWordChords.map((group) => group.map((chord) => transposeChord(chord || '', steps))),
+          afterWordChords: normalized.afterWordChords.map((group) => group.map((chord) => transposeChord(chord || '', steps))),
         }
       }),
     })),
