@@ -1223,6 +1223,29 @@ body {
   font-size: 0.82rem;
 }
 
+.adminDashboardPolicy {
+  margin: 0.75rem 0 1rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.adminDashboardPolicyLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  cursor: pointer;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.adminDashboardPolicyLabel input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
 .adminDashboardTableWrap {
   overflow-x: auto;
   margin: 1rem 0;

@@ -7,73 +7,115 @@ function parseList(raw) {
     .filter(Boolean)
 }
 
+/** Google يعيد أحيانًا @googlemail.com بدل @gmail.com لنفس الحساب */
+function normalizeGoogleEmail(email) {
+  const e = String(email || '').trim().toLowerCase()
+  if (!e) return ''
+  if (e.endsWith('@googlemail.com')) {
+    return e.replace(/@googlemail\.com$/, '@gmail.com')
+  }
+  return e
+}
+
+/** كل القيم الممكنة للمقارنة مع القوائم (email + مزودي الدخول) */
+function userEmailKeys(user) {
+  if (!user) return []
+  const raw = [user.email, ...(user.providerData || []).map((p) => p?.email)].filter(Boolean)
+  const keys = new Set()
+  for (const item of raw) {
+    const n = normalizeGoogleEmail(item)
+    if (n) keys.add(n)
+  }
+  return [...keys]
+}
+
+function envEmailListMatchesUser(envRawList, user) {
+  const allowed = parseList(envRawList).map((e) => normalizeGoogleEmail(e.toLowerCase()))
+  if (!allowed.length) return false
+  const keys = userEmailKeys(user)
+  return keys.some((k) => allowed.includes(k))
+}
+
+function findMemberRow(user, teamData) {
+  const keys = userEmailKeys(user)
+  const members = teamData?.members
+  if (!Array.isArray(members) || !keys.length) return null
+  return members.find((m) => keys.includes(normalizeGoogleEmail(String(m.email || '').toLowerCase()))) || null
+}
+
 /**
  * مشرف رئيسي صريح (صلاحيات كاملة + تجاوز مستند الفريق). يعمل فقط لو عرّفت VITE_SUPER_ADMIN_*.
  */
 export function isSuperAdminUser(user) {
   if (!user) return false
-  const emails = parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).map((e) => e.toLowerCase())
+  const emails = parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).map((e) => normalizeGoogleEmail(e.toLowerCase()))
   const uids = parseList(import.meta.env.VITE_SUPER_ADMIN_UIDS)
   if (emails.length === 0 && uids.length === 0) {
     return false
   }
-  const email = String(user.email || '').toLowerCase()
   const uid = String(user.uid || '')
-  return emails.includes(email) || uids.includes(uid)
+  return userEmailKeys(user).some((k) => emails.includes(k)) || uids.includes(uid)
+}
+
+export function hasEnvSuperAdminConfig() {
+  return parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).length > 0 || parseList(import.meta.env.VITE_SUPER_ADMIN_UIDS).length > 0
 }
 
 /**
  * من يقدر يفتح لوحة الصلاحيات ويحفظ settings/team:
- * — لو VITE_SUPER_ADMIN_* فاضية: أي حساب في VITE_ADMIN_EMAILS / VITE_ADMIN_UIDS
- * — لو في قائمة مشرف رئيسي: نفس isSuperAdminUser
+ * — لو ignoreEnvAdminList: المشرف من env أو عضو عليه canManageDashboard
+ * — غير ذلك: نفس السلوك السابق (سوبر من env أو كل أدمن البيئة لو السوبر فاضي)
  */
-export function canAccessTeamDashboard(user) {
+export function canAccessTeamDashboard(user, teamData = {}) {
   if (!user) return false
-  const emails = parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).map((e) => e.toLowerCase())
+
+  if (teamData.ignoreEnvAdminList) {
+    if (isSuperAdminUser(user)) return true
+    const row = findMemberRow(user, teamData)
+    return Boolean(row?.canManageDashboard)
+  }
+
+  const emails = parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).map((e) => normalizeGoogleEmail(e.toLowerCase()))
   const uids = parseList(import.meta.env.VITE_SUPER_ADMIN_UIDS)
-  const email = String(user.email || '').toLowerCase()
-  const uid = String(user.uid || '')
   if (emails.length === 0 && uids.length === 0) {
     return isAdminUserEnv(user)
   }
-  return emails.includes(email) || uids.includes(uid)
+  const uid = String(user.uid || '')
+  return userEmailKeys(user).some((k) => emails.includes(k)) || uids.includes(uid)
 }
 
 function isAdminUserEnv(user) {
   if (!user) return false
-  const allowedEmails = parseList(import.meta.env.VITE_ADMIN_EMAILS).map((e) => e.toLowerCase())
   const allowedUids = parseList(import.meta.env.VITE_ADMIN_UIDS)
-  const email = String(user.email || '').toLowerCase()
   const uid = String(user.uid || '')
-  return allowedEmails.includes(email) || allowedUids.includes(uid)
+  if (allowedUids.includes(uid)) return true
+  return envEmailListMatchesUser(import.meta.env.VITE_ADMIN_EMAILS, user)
 }
 
 function canDeleteHymnsEnv(user) {
   if (!user) return false
-  const allowedEmails = parseList(import.meta.env.VITE_DELETE_EMAILS).map((e) => e.toLowerCase())
   const allowedUids = parseList(import.meta.env.VITE_DELETE_UIDS)
+  const uid = String(user.uid || '')
 
-  if (allowedEmails.length === 0 && allowedUids.length === 0) {
+  if (!parseList(import.meta.env.VITE_DELETE_EMAILS).length && allowedUids.length === 0) {
     return isAdminUserEnv(user)
   }
 
-  const email = String(user.email || '').toLowerCase()
-  const uid = String(user.uid || '')
-  return allowedEmails.includes(email) || allowedUids.includes(uid)
+  if (allowedUids.includes(uid)) return true
+  return envEmailListMatchesUser(import.meta.env.VITE_DELETE_EMAILS, user)
 }
 
 function canSaveHymnsToFirebaseEnv(user) {
   if (!user) return false
-  const allowedEmails = parseList(import.meta.env.VITE_SAVE_EMAILS).map((e) => e.toLowerCase())
   const allowedUids = parseList(import.meta.env.VITE_SAVE_UIDS)
-  const email = String(user.email || '').toLowerCase()
   const uid = String(user.uid || '')
 
-  if (allowedEmails.length === 0 && allowedUids.length === 0) {
+  if (!parseList(import.meta.env.VITE_SAVE_EMAILS).length && allowedUids.length === 0) {
     return isAdminUserEnv(user)
   }
 
-  return allowedEmails.includes(email) || allowedUids.includes(uid)
+  if (allowedUids.includes(uid)) return true
+  return envEmailListMatchesUser(import.meta.env.VITE_SAVE_EMAILS, user)
 }
 
 function envFallbackPermissions(user) {
@@ -85,7 +127,9 @@ function envFallbackPermissions(user) {
 }
 
 /**
- * دمج: المشرف الرئيسي دائمًا كل الصلاحيات؛ وإلا صف في members؛ وإلا القيم من الـ env
+ * دمج: المشرف الرئيسي من env دائمًا كل الصلاحيات؛
+ * لو ignoreEnvAdminList: الصلاحيات من صف members فقط (غير المذكور = قارئ)؛
+ * غير ذلك: صف members يدمج مع env كما سبق.
  */
 export function resolvePermissions(user, teamData) {
   if (!user) {
@@ -96,11 +140,11 @@ export function resolvePermissions(user, teamData) {
     return { isAdmin: true, canSaveFirebase: true, canDelete: true, isSuperAdmin: true }
   }
 
-  const email = String(user.email || '').toLowerCase()
-  const members = teamData?.members
-  if (Array.isArray(members) && email) {
-    const row = members.find((m) => String(m.email || '').toLowerCase() === email)
-    if (row) {
+  const ignore = Boolean(teamData?.ignoreEnvAdminList)
+  const row = findMemberRow(user, teamData)
+
+  if (row) {
+    if (ignore) {
       return {
         isAdmin: Boolean(row.canEdit),
         canSaveFirebase: Boolean(row.canSaveFirebase),
@@ -108,6 +152,17 @@ export function resolvePermissions(user, teamData) {
         isSuperAdmin: false,
       }
     }
+    const env = envFallbackPermissions(user)
+    return {
+      isAdmin: Boolean(row.canEdit) || env.isAdmin,
+      canSaveFirebase: Boolean(row.canSaveFirebase) || env.canSaveFirebase,
+      canDelete: Boolean(row.canDeleteHymn) || env.canDelete,
+      isSuperAdmin: false,
+    }
+  }
+
+  if (ignore) {
+    return { isAdmin: false, canSaveFirebase: false, canDelete: false, isSuperAdmin: false }
   }
 
   return {
@@ -127,5 +182,6 @@ export function normalizeMemberRow(row) {
     canEdit: Boolean(row?.canEdit),
     canSaveFirebase: Boolean(row?.canSaveFirebase),
     canDeleteHymn: Boolean(row?.canDeleteHymn),
+    canManageDashboard: Boolean(row?.canManageDashboard),
   }
 }

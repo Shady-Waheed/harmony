@@ -93,7 +93,10 @@ function AppShell() {
   const isAdmin = perms.isAdmin
   const canDelete = perms.canDelete
   const canSaveFirebase = perms.canSaveFirebase
-  const canManageTeam = useMemo(() => canAccessTeamDashboard(currentUser), [currentUser])
+  const canManageTeam = useMemo(
+    () => canAccessTeamDashboard(currentUser, teamData || {}),
+    [currentUser, teamData],
+  )
 
   const showFirebaseSaveBtn = canSaveFirebase && hasFirebaseConfig
   const showFirebaseDeleteBtn = canDelete && hasFirebaseConfig
@@ -171,10 +174,10 @@ function AppShell() {
   }, [hasFirebaseConfig])
 
   useEffect(() => {
-    if (!canAccessTeamDashboard(currentUser)) {
+    if (!canAccessTeamDashboard(currentUser, teamData || {})) {
       setShowAdminDashboard(false)
     }
-  }, [currentUser])
+  }, [currentUser, teamData])
 
   useEffect(() => {
     if (!isAdmin && state.mode !== 'view') {
@@ -347,16 +350,19 @@ function AppShell() {
     }
   }
 
-  const onSaveTeamMembers = async (members) => {
-    if (!db || !hasFirebaseConfig || !canManageTeam) {
+  const onSaveTeamMembers = async (payload) => {
+    if (!db || !hasFirebaseConfig || !canAccessTeamDashboard(currentUser, teamData || {})) {
       return
     }
+    const members = Array.isArray(payload) ? payload : payload.members
+    const ignoreEnvAdminList = Array.isArray(payload) ? false : Boolean(payload.ignoreEnvAdminList)
     try {
       setSavingTeam(true)
       await setDoc(
         doc(db, SETTINGS_TEAM_DOC.collection, SETTINGS_TEAM_DOC.id),
         {
           members,
+          ignoreEnvAdminList,
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -394,6 +400,7 @@ function AppShell() {
         <main className="content adminDashboardPage">
           <AdminDashboard
             members={teamMembersForDashboard}
+            ignoreEnvAdminList={Boolean(teamData?.ignoreEnvAdminList)}
             saving={savingTeam}
             onSave={onSaveTeamMembers}
             onBack={() => setShowAdminDashboard(false)}
