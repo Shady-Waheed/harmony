@@ -7,7 +7,7 @@ import { exportNodeToPng } from './utils/exportImage'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
 import { addDoc, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider, hasFirebaseConfig } from './firebase'
-import { isSuperAdminUser, resolvePermissions, SETTINGS_TEAM_DOC } from './utils/permissions'
+import { canAccessTeamDashboard, resolvePermissions, SETTINGS_TEAM_DOC } from './utils/permissions'
 import {
   downloadProjectFile,
   parseProjectFileContent,
@@ -93,7 +93,7 @@ function AppShell() {
   const isAdmin = perms.isAdmin
   const canDelete = perms.canDelete
   const canSaveFirebase = perms.canSaveFirebase
-  const isSuperAdmin = perms.isSuperAdmin
+  const canManageTeam = useMemo(() => canAccessTeamDashboard(currentUser), [currentUser])
 
   const showFirebaseSaveBtn = canSaveFirebase && hasFirebaseConfig
   const showFirebaseDeleteBtn = canDelete && hasFirebaseConfig
@@ -171,7 +171,7 @@ function AppShell() {
   }, [hasFirebaseConfig])
 
   useEffect(() => {
-    if (!isSuperAdminUser(currentUser)) {
+    if (!canAccessTeamDashboard(currentUser)) {
       setShowAdminDashboard(false)
     }
   }, [currentUser])
@@ -348,7 +348,7 @@ function AppShell() {
   }
 
   const onSaveTeamMembers = async (members) => {
-    if (!db || !hasFirebaseConfig || !isSuperAdmin) {
+    if (!db || !hasFirebaseConfig || !canManageTeam) {
       return
     }
     try {
@@ -369,7 +369,7 @@ function AppShell() {
     }
   }
 
-  if (showAdminDashboard && isSuperAdmin) {
+  if (showAdminDashboard && canManageTeam) {
     return (
       <div className={`app ${state.theme}`} dir="rtl" lang="ar">
         <header className="topBar">
@@ -444,7 +444,7 @@ function AppShell() {
               خروج
             </button>
           ) : null}
-          {isSuperAdmin ? (
+          {canManageTeam ? (
             <button type="button" className="btn primary" onClick={() => setShowAdminDashboard(true)}>
               لوحة الصلاحيات
             </button>

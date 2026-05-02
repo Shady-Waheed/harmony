@@ -7,12 +7,35 @@ function parseList(raw) {
     .filter(Boolean)
 }
 
+/**
+ * مشرف رئيسي صريح (صلاحيات كاملة + تجاوز مستند الفريق). يعمل فقط لو عرّفت VITE_SUPER_ADMIN_*.
+ */
 export function isSuperAdminUser(user) {
+  if (!user) return false
+  const emails = parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).map((e) => e.toLowerCase())
+  const uids = parseList(import.meta.env.VITE_SUPER_ADMIN_UIDS)
+  if (emails.length === 0 && uids.length === 0) {
+    return false
+  }
+  const email = String(user.email || '').toLowerCase()
+  const uid = String(user.uid || '')
+  return emails.includes(email) || uids.includes(uid)
+}
+
+/**
+ * من يقدر يفتح لوحة الصلاحيات ويحفظ settings/team:
+ * — لو VITE_SUPER_ADMIN_* فاضية: أي حساب في VITE_ADMIN_EMAILS / VITE_ADMIN_UIDS
+ * — لو في قائمة مشرف رئيسي: نفس isSuperAdminUser
+ */
+export function canAccessTeamDashboard(user) {
   if (!user) return false
   const emails = parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).map((e) => e.toLowerCase())
   const uids = parseList(import.meta.env.VITE_SUPER_ADMIN_UIDS)
   const email = String(user.email || '').toLowerCase()
   const uid = String(user.uid || '')
+  if (emails.length === 0 && uids.length === 0) {
+    return isAdminUserEnv(user)
+  }
   return emails.includes(email) || uids.includes(uid)
 }
 

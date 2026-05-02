@@ -1,19 +1,52 @@
 rules_version = '2';
 
-// صلّح القواعد في الإنتاج: حصر الكتابة على المشرفين (Claims أو قائمة بريد ثابتة).
-// حاليًا يسمح للمستخدمين المسجّلين بالقراءة/الكتابة للتطوير — راجع Firebase Console > Firestore > Rules.
-
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email in [
+          "shekohitler@gmail.com",
+          "Martin.magdy109@gmail.com",
+          "shadywaheed10101@gmail.com"
+        ] ||
+        request.auth.uid in [
+          "ADMIN_UID_1",
+          "ADMIN_UID_2"
+        ]
+      );
+    }
+
+    function canDelete() {
+      return isSignedIn() && (
+        request.auth.token.email in [
+          "shekohitler@gmail.com"
+        ] ||
+        request.auth.uid in [
+          "DELETE_UID_1"
+        ]
+      );
+    }
+
+    // كتابة لوحة الصلاحيات (settings/team) — غيّر الإيميل لمشرفك الرئيسي فقط
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.email in [
+        "shekohitler@gmail.com"
+      ];
+    }
+
     match /hymns/{hymnId} {
       allow read: if true;
-      allow create, update: if request.auth != null;
-      allow delete: if request.auth != null;
+      allow create, update: if isAdmin();
+      allow delete: if canDelete();
     }
 
     match /settings/{docId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
     }
   }
 }
