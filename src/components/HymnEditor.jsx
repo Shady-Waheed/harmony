@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useHymnStore } from '../store/hymnStore.jsx'
 import { normalizeLineStructure, splitWords } from '../utils/lineChords'
 import { ROOT_NOTES, formatChordLabel } from '../utils/chords'
@@ -203,13 +203,42 @@ function getEditorId(lineId, kind, wordIndex, slotIndex = -1) {
   return `${lineId}:${kind}:${wordIndex}:${slotIndex}`
 }
 
+function linePreviewSnippet(text, maxLen = 58) {
+  const s = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!s) return 'فارغ…'
+  if (s.length <= maxLen) return s
+  return `${s.slice(0, maxLen)}…`
+}
+
 function HymnEditor() {
   const { state, updateHymn, addSection, removeSection, updateSectionTitle, addLine, removeLine, updateLine, transposeHymn } =
     useHymnStore()
   const { hymn } = state
   const [activeEditorId, setActiveEditorId] = useState('')
-
+  const [openSectionId, setOpenSectionId] = useState(() => hymn.sections[0]?.id ?? null)
+  const [openLineId, setOpenLineId] = useState(() => hymn.sections[0]?.lines[0]?.id ?? null)
   const sectionCount = useMemo(() => hymn.sections.length, [hymn.sections.length])
+
+  useEffect(() => {
+    if (!hymn.sections.length) {
+      setOpenSectionId(null)
+      return
+    }
+    setOpenSectionId((prev) => (prev && hymn.sections.some((s) => s.id === prev) ? prev : hymn.sections[0].id))
+  }, [hymn.sections])
+
+  useEffect(() => {
+    if (!openSectionId) {
+      setOpenLineId(null)
+      return
+    }
+    const section = hymn.sections.find((s) => s.id === openSectionId)
+    if (!section || !section.lines.length) {
+      setOpenLineId(null)
+      return
+    }
+    setOpenLineId((prev) => (prev && section.lines.some((line) => line.id === prev) ? prev : section.lines[0].id))
+  }, [hymn.sections, openSectionId])
 
   return (
     <section className="card">
@@ -237,30 +266,86 @@ function HymnEditor() {
         </button>
       </div>
 
-      {hymn.sections.map((section, secIndex) => (
-        <article key={section.id} className="sectionCard modernCard">
-          <div className="row between sectionHeaderRow">
-            <input
-              className="input modernInput"
-              value={section.title}
-              onChange={(e) => updateSectionTitle(section.id, e.target.value)}
-              placeholder={`اسم القسم ${secIndex + 1}`}
-            />
-            <button
-              className="btn danger deleteSectionBtn"
-              onClick={() => removeSection(section.id)}
-              disabled={sectionCount <= 1}
-            >
-              حذف القسم
-            </button>
-          </div>
+      {hymn.sections.map((section, secIndex) => {
+        const sectionOpen = openSectionId === section.id
+        return (
+          <article
+            key={section.id}
+            className={`sectionCard modernCard ${sectionOpen ? 'sectionAccordionOpen' : ''}`}
+          >
+            <div className="row between sectionHeaderRow sectionAccordionHead">
+              <button
+                type="button"
+                className={`btn sectionAccordionToggle ${sectionOpen ? 'sectionAccordionToggleOpen' : ''}`}
+                aria-expanded={sectionOpen}
+                title={
+                  sectionOpen ? 'القسم مفتوح' : 'افتح هذا القسم (يتم طيّ الأقسام الأخرى تلقائيًا)'
+                }
+                onClick={() => {
+                  setOpenSectionId(section.id)
+                  setActiveEditorId('')
+                  setOpenLineId(section.lines[0]?.id ?? null)
+                }}
+              >
+                <span className="sectionAccordionChevron" aria-hidden>
+                  {sectionOpen ? '▼' : '▶'}
+                </span>
+              </button>
+              <input
+                className="input modernInput sectionAccordionTitleInput"
+                value={section.title}
+                onChange={(e) => updateSectionTitle(section.id, e.target.value)}
+                placeholder={`اسم القسم ${secIndex + 1}`}
+              />
+              <button
+                className="btn danger deleteSectionBtn"
+                type="button"
+                onClick={() => removeSection(section.id)}
+                disabled={sectionCount <= 1}
+              >
+                حذف القسم
+              </button>
+            </div>
 
-          {section.lines.map((line, lineIndex) => {
-            const normalizedLine = normalizeLineStructure(line)
-            const words = splitWords(normalizedLine.lyrics)
+            {!sectionOpen ? (
+              <p className="sectionAccordionMuted">
+                {section.lines.length} سطر في هذا القسم — اضغط السهم لعرض الأسطر وتعديلها.
+              </p>
+            ) : (
+              <>
+                {section.lines.map((line, lineIndex) => {
+                  const normalizedLine = normalizeLineStructure(line)
+                  const words = splitWords(normalizedLine.lyrics)
+                  const lineOpen = openLineId === line.id
 
-            return (
-              <div key={line.id} className="lineEditor modernLineEditor">
+                  if (!lineOpen) {
+                    return (
+                      <div key={line.id} className="lineEditorCollapsed row between wrap">
+                        <button
+                          type="button"
+                          className="lineEditorSummaryBtn"
+                          onClick={() => {
+                            setOpenSectionId(section.id)
+                            setOpenLineId(line.id)
+                            setActiveEditorId('')
+                          }}
+                        >
+                          <span className="lineEditorSummaryIndex">السطر {lineIndex + 1}</span>
+                          <span className="lineEditorSummarySnippet">{linePreviewSnippet(normalizedLine.lyrics)}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn ghost lineEditorSummaryDelete"
+                          onClick={() => removeLine(section.id, line.id)}
+                        >
+                          حذف
+                        </button>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div key={line.id} className="lineEditor modernLineEditor lineEditorExpanded">
                 <label>السطر {lineIndex + 1} - اكتب الكلمات كاملة</label>
                 <textarea
                   className="input textarea modernInput"
@@ -481,20 +566,23 @@ function HymnEditor() {
                   </>
                 )}
 
-                <div className="row end">
-                  <button className="btn ghost" onClick={() => removeLine(section.id, line.id)}>
-                    حذف السطر
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+                      <div className="row end">
+                        <button className="btn ghost" type="button" onClick={() => removeLine(section.id, line.id)}>
+                          حذف السطر
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
 
-          <button className="btn" onClick={() => addLine(section.id)}>
-            + إضافة سطر
-          </button>
-        </article>
-      ))}
+                <button className="btn" type="button" onClick={() => addLine(section.id)}>
+                  + إضافة سطر
+                </button>
+              </>
+            )}
+          </article>
+        )
+      })}
 
       <button className="btn primary" onClick={addSection}>
         + إضافة قسم
