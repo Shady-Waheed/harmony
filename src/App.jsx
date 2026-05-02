@@ -101,6 +101,28 @@ function canDeleteHymns(user) {
   return allowedEmails.includes(email) || allowedUids.includes(uid)
 }
 
+/** حفظ/تحديث على Firebase: افتراضياً كل الأدمن؛ أو قيّم VITE_SAVE_EMAILS / VITE_SAVE_UIDS */
+function canSaveHymnsToFirebase(user) {
+  if (!user) return false
+  const allowedEmails = String(import.meta.env.VITE_SAVE_EMAILS || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+  const allowedUids = String(import.meta.env.VITE_SAVE_UIDS || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  const email = String(user.email || '').toLowerCase()
+  const uid = String(user.uid || '')
+
+  if (allowedEmails.length === 0 && allowedUids.length === 0) {
+    return isAdminUser(user)
+  }
+
+  return allowedEmails.includes(email) || allowedUids.includes(uid)
+}
+
 function AppShell() {
   const { state, setMode, toggleTheme, importProject, resetProject, loadHymn, createNewHymn, transposeHymn, setPersistFullHymn } =
     useHymnStore()
@@ -121,6 +143,11 @@ function AppShell() {
   const isDark = state.theme === 'dark'
   const isAdmin = isAdminUser(currentUser)
   const canDelete = canDeleteHymns(currentUser)
+  const canSaveFirebase = canSaveHymnsToFirebase(currentUser)
+
+  const showFirebaseSaveBtn = canSaveFirebase && hasFirebaseConfig
+  const showFirebaseDeleteBtn = canDelete && hasFirebaseConfig
+  const showFirebaseSidebarActions = showFirebaseSaveBtn || showFirebaseDeleteBtn
 
   const filteredHymns = useMemo(
     () => hymns.filter((item) => hymnTitleMatches(item.title, hymnSearchQuery)),
@@ -203,8 +230,8 @@ function AppShell() {
   }
 
   const onSaveHymnToFirebase = async () => {
-    if (!isAdmin) {
-      showNotice('الوضع الحالي للقراءة فقط. سجّل دخول أدمن للتعديل.', 'error')
+    if (!canSaveFirebase) {
+      showNotice('ليس لديك صلاحية حفظ الترانيم على السيرفر.', 'error')
       return
     }
     if (!db || !hasFirebaseConfig) return
@@ -360,12 +387,16 @@ function AppShell() {
           <button className={`btn ${state.mode === 'view' ? 'primary' : ''}`} onClick={() => setMode('view')}>
             وضع العرض
           </button>
-          <button className="btn" onClick={onSaveProjectFile}>
-            حفظ ملف المشروع
-          </button>
-          <button className="btn" onClick={onOpenProjectClick}>
-            استيراد ملف المشروع
-          </button>
+          {isAdmin ? (
+            <>
+              <button className="btn" onClick={onSaveProjectFile}>
+                حفظ ملف المشروع
+              </button>
+              <button className="btn" onClick={onOpenProjectClick}>
+                استيراد ملف المشروع
+              </button>
+            </>
+          ) : null}
           <button className="btn" onClick={onExport} disabled={loadingExport}>
             {loadingExport ? 'جاري التصدير...' : 'تصدير PNG (HD)'}
           </button>
@@ -379,13 +410,15 @@ function AppShell() {
               خروج
             </button>
           ) : null}
-          <input
-            ref={projectFileInputRef}
-            type="file"
-            accept={`${PROJECT_EXTENSION},application/json`}
-            onChange={onImportProjectFile}
-            hidden
-          />
+          {isAdmin ? (
+            <input
+              ref={projectFileInputRef}
+              type="file"
+              accept={`${PROJECT_EXTENSION},application/json`}
+              onChange={onImportProjectFile}
+              hidden
+            />
+          ) : null}
         </div>
       </header>
 
@@ -431,15 +464,15 @@ function AppShell() {
             </div>
           ) : null}
 
-          {isAdmin || canDelete ? (
+          {showFirebaseSidebarActions ? (
             <div className="row wrap sidebarActions">
-              {isAdmin ? (
-                <button className="btn primary" onClick={onSaveHymnToFirebase} disabled={!hasFirebaseConfig || savingHymn}>
+              {showFirebaseSaveBtn ? (
+                <button className="btn primary" onClick={onSaveHymnToFirebase} disabled={savingHymn}>
                   {savingHymn ? 'جاري الحفظ...' : selectedHymnId ? 'تحديث' : 'حفظ'}
                 </button>
               ) : null}
-              {canDelete ? (
-                <button className="btn danger" onClick={onDeleteHymnFromFirebase} disabled={!hasFirebaseConfig || !selectedHymnId || deletingHymn}>
+              {showFirebaseDeleteBtn ? (
+                <button className="btn danger" onClick={onDeleteHymnFromFirebase} disabled={!selectedHymnId || deletingHymn}>
                   {deletingHymn ? 'جاري الحذف...' : 'حذف الترانيمة'}
                 </button>
               ) : null}
