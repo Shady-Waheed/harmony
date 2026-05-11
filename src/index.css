@@ -96,6 +96,38 @@ body {
   margin-bottom: 0.7rem;
 }
 
+.sidebarAddCard {
+  margin-bottom: 0.7rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  display: grid;
+  gap: 0.65rem;
+}
+
+.sidebarAddCardInfo {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.sidebarAddCardInfo strong {
+  font-size: 0.98rem;
+}
+
+.sidebarAddCardInfo p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.sidebarAddCardBtn {
+  width: 100%;
+  font-size: 1rem;
+  padding: 0.9rem 1rem;
+}
+
 .sidebarActions {
   margin-bottom: 0.65rem;
 }
