@@ -75,15 +75,16 @@ body {
   margin: 0 auto;
 }
 
-.content.withSidebar {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 0.85rem;
-  align-items: start;
+.content.simpleLayout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
 }
 
-.editorPane {
-  min-width: 0;
+.simpleEditorPane {
+  width: 100%;
+  max-width: 800px;
 }
 
 .hymnsSidebar {

@@ -142,22 +142,9 @@ function AppShell() {
     setPersistFullHymn,
   } = useHymnStore();
   const [loadingExport, setLoadingExport] = useState(false);
-  const [hymns, setHymns] = useState([]);
-  const [loadingHymns, setLoadingHymns] = useState(true);
-  const [selectedHymnId, setSelectedHymnId] = useState("");
-  const [savingHymn, setSavingHymn] = useState(false);
-  const [deletingHymn, setDeletingHymn] = useState(false);
-  const [notice, setNotice] = useState(null);
-  const [hymnSearchQuery, setHymnSearchQuery] = useState("");
-  const [currentUser, setCurrentUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const viewRef = useRef(null);
-  const projectFileInputRef = useRef(null);
-  const noticeTimeoutRef = useRef(null);
-
-  const [teamData, setTeamData] = useState(null);
-  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
-  const [savingTeam, setSavingTeam] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const viewRef = useRef(null)
 
   const isDark = state.theme === "dark";
   const perms = useMemo(
@@ -301,102 +288,14 @@ function AppShell() {
     return () => window.clearTimeout(noticeTimeoutRef.current);
   }, []);
 
-  const onSelectHymn = (hymnDoc) => {
-    const exclusiveOwnerUid = String(hymnDoc.exclusiveOwnerUid || "");
-    const isExclusive =
-      Boolean(hymnDoc.isExclusive) || exclusiveOwnerUid.length > 0;
-    const canOpenExclusive =
-      !isExclusive ||
-      (currentUser && exclusiveOwnerUid === String(currentUser.uid || ""));
-    if (!canOpenExclusive) {
-      showNotice("هذه الترانيمة حصرية وغير متاحة لهذا الحساب.", "error");
-      return;
-    }
-    setSelectedHymnId(hymnDoc.id);
-    loadHymn({
-      id: hymnDoc.id,
-      title: hymnDoc.title || "",
-      key: hymnDoc.key || "",
-      sections: decodeSectionsFromFirestore(hymnDoc.sections || []),
-      isExclusive,
-      exclusiveOwnerUid,
-    });
-  };
-
   const onNewNote = () => {
     if (!isAdmin) return;
-    setSelectedHymnId("");
     createNewHymn();
   };
 
-  const onSaveHymnToFirebase = async () => {
-    if (!canSaveFirebase) {
-      showNotice("ليس لديك صلاحية حفظ الترانيم على السيرفر.", "error");
-      return;
-    }
-    if (!db || !hasFirebaseConfig) return;
-    const title = String(state.hymn.title || "").trim();
-    if (!title) {
-      showNotice("اكتب عنوان الترانيمة قبل الحفظ.", "error");
-      return;
-    }
 
-    const payload = {
-      title,
-      key: state.hymn.key || "",
-      sections: encodeSectionsForFirestore(state.hymn.sections || []),
-      isExclusive: isSuperAdmin ? Boolean(state.hymn.isExclusive) : false,
-      exclusiveOwnerUid:
-        isSuperAdmin && state.hymn.isExclusive
-          ? String(currentUser?.uid || "")
-          : "",
-      updatedAt: serverTimestamp(),
-    };
 
-    try {
-      setSavingHymn(true);
-      if (selectedHymnId) {
-        await setDoc(doc(db, "hymns", selectedHymnId), payload, {
-          merge: true,
-        });
-        showNotice("تم تحديث الترانيمة.", "success");
-        return;
-      }
 
-      const created = await addDoc(collection(db, "hymns"), {
-        ...payload,
-        createdAt: serverTimestamp(),
-      });
-      setSelectedHymnId(created.id);
-      loadHymn({ ...state.hymn, id: created.id });
-      showNotice("تم حفظ ترنيمة جديدة.", "success");
-    } catch (error) {
-      showNotice(`فشل الحفظ: ${error.message}`, "error");
-    } finally {
-      setSavingHymn(false);
-    }
-  };
-
-  const onDeleteHymnFromFirebase = async () => {
-    if (!canDelete) {
-      showNotice("ليس لديك صلاحية حذف الترانيم.", "error");
-      return;
-    }
-    if (!db || !hasFirebaseConfig || !selectedHymnId) return;
-    const confirmed = window.confirm("هل تريد حذف هذه الترانيمة نهائيًا؟");
-    if (!confirmed) return;
-
-    try {
-      setDeletingHymn(true);
-      await deleteDoc(doc(db, "hymns", selectedHymnId));
-      onNewNote();
-      showNotice("تم حذف الترانيمة.", "success");
-    } catch (error) {
-      showNotice(`فشل الحذف: ${error.message}`, "error");
-    } finally {
-      setDeletingHymn(false);
-    }
-  };
 
   const onExport = async () => {
     if (!viewRef.current) return;
@@ -571,31 +470,34 @@ function AppShell() {
               className={`btn ${state.mode === "edit" ? "primary" : ""}`}
               onClick={() => setMode("edit")}
             >
-              وضع التعديل
+              تعديل
             </button>
           ) : null}
           <button
             className={`btn ${state.mode === "view" ? "primary" : ""}`}
             onClick={() => setMode("view")}
           >
-            وضع العرض
+            عرض
           </button>
           {isAdmin ? (
-            <>
-              <button className="btn" onClick={onSaveProjectFile}>
-                حفظ ملف المشروع
-              </button>
-              <button className="btn" onClick={onOpenProjectClick}>
-                استيراد ملف المشروع
-              </button>
-            </>
+            <button className="btn" onClick={onNewNote}>
+              ترنيمة جديدة
+            </button>
+          ) : null}
+          {isAdmin ? (
+            <button className="btn" onClick={onSaveProjectFile}>
+              حفظ ملف
+            </button>
           ) : null}
           <button className="btn" onClick={onExport} disabled={loadingExport}>
-            {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
+            {loadingExport ? "تصدير..." : "تصدير PNG"}
+          </button>
+          <button className="btn" onClick={toggleTheme}>
+            {isDark ? "نهاري" : "ليلي"}
           </button>
           {!authLoading && !currentUser ? (
             <button className="btn primary" onClick={onAdminSignIn}>
-              دخول أدمن
+              دخول
             </button>
           ) : null}
           {!authLoading && currentUser ? (
@@ -603,186 +505,11 @@ function AppShell() {
               خروج
             </button>
           ) : null}
-          {canManageTeam ? (
-            <button
-              type="button"
-              className="btn primary"
-              onClick={() => setShowAdminDashboard(true)}
-            >
-              لوحة الصلاحيات
-            </button>
-          ) : null}
-          {isAdmin ? (
-            <input
-              ref={projectFileInputRef}
-              type="file"
-              accept={`${PROJECT_EXTENSION},application/json`}
-              onChange={onImportProjectFile}
-              hidden
-            />
-          ) : null}
         </div>
       </header>
 
-      <main className="content withSidebar">
-        <aside className="card hymnsSidebar">
-          <p className={`roleBadge ${isAdmin ? "admin" : "viewer"}`}>
-            {isAdmin
-              ? `أدمن: ${currentUser?.email || currentUser?.uid || "مُسجل"}`
-              : currentUser
-                ? "مستخدم مسجل (قراءة فقط)"
-                : "وضع القراءة فقط"}
-          </p>
-          <div className="row between sidebarHeader">
-            <h3>الترانيم المحفوظة</h3>
-            {isAdmin ? (
-              <button
-                className="btn primary"
-                onClick={onNewNote}
-                aria-label="إضافة ترنيمة جديدة"
-              >
-                + ترنيمة جديدة
-              </button>
-            ) : null}
-          </div>
-
-          {isAdmin ? (
-            <div className="sidebarAddCard">
-              <div className="sidebarAddCardInfo">
-                <strong>ابدأ ترنيمة جديدة بسهولة</strong>
-                <p>اضغط على الزر لفتح محرر الترانيمة الفارغة مباشرةً.</p>
-              </div>
-              <button className="btn primary sidebarAddCardBtn" onClick={onNewNote}>
-                إنشاء ترنيمة جديدة
-              </button>
-            </div>
-          ) : null}
-
-          {hasFirebaseConfig ? (
-            <div className="hymnSearchWrap">
-              <input
-                id="hymn-search"
-                type="search"
-                className="input hymnSearchInput"
-                placeholder="بحث باسم الترنيمة…"
-                value={hymnSearchQuery}
-                onChange={(e) => setHymnSearchQuery(e.target.value)}
-                disabled={loadingHymns}
-                autoComplete="off"
-                spellCheck={false}
-                aria-label="بحث باسم الترنيمة"
-              />
-              {!loadingHymns && hymns.length > 0 ? (
-                <p className="hymnSearchMeta" aria-live="polite">
-                  {filteredHymns.length === visibleHymns.length
-                    ? `${visibleHymns.length} ترنيمة`
-                    : `${filteredHymns.length} من ${visibleHymns.length}`}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          {showFirebaseSidebarActions ? (
-            <div className="row wrap sidebarActions">
-              {isSuperAdmin ? (
-                <label className="adminDashToggle">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(state.hymn.isExclusive)}
-                    onChange={(e) =>
-                      updateHymn({ isExclusive: e.target.checked })
-                    }
-                  />
-                  <span>حصرية لي فقط</span>
-                </label>
-              ) : null}
-              {showFirebaseSaveBtn ? (
-                <button
-                  className="btn primary"
-                  onClick={onSaveHymnToFirebase}
-                  disabled={savingHymn}
-                >
-                  {savingHymn
-                    ? "جاري الحفظ..."
-                    : selectedHymnId
-                      ? "تحديث"
-                      : "حفظ"}
-                </button>
-              ) : null}
-              {showFirebaseDeleteBtn ? (
-                <button
-                  className="btn danger"
-                  onClick={onDeleteHymnFromFirebase}
-                  disabled={!selectedHymnId || deletingHymn}
-                >
-                  {deletingHymn ? "جاري الحذف..." : "حذف الترانيمة"}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          <div className="row sidebarTransposeActions">
-            <button
-              className="btn"
-              onClick={() => transposeHymn(-1)}
-              title="Transpose -1 semitone"
-              aria-label="Transpose down"
-            >
-              -
-            </button>
-            <button
-              className="btn"
-              onClick={() => transposeHymn(1)}
-              title="Transpose +1 semitone"
-              aria-label="Transpose up"
-            >
-              +
-            </button>
-          </div>
-
-          {!hasFirebaseConfig ? (
-            <p className="sidebarHint">
-              Firebase غير مهيأ. أضف متغيرات VITE_FIREBASE_* لعرض القائمة.
-            </p>
-          ) : null}
-
-          {hasFirebaseConfig && loadingHymns ? (
-            <p className="sidebarHint">جاري تحميل الترانيم...</p>
-          ) : null}
-
-          {hasFirebaseConfig && !loadingHymns && hymns.length === 0 ? (
-            <p className="sidebarHint">لا توجد ترانيم محفوظة حاليًا.</p>
-          ) : null}
-
-          {hasFirebaseConfig &&
-          !loadingHymns &&
-          hymns.length > 0 &&
-          filteredHymns.length === 0 ? (
-            <p className="sidebarHint">
-              لا توجد ترانيم تطابق «{hymnSearchQuery.trim() || "…"}». جرّب حروف
-              أقل أو امسح البحث.
-            </p>
-          ) : null}
-
-          {hasFirebaseConfig && !loadingHymns && filteredHymns.length > 0 ? (
-            <ul className="hymnList">
-              {filteredHymns.map((hymnItem) => (
-                <li key={hymnItem.id}>
-                  <button
-                    className={`hymnListItem ${selectedHymnId === hymnItem.id ? "active" : ""}`}
-                    onClick={() => onSelectHymn(hymnItem)}
-                  >
-                    <span>{hymnItem.title || "ترنيمة بدون عنوان"}</span>
-                    {Boolean(hymnItem.isExclusive) ? (
-                      <small> (حصرية)</small>
-                    ) : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </aside>
-
-        <div className="editorPane">
+      <main className="content simpleLayout">
+        <div className="simpleEditorPane">
           {state.mode === "edit" && isAdmin ? (
             <HymnEditor />
           ) : (
@@ -790,13 +517,6 @@ function AppShell() {
           )}
         </div>
       </main>
-
-      {state.mode === "edit" && isAdmin ? (
-        <section className="previewWrap">
-          <h3>معاينة مباشرة</h3>
-          <HymnView ref={viewRef} />
-        </section>
-      ) : null}
 
       {isAdmin ? (
         <button className="floatingResetBtn" onClick={onResetProject}>
