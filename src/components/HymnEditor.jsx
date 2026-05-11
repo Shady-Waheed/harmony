@@ -12,7 +12,7 @@ const CUSTOM_INVERSION_OPTIONS = [
   { id: 'second', label: '2nd Inversion' },
   { id: 'third', label: '3rd Inversion' },
 ]
-const CHORD_TYPES = ['', 'm', '7', 'm7', 'maj7', 'sus4', 'dim', 'aug']
+const CHORD_TYPES = ['', 'm', '7', 'm7', 'maj7', 'sus4', 'sus2', 'dim', 'aug']
 const SHARP_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const FLAT_NOTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
 const NOTE_INDEX = {
@@ -40,7 +40,7 @@ function parseChordParts(chord) {
     return { root: '', type: '', bass: '', custom: false }
   }
 
-  const match = chord.trim().match(/^([A-G](?:#|b)?)(maj7|m7|sus4|dim|aug|m|7)?(?:\/([A-G](?:#|b)?))?$/)
+  const match = chord.trim().match(/^([A-G](?:#|b)?)(maj7|m7|sus4|sus2|dim|aug|m|7)?(?:\/([A-G](?:#|b)?))?$/)
   if (!match) {
     return { root: '', type: '', bass: '', custom: true }
   }
@@ -72,6 +72,8 @@ function getChordIntervals(type) {
       return [0, 4, 7, 11]
     case 'sus4':
       return [0, 5, 7]
+    case 'sus2':
+      return [0, 2, 7]
     case 'dim':
       return [0, 3, 6]
     case 'aug':

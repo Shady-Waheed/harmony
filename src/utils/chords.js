@@ -21,7 +21,7 @@ const NOTE_INDEX = {
   B: 11,
 }
 
-const CHORD_QUALITIES = ['', 'm', '7', 'm7', 'maj7', 'sus4', 'dim', 'aug']
+const CHORD_QUALITIES = ['', 'm', '7', 'm7', 'maj7', 'sus4', 'sus2', 'dim', 'aug']
 const CHORD_BASS_NOTES = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B']
 export const ROOT_NOTES = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B']
 

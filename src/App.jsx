@@ -530,8 +530,8 @@ function AppShell() {
           <div className="row between sidebarHeader">
             <h3>الترانيم المحفوظة</h3>
             {isAdmin ? (
-              <button className="btn primary" onClick={onNewNote}>
-                New Note
+              <button className="btn primary" onClick={onNewNote} aria-label="إضافة ترنيمة جديدة">
+                إضافة ترنيمة جديدة
               </button>
             ) : null}
           </div>
