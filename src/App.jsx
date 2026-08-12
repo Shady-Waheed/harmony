@@ -722,7 +722,7 @@ function AppShell() {
                 onClick={onNewNote}
                 aria-label="إضافة ترنيمة جديدة"
               >
-                إضافة ترنيمة جديدة
+               اضافة
               </button>
             ) : null}
           </div>
