@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from 'firebase/firestore'
 import { getAnalytics, isSupported } from 'firebase/analytics'
 import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 
@@ -16,7 +16,16 @@ const firebaseConfig = {
 const hasFirebaseConfig = true
 
 export const app = hasFirebaseConfig ? initializeApp(firebaseConfig) : null
-export const db = app ? getFirestore(app) : null
+
+/** IndexedDB cache: reads work offline; writes queue until network returns. */
+export const db = app
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentSingleTabManager(),
+      }),
+    })
+  : null
+
 export const auth = app ? getAuth(app) : null
 export const googleProvider = new GoogleAuthProvider()
 export const analyticsPromise =

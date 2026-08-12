@@ -143,6 +143,32 @@ body {
   color: var(--muted);
 }
 
+.syncBadge {
+  margin: 0 0 0.45rem;
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.syncBadge--live {
+  background: color-mix(in srgb, #3ddc97 14%, transparent);
+  border: 1px solid color-mix(in srgb, #3ddc97 40%, var(--border));
+  color: #8ef0c4;
+}
+
+.syncBadge--syncing {
+  background: color-mix(in srgb, #f5c542 14%, transparent);
+  border: 1px solid color-mix(in srgb, #f5c542 45%, var(--border));
+  color: #ffe08a;
+}
+
+.syncBadge--offline {
+  background: color-mix(in srgb, #6b8cce 14%, transparent);
+  border: 1px solid color-mix(in srgb, #6b8cce 45%, var(--border));
+  color: #b8cff5;
+}
+
 .roleBadge {
   margin: 0 0 0.5rem;
   border: 1px solid var(--border);

@@ -28,6 +28,7 @@ import {
   PROJECT_EXTENSION,
   readTextFile,
 } from "./utils/projectFile";
+import { useOfflineSync } from "./hooks/useOfflineSync";
 
 const EXPORT_LOGO_URL = "/harmony-notes-logo.png";
 
@@ -156,6 +157,8 @@ function AppShell() {
   const noticeTimeoutRef = useRef(null);
 
   const [teamData, setTeamData] = useState(null);
+  const [hymnsFromCache, setHymnsFromCache] = useState(false);
+  const [teamFromCache, setTeamFromCache] = useState(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
 
@@ -204,6 +207,11 @@ function AppShell() {
     [teamData],
   );
 
+  const { status: syncStatus, label: syncLabel } = useOfflineSync({
+    hymnsFromCache,
+    teamFromCache,
+  });
+
   const showNotice = (message, type = "info") => {
     setNotice({ message, type });
     window.clearTimeout(noticeTimeoutRef.current);
@@ -244,10 +252,11 @@ function AppShell() {
           ...doc.data(),
         }));
         setHymns(nextHymns);
+        setHymnsFromCache(snapshot.metadata.fromCache);
         setLoadingHymns(false);
       },
-      () => {
-        setHymns([]);
+      (err) => {
+        console.warn("[hymns snapshot]", err?.code || err?.message || err);
         setLoadingHymns(false);
       },
     );
@@ -268,14 +277,14 @@ function AppShell() {
       teamRef,
       (snapshot) => {
         setTeamData(snapshot.exists() ? snapshot.data() : { members: [] });
+        setTeamFromCache(snapshot.metadata.fromCache);
       },
       (err) => {
-        // قراءة settings/team تتطلب تسجيل دخول؛ لا نعرض خطأ القراءة كقائمة فارغة (يُربك وقد يُفسّر كمسح من السيرفر)
         console.warn(
           "[settings/team snapshot]",
           err?.code || err?.message || err,
         );
-        setTeamData(null);
+        setTeamFromCache(true);
       },
     );
     return () => unsubscribe();
@@ -626,6 +635,9 @@ function AppShell() {
 
       <main className="content withSidebar">
         <aside className="card hymnsSidebar">
+          <p className={`syncBadge syncBadge--${syncStatus}`} role="status">
+            {syncLabel}
+          </p>
           <p className={`roleBadge ${isAdmin ? "admin" : "viewer"}`}>
             {isAdmin
               ? `أدمن: ${currentUser?.email || currentUser?.uid || "مُسجل"}`
