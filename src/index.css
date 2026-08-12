@@ -163,10 +163,18 @@ body {
   color: #ffe08a;
 }
 
-.syncBadge--offline {
+.syncBadge--offline,
+.syncBadge--cached,
+.syncBadge--pending-offline {
   background: color-mix(in srgb, #6b8cce 14%, transparent);
   border: 1px solid color-mix(in srgb, #6b8cce 45%, var(--border));
   color: #b8cff5;
+}
+
+.syncBadge--pending-upload {
+  background: color-mix(in srgb, #f5c542 14%, transparent);
+  border: 1px solid color-mix(in srgb, #f5c542 45%, var(--border));
+  color: #ffe08a;
 }
 
 .roleBadge {

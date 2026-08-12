@@ -15,6 +15,8 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
+  waitForPendingWrites,
 } from "firebase/firestore";
 import { auth, db, googleProvider, hasFirebaseConfig } from "./firebase";
 import {
@@ -23,12 +25,16 @@ import {
   SETTINGS_TEAM_DOC,
 } from "./utils/permissions";
 import {
+  cacheUserPermissions,
+  resolvePermissionsWithOfflineCache,
+} from "./utils/permissionsCache";
+import {
   downloadProjectFile,
   parseProjectFileContent,
   PROJECT_EXTENSION,
   readTextFile,
 } from "./utils/projectFile";
-import { useOfflineSync } from "./hooks/useOfflineSync";
+import { useOfflineSync, isBrowserOffline, offlineSaveNotice } from "./hooks/useOfflineSync";
 
 const EXPORT_LOGO_URL = "/harmony-notes-logo.png";
 
@@ -159,13 +165,29 @@ function AppShell() {
   const [teamData, setTeamData] = useState(null);
   const [hymnsFromCache, setHymnsFromCache] = useState(false);
   const [teamFromCache, setTeamFromCache] = useState(false);
+  const [pendingFirestoreWrites, setPendingFirestoreWrites] = useState(false);
+  const pendingSyncNoticeRef = useRef(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
 
+  const { status: syncStatus, label: syncLabel, online } = useOfflineSync({
+    hymnsFromCache,
+    teamFromCache,
+    teamActive: Boolean(currentUser),
+    hymnsReady: !loadingHymns,
+    pendingWrites: pendingFirestoreWrites,
+  });
+
   const isDark = state.theme === "dark";
   const perms = useMemo(
-    () => resolvePermissions(currentUser, teamData || {}),
-    [currentUser, teamData],
+    () =>
+      resolvePermissionsWithOfflineCache(
+        currentUser,
+        teamData || {},
+        resolvePermissions,
+        online,
+      ),
+    [currentUser, teamData, online],
   );
   const isAdmin = perms.isAdmin;
   const isSuperAdmin = perms.isSuperAdmin;
@@ -207,16 +229,17 @@ function AppShell() {
     [teamData],
   );
 
-  const { status: syncStatus, label: syncLabel } = useOfflineSync({
-    hymnsFromCache,
-    teamFromCache,
-  });
-
   const showNotice = (message, type = "info") => {
     setNotice({ message, type });
     window.clearTimeout(noticeTimeoutRef.current);
     noticeTimeoutRef.current = window.setTimeout(() => setNotice(null), 2800);
   };
+
+  useEffect(() => {
+    if (currentUser && (perms.isAdmin || perms.canSaveFirebase || perms.canDelete)) {
+      cacheUserPermissions(currentUser, perms);
+    }
+  }, [currentUser, perms]);
 
   useEffect(() => {
     if (!auth) {
@@ -246,13 +269,15 @@ function AppShell() {
     );
     const unsubscribe = onSnapshot(
       hymnsQuery,
+      { includeMetadataChanges: true },
       (snapshot) => {
-        const nextHymns = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
+        const nextHymns = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
         }));
         setHymns(nextHymns);
         setHymnsFromCache(snapshot.metadata.fromCache);
+        setPendingFirestoreWrites(snapshot.metadata.hasPendingWrites);
         setLoadingHymns(false);
       },
       (err) => {
@@ -268,6 +293,7 @@ function AppShell() {
     if (!db || !hasFirebaseConfig || authLoading || !currentUser) {
       if (!authLoading && !currentUser) {
         setTeamData(null);
+        setTeamFromCache(false);
       }
       return;
     }
@@ -275,9 +301,13 @@ function AppShell() {
     const teamRef = doc(db, SETTINGS_TEAM_DOC.collection, SETTINGS_TEAM_DOC.id);
     const unsubscribe = onSnapshot(
       teamRef,
+      { includeMetadataChanges: true },
       (snapshot) => {
         setTeamData(snapshot.exists() ? snapshot.data() : { members: [] });
         setTeamFromCache(snapshot.metadata.fromCache);
+        if (snapshot.metadata.hasPendingWrites) {
+          setPendingFirestoreWrites(true);
+        }
       },
       (err) => {
         console.warn(
@@ -309,6 +339,29 @@ function AppShell() {
   useEffect(() => {
     return () => window.clearTimeout(noticeTimeoutRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!db || !online || !pendingFirestoreWrites) {
+      pendingSyncNoticeRef.current = false;
+      return undefined;
+    }
+
+    let cancelled = false;
+    waitForPendingWrites(db)
+      .then(() => {
+        if (!cancelled && !pendingSyncNoticeRef.current) {
+          pendingSyncNoticeRef.current = true;
+          showNotice("تم رفع كل التعديلات إلى السيرفر.", "success");
+        }
+      })
+      .catch((err) => {
+        console.warn("[waitForPendingWrites]", err?.code || err?.message || err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [online, pendingFirestoreWrites]);
 
   const onSelectHymn = (hymnDoc) => {
     const exclusiveOwnerUid = String(hymnDoc.exclusiveOwnerUid || "");
@@ -364,21 +417,29 @@ function AppShell() {
 
     try {
       setSavingHymn(true);
+      const offline = isBrowserOffline();
+
       if (selectedHymnId) {
         await setDoc(doc(db, "hymns", selectedHymnId), payload, {
           merge: true,
         });
-        showNotice("تم تحديث الترانيمة.", "success");
+        showNotice(
+          offline ? offlineSaveNotice("save") : "تم تحديث الترانيمة.",
+          "success",
+        );
         return;
       }
 
       const created = await addDoc(collection(db, "hymns"), {
         ...payload,
-        createdAt: serverTimestamp(),
+        createdAt: Timestamp.now(),
       });
       setSelectedHymnId(created.id);
       loadHymn({ ...state.hymn, id: created.id });
-      showNotice("تم حفظ ترنيمة جديدة.", "success");
+      showNotice(
+        offline ? offlineSaveNotice("save") : "تم حفظ ترنيمة جديدة.",
+        "success",
+      );
     } catch (error) {
       showNotice(`فشل الحفظ: ${error.message}`, "error");
     } finally {
@@ -397,9 +458,13 @@ function AppShell() {
 
     try {
       setDeletingHymn(true);
+      const offline = isBrowserOffline();
       await deleteDoc(doc(db, "hymns", selectedHymnId));
       onNewNote();
-      showNotice("تم حذف الترانيمة.", "success");
+      showNotice(
+        offline ? offlineSaveNotice("delete") : "تم حذف الترانيمة.",
+        "success",
+      );
     } catch (error) {
       showNotice(`فشل الحذف: ${error.message}`, "error");
     } finally {
@@ -507,6 +572,7 @@ function AppShell() {
       : Boolean(payload.ignoreEnvAdminList);
     try {
       setSavingTeam(true);
+      const offline = isBrowserOffline();
       await setDoc(
         doc(db, SETTINGS_TEAM_DOC.collection, SETTINGS_TEAM_DOC.id),
         {
@@ -516,7 +582,10 @@ function AppShell() {
         },
         { merge: true },
       );
-      showNotice("تم حفظ صلاحيات الفريق.", "success");
+      showNotice(
+        offline ? offlineSaveNotice("save") : "تم حفظ صلاحيات الفريق.",
+        "success",
+      );
     } catch (error) {
       showNotice(`فشل حفظ الصلاحيات: ${error.message}`, "error");
     } finally {

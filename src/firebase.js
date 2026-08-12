@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app'
 import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from 'firebase/firestore'
 import { getAnalytics, isSupported } from 'firebase/analytics'
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyD40x6ixdgcqjW8ibHCKl6_DZRAlxCMLUI',
@@ -27,6 +27,11 @@ export const db = app
   : null
 
 export const auth = app ? getAuth(app) : null
+if (auth && typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence).catch((err) => {
+    console.warn('[auth] local persistence:', err?.code || err?.message || err)
+  })
+}
 export const googleProvider = new GoogleAuthProvider()
 export const analyticsPromise =
   app && typeof window !== 'undefined'
