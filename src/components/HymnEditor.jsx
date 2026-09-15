@@ -312,6 +312,10 @@ function HymnEditor() {
     removeLine,
     updateLine,
     transposeHymn,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useHymnStore();
   const { hymn } = state;
   const [activeEditorId, setActiveEditorId] = useState("");
@@ -357,7 +361,29 @@ function HymnEditor() {
 
   return (
     <section className="card">
-      <h2>وضع التعديل</h2>
+      <div className="row between editorToolbar">
+        <h2>وضع التعديل</h2>
+        <div className="row wrap">
+          <button
+            type="button"
+            className="btn"
+            onClick={undo}
+            disabled={!canUndo}
+            title="Ctrl+Z"
+          >
+            تراجع
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={redo}
+            disabled={!canRedo}
+            title="Ctrl+Y"
+          >
+            إعادة
+          </button>
+        </div>
+      </div>
       <div className="metaGrid">
         <input
           className="input modernInput"

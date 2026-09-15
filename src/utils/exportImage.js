@@ -1,34 +1,3 @@
-const CDN_URL = 'https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js'
-
-let loadPromise
-
-function loadHtmlToImage() {
-  if (window.htmlToImage?.toPng) {
-    return Promise.resolve(window.htmlToImage)
-  }
-
-  if (loadPromise) {
-    return loadPromise
-  }
-
-  loadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = CDN_URL
-    script.async = true
-    script.onload = () => {
-      if (window.htmlToImage?.toPng) {
-        resolve(window.htmlToImage)
-      } else {
-        reject(new Error('html-to-image failed to load'))
-      }
-    }
-    script.onerror = () => reject(new Error('Could not load html-to-image CDN script'))
-    document.head.appendChild(script)
-  })
-
-  return loadPromise
-}
-
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const image = new Image()
@@ -60,6 +29,7 @@ function createExportClone(node, desktopWidth = 1140, dark = true) {
   themeRoot.style.background = 'transparent'
 
   const clone = node.cloneNode(true)
+  clone.classList.add('exportSheet')
   clone.style.overflow = 'visible'
   clone.style.width = `${desktopWidth}px`
   clone.style.maxWidth = 'none'
@@ -74,11 +44,11 @@ function createExportClone(node, desktopWidth = 1140, dark = true) {
   })
 
   clone.querySelectorAll('.hymnSheet .chord').forEach((item) => {
-    item.style.fontSize = '1.05rem'
+    item.style.fontSize = '0.95rem'
   })
 
   clone.querySelectorAll('.hymnSheet .lyric').forEach((item) => {
-    item.style.fontSize = '1.4rem'
+    item.style.fontSize = '1.42rem'
   })
 
   themeRoot.appendChild(clone)
@@ -126,17 +96,21 @@ async function appendLogoToDataUrl(dataUrl, logoUrl) {
 }
 
 export async function exportNodeToPng(node, fileName = 'harmony-notes.png', dark = true, options = {}) {
-  const htmlToImage = await loadHtmlToImage()
+  const { toPng } = await import('html-to-image')
   const desktopWidth = options.desktopWidth || 1140
   const { wrapper, rootForCapture } = createExportClone(node, desktopWidth, dark)
   let dataUrl = ''
   try {
-    dataUrl = await htmlToImage.toPng(rootForCapture, {
+    dataUrl = await toPng(rootForCapture, {
       cacheBust: true,
       pixelRatio: 3,
-      backgroundColor: dark ? '#0e1117' : '#ffffff',
+      backgroundColor: dark ? '#16131c' : '#f4eee3',
       width: desktopWidth,
       height: rootForCapture.scrollHeight,
+      style: {
+        width: `${desktopWidth}px`,
+        height: `${rootForCapture.scrollHeight}px`,
+      },
     })
   } finally {
     wrapper.remove()

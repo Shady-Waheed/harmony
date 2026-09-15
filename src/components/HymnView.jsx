@@ -99,39 +99,79 @@ function ChordPianoPreview({ chord, inversion }) {
   )
 }
 
+function SheetStaffMark() {
+  return (
+    <svg className="sheetStaffMark" viewBox="0 0 88 22" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round">
+        <path d="M4 3.2h80M4 7.4h80M4 11.6h80M4 15.8h80" />
+        <path d="M18 1.6v18.2" />
+        <path d="M22.2 6.2c4.8-4.4 11.4 0.4 7.2 6.4-3.6 5.2-9.4 7.6-9.4 7.6" />
+      </g>
+    </svg>
+  )
+}
+
 const HymnView = forwardRef(function HymnView(_, ref) {
   const { state } = useHymnStore()
   const { hymn } = state
+  const hasSections = (hymn.sections || []).some((section) => (section.lines || []).length > 0)
 
   return (
     <section ref={ref} className="card hymnSheet" dir="rtl">
       <header className="sheetHeader">
+        <SheetStaffMark />
+        <p className="sheetKicker">Harmony Notes</p>
         <h1>{hymn.title || 'ترنيمة بدون عنوان'}</h1>
-        <p>السلم: {hymn.key || '-'}</p>
+        <div className="sheetMeta">
+          <span className="sheetKeyPill">
+            <small>Key</small>
+            <strong>{hymn.key || '—'}</strong>
+          </span>
+          <span className="sheetMetaHint">مرّر على الكورد لمعاينة البيانو</span>
+        </div>
       </header>
 
-      {hymn.sections.map((section) => (
+      {!hasSections ? (
+        <p className="sheetEmpty">لا توجد كلمات بعد. اكتب الترنيمة من وضع التعديل.</p>
+      ) : null}
+
+      {(hymn.sections || []).map((section, sectionIndex) => (
         <article key={section.id} className="sheetSection">
-          <h2>{section.title || 'قسم'}</h2>
-          {section.lines.map((line) => {
-            const cells = buildDisplayCells(line)
-            return (
-              <div key={line.id} className="sheetLine">
-                {cells.map((cell, i) => (
-                  <div
-                    key={`${line.id}-${i}`}
-                    className={`cell ${cell.type === 'before' || cell.type === 'after' ? 'gap' : cell.type}`}
-                  >
-                    <span className={`chord ${cell.chord ? 'hasPreview' : ''}`}>
-                      {formatChordLabel(cell.chord, cell.inversion) || '\u00A0'}
-                      {cell.chord ? <ChordPianoPreview chord={cell.chord} inversion={cell.inversion} /> : null}
-                    </span>
-                    <span className="lyric">{cell.word || '\u00A0'}</span>
-                  </div>
-                ))}
-              </div>
-            )
-          })}
+          <div className="sheetSectionHead">
+            <span className="sheetSectionIndex">{String(sectionIndex + 1).padStart(2, '0')}</span>
+            <h2>{section.title || 'قسم'}</h2>
+          </div>
+          <div className="sheetLines">
+            {(section.lines || []).map((line) => {
+              const cells = buildDisplayCells(line)
+              if (cells.length === 0) {
+                return <div key={line.id} className="sheetLine sheetLine--empty" />
+              }
+              return (
+                <div key={line.id} className="sheetLine">
+                  {cells.map((cell, i) => {
+                    const isGap = cell.type === 'before' || cell.type === 'after'
+                    const hasChord = Boolean(cell.chord)
+                    return (
+                      <div
+                        key={`${line.id}-${i}`}
+                        className={`cell cell--${cell.type} ${isGap ? 'gap' : ''} ${hasChord ? 'hasChord' : 'noChord'}`}
+                      >
+                        <span
+                          className={`chord ${hasChord ? 'hasPreview' : ''}`}
+                          tabIndex={hasChord ? 0 : undefined}
+                        >
+                          {formatChordLabel(cell.chord, cell.inversion) || '\u00A0'}
+                          {hasChord ? <ChordPianoPreview chord={cell.chord} inversion={cell.inversion} /> : null}
+                        </span>
+                        <span className="lyric">{cell.word || '\u00A0'}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
         </article>
       ))}
     </section>
