@@ -1667,18 +1667,59 @@ body {
   margin-bottom: 34px;
   padding-bottom: 22px;
   border-bottom: 0;
+  text-align: right !important;
 }
 
+.export-container .sidebar-logo,
+.export-container .watermark-box,
 .exportSheet .sheetStaffMark,
 .exportSheet .sheetKicker,
 .exportSheet .sheetMetaHint {
-  display: none;
+  display: none !important;
+}
+
+.export-container .chord-badge,
+.export-container .chord,
+.export-container .lyricWordChord .chord,
+.exportSheet .chord {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: #c0392b !important;
+  font-weight: 700 !important;
+}
+
+.export-title-line {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  color: #111111;
+  font-size: 2.1rem;
+  line-height: 1.3;
+  font-weight: 700;
+  text-align: right;
+  direction: rtl;
+}
+
+.export-title-prefix,
+.export-title-separator,
+.export-title-key {
+  color: #111111;
+}
+
+.export-title-text {
+  color: #111111;
+  font-weight: 700;
 }
 
 .exportSheet .sheetHeader h1 {
   color: #111111 !important;
   font-size: 2.45rem;
   font-weight: 800;
+  display: none !important;
 }
 
 .exportSheet .sheetMeta {

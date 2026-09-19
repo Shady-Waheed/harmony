@@ -20,7 +20,7 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
   wrapper.style.opacity = "0";
 
   const themeRoot = document.createElement("div");
-  themeRoot.className = dark ? "app dark" : "app light";
+  themeRoot.className = dark ? "app dark export-container" : "app light export-container";
   themeRoot.lang = "ar";
   themeRoot.setAttribute("dir", "rtl");
   themeRoot.style.width = `${desktopWidth}px`;
@@ -34,6 +34,7 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
 
   const clone = node.cloneNode(true);
   clone.classList.add("exportSheet");
+  clone.classList.add("export-container");
   clone.style.width = `${desktopWidth}px`;
   clone.style.maxWidth = `${desktopWidth}px`;
   clone.style.minWidth = `${desktopWidth}px`;
@@ -79,14 +80,31 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
     item.style.background = "transparent";
   });
 
+  clone.querySelectorAll(".sidebar-logo, .watermark-box, .previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge").forEach((nodeItem) => {
+    nodeItem.style.display = "none";
+  });
+
+  const exportHeader = clone.querySelector(".sheetHeader");
+  if (exportHeader) {
+    const titleNode = clone.querySelector(".sheetHeader h1");
+    const keyNode = clone.querySelector(".sheetKeyPill strong");
+    const titleText = titleNode?.textContent?.trim() || "ترنيمة بدون عنوان";
+    const keyText = keyNode?.textContent?.trim() || "—";
+
+    exportHeader.innerHTML = `
+      <div class="export-title-line" dir="rtl">
+        <span class="export-title-prefix">ترنيمة</span>
+        <span class="export-title-text">"${titleText}"</span>
+        <span class="export-title-separator">:</span>
+        <span class="export-title-key">${keyText}</span>
+      </div>
+    `;
+  }
+
   clone.querySelectorAll(".hymnSheet .lyric").forEach((item) => {
     item.style.fontSize = "1.5rem";
     item.style.background = "transparent";
     item.style.color = "#191919";
-  });
-
-  clone.querySelectorAll(".previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge").forEach((nodeItem) => {
-    nodeItem.style.display = "none";
   });
 
   themeRoot.appendChild(clone);
