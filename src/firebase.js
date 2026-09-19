@@ -1,5 +1,8 @@
 import { initializeApp } from 'firebase/app'
-import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from 'firebase/firestore'
+import {
+  initializeFirestore,
+  memoryLocalCache,
+} from 'firebase/firestore'
 import { getAnalytics, isSupported } from 'firebase/analytics'
 import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth'
 
@@ -15,14 +18,37 @@ const firebaseConfig = {
 
 const hasFirebaseConfig = true
 
+function clearLegacyFirestorePersistence() {
+  if (typeof window === 'undefined' || !('indexedDB' in window)) {
+    return
+  }
+
+  const legacyNames = [
+    'firebaseLocalStorageDb',
+    'firebase-heartbeat-database',
+    'firebase-local-database',
+  ]
+
+  legacyNames.forEach((name) => {
+    try {
+      window.indexedDB.deleteDatabase(name)
+    } catch {
+      // Ignore legacy cache cleanup errors and force server-first reads.
+    }
+  })
+}
+
+clearLegacyFirestorePersistence()
+
 export const app = hasFirebaseConfig ? initializeApp(firebaseConfig) : null
 
-/** IndexedDB cache: reads work offline; writes queue until network returns. */
+/**
+ * Use in-memory cache only so stale IndexedDB copies do not override
+ * fresh Firestore server data on mobile and reloads.
+ */
 export const db = app
   ? initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentSingleTabManager(),
-      }),
+      localCache: memoryLocalCache(),
     })
   : null
 
