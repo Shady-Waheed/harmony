@@ -155,7 +155,9 @@ function composeChord({ root, type, bass }) {
   if (!root) {
     return "";
   }
-  return `${root}${type}${bass ? `/${bass}` : ""}`;
+  const quality = type || "";
+  const bassPart = bass ? `/${bass}` : "";
+  return `${root}${quality}${bassPart}`;
 }
 
 function getChordIntervals(type) {
@@ -305,15 +307,15 @@ function ChordPicker({
         <select
           className="input chordInput chordSelect"
           value={parts.root}
-          onChange={(e) =>
-            onChange(
-              composeChord({
-                root: e.target.value,
-                type: parts.type,
-                bass: parts.bass,
-              }),
-            )
-          }
+          onChange={(e) => {
+            const nextRoot = e.target.value;
+            const nextChord = composeChord({
+              root: nextRoot,
+              type: parts.type,
+              bass: parts.bass,
+            });
+            onChange(nextChord);
+          }}
         >
           <option value="">النغمة</option>
           {ROOT_NOTES.map((note) => (
@@ -325,15 +327,15 @@ function ChordPicker({
         <select
           className="input chordInput chordSelect"
           value={parts.type}
-          onChange={(e) =>
-            onChange(
-              composeChord({
-                root: parts.root,
-                type: e.target.value,
-                bass: parts.bass,
-              }),
-            )
-          }
+          onChange={(e) => {
+            const nextType = e.target.value;
+            const nextChord = composeChord({
+              root: parts.root,
+              type: nextType,
+              bass: parts.bass,
+            });
+            onChange(nextChord);
+          }}
         >
           <option value="">Major</option>
           {CHORD_TYPES.filter(Boolean).map((type) => (
@@ -345,15 +347,15 @@ function ChordPicker({
         <select
           className="input chordInput chordSelect"
           value={bassSelectValue}
-          onChange={(e) =>
-            onChange(
-              composeChord({
-                root: parts.root,
-                type: parts.type,
-                bass: e.target.value === EMPTY_BASS ? "" : e.target.value,
-              }),
-            )
-          }
+          onChange={(e) => {
+            const nextBass = e.target.value === EMPTY_BASS ? "" : e.target.value;
+            const nextChord = composeChord({
+              root: parts.root,
+              type: parts.type,
+              bass: nextBass,
+            });
+            onChange(nextChord);
+          }}
         >
           <option value={EMPTY_BASS}>بدون Bass</option>
           {ROOT_NOTES.map((note) => (

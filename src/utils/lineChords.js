@@ -31,7 +31,8 @@ export function stretchArabicWord(word, chordCount) {
     .map(({ index }) => index);
   if (eligibleIndexes.length === 0) return String(word || "");
 
-  const kashidaCount = Math.min(8, Math.max(3, (chordCount - 1) * 3));
+  // Scale the visible word with its chord row: 2 -> 3, 3 -> 6, 4+ -> 9+.
+  const kashidaCount = Math.min(24, Math.max(3, (chordCount - 1) * 3));
   const anchorIndex = eligibleIndexes[Math.floor(eligibleIndexes.length / 2)];
   return letters
     .map((letter, index) =>
