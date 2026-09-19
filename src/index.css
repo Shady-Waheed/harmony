@@ -1158,13 +1158,13 @@ body {
 
 .lyricWordChords {
   display: inline-flex;
+  flex-direction: row;
   align-items: flex-end;
   justify-content: center;
   gap: 0.55rem;
   min-width: max-content;
   min-height: 1.8rem;
-  direction: ltr;
-  unicode-bidi: isolate;
+  direction: rtl;
   writing-mode: horizontal-tb;
   white-space: nowrap;
 }
@@ -1177,6 +1177,8 @@ body {
 .lyricWordChord {
   display: inline-flex;
   align-items: center;
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 .lyricWordText {

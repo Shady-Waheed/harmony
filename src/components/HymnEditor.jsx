@@ -114,7 +114,8 @@ function customChordSuggestions(value) {
     : CUSTOM_CHORD_SUFFIXES.map((suffix) => `${root}${suffix}`);
   const normalizedQuery = query.toLowerCase();
   return [...new Set(candidates)].filter(
-    (candidate) => !normalizedQuery || candidate.toLowerCase().startsWith(normalizedQuery),
+    (candidate) =>
+      !normalizedQuery || candidate.toLowerCase().startsWith(normalizedQuery),
   );
 }
 
@@ -211,9 +212,7 @@ function ChordPicker({
   compact = false,
 }) {
   const parts = parseChordParts(value);
-  const [customMode, setCustomMode] = useState(
-    value === "X" || parts.custom,
-  );
+  const [customMode, setCustomMode] = useState(value === "X" || parts.custom);
   const bassSelectValue = parts.bass || EMPTY_BASS;
   const inversionOptions = getInversionOptions(parts.root, parts.type);
   const inversionValue = inversionOptions.some(
