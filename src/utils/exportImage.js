@@ -193,10 +193,9 @@ export async function exportNodeToPng(
         direction: "rtl",
         textAlign: "right",
       },
-      onclone: (clonedDocument) => {
+      onclone: (clonedDoc) => {
         const exportRoot =
-          clonedDocument.querySelector(".export-container") ||
-          clonedDocument.body;
+          clonedDoc.querySelector(".export-container") || clonedDoc.body;
 
         if (exportRoot) {
           exportRoot.setAttribute("dir", "rtl");
@@ -204,21 +203,30 @@ export async function exportNodeToPng(
           exportRoot.style.textAlign = "right";
         }
 
-        clonedDocument.querySelectorAll(
+        clonedDoc.querySelectorAll(
           ".sidebar-logo, .watermark-box, .previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge, .sheetKicker, .sheetMetaHint",
         ).forEach((item) => {
           item.style.display = "none";
         });
 
-        clonedDocument.querySelectorAll(
-          ".chord, .chord-badge, .lyricWordChord .chord",
-        ).forEach((item) => {
-          item.style.background = "transparent";
-          item.style.border = "none";
-          item.style.borderRadius = "0";
-          item.style.color = "#c0392b";
-          item.style.boxShadow = "none";
-          item.style.fontWeight = "bold";
+        const chordBadges = clonedDoc.querySelectorAll(
+          '.chord-badge, .chord, [class*="chord"]',
+        );
+
+        chordBadges.forEach((el) => {
+          el.style.background = "transparent";
+          el.style.backgroundColor = "transparent";
+          el.style.border = "none";
+          el.style.borderColor = "transparent";
+          el.style.outline = "none";
+          el.style.boxShadow = "none";
+          el.style.WebkitBoxShadow = "none";
+          el.style.borderRadius = "0";
+          el.style.color = "#c0392b";
+          el.style.fontWeight = "bold";
+          el.style.padding = "0";
+          el.style.minWidth = "0";
+          el.style.textShadow = "none";
         });
       },
     });
