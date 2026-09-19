@@ -79,7 +79,13 @@ export function normalizeLineStructure(line) {
 
   const wordChordGroups = Array.from({ length: words.length }, (_, i) => {
     const source = line?.wordChordGroups?.[i] ?? wordChords[i];
-    return normalizeChordGroup(source);
+    const directGroup = normalizeChordGroup(source);
+    if (directGroup.length > 0) return directGroup;
+
+    const letterGroup = line?.wordLetterChords?.[i];
+    return Array.isArray(letterGroup)
+      ? letterGroup.flatMap((group) => normalizeChordGroup(group))
+      : [];
   });
 
   const wordLetterChords = words.map((word, wordIndex) => {
@@ -177,6 +183,8 @@ export function buildDisplayCells(line) {
       id: `word-${index}`,
       type: "word",
       word,
+      // Index 0 stays attached to the first word in the lyric source.
+      chords: normalized.wordChordGroups[index] || [],
       letters: splitWordLetters(word).map((letter, letterIndex) => ({
         letter,
         chords: normalized.wordLetterChords[index]?.[letterIndex] || [],

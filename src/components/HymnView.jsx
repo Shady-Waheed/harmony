@@ -229,14 +229,13 @@ const HymnView = forwardRef(function HymnView(_, ref) {
                     );
                     const wordChordEntries =
                       cell.type === "word"
-                        ? cellLetters.flatMap((letter) =>
-                            (letter.chords || []).map((item) => ({
-                              chord:
-                                typeof item === "string" ? item : item.chord,
-                              inversion:
-                                typeof item === "string" ? "" : item.inversion,
-                            })),
-                          )
+                        ? (cell.chords || []).map((chord, chordIndex) => ({
+                            chord,
+                            inversion:
+                              cell.letters?.flatMap(
+                                (letter) => letter.inversions || [],
+                              )[chordIndex] || "",
+                          }))
                         : [{ chord: cell.chord, inversion: cell.inversion }];
                     const visibleChordCount = wordChordEntries.filter((entry) =>
                       Boolean(entry.chord),
