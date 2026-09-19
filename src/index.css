@@ -1208,19 +1208,22 @@ body {
 
 .lyricWord--multi .lyricWordChords {
   width: 100%;
-  justify-content: center;
+  justify-content: space-between;
   gap: 10px;
   flex: 0 0 auto;
+  min-width: max-content;
 }
 
 .lyricWord--multi .lyricWordText {
   width: 100%;
+  min-width: max-content;
   text-align: justify;
   text-align-last: justify;
   text-justify: inter-character;
-  letter-spacing: 0.025em;
+  letter-spacing: 0.03em;
   padding-inline: 4px;
   box-sizing: border-box;
+  display: inline-block;
 }
 
 @supports (text-justify: kashida) {

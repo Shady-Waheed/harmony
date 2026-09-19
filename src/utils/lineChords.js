@@ -16,29 +16,43 @@ export function splitWordLetters(word) {
 }
 
 export function stretchArabicWord(word, chordCount) {
-  const letters = splitWordLetters(word);
-  if (chordCount <= 1 || letters.length < 3) return String(word || "");
+  const value = String(word || "");
+  const letters = splitWordLetters(value);
+  if (chordCount <= 1 || letters.length < 2) return value;
 
-  const eligibleIndexes = letters
-    .map((letter, index) => ({ letter, index }))
-    .filter(
-      ({ letter, index }) =>
-        index > 1 &&
-        index < letters.length - 1 &&
-        /[\u0621-\u063A\u0641-\u064A]/u.test(letter) &&
-        letter !== "ـ",
-    )
-    .map(({ index }) => index);
-  if (eligibleIndexes.length === 0) return String(word || "");
+  const terminalLetters = new Set(["ا", "أ", "إ", "آ", "ة", "ء", "ؤ", "ئ", "ى", "و", "ي"]);
+  const validLetters = new Set([
+    "ا","أ","إ","آ","ب","ت","ث","ج","ح","خ","س","ش","ص","ض","ط","ظ","ع","غ","ف","ق","ك","ل","م","ن","ه","ي","ئ","ؤ","ة","و","ى","ـ",
+  ]);
 
-  // Scale the visible word with its chord row: 2 -> 3, 3 -> 6, 4+ -> 9+.
-  const kashidaCount = Math.min(24, Math.max(3, (chordCount - 1) * 3));
-  const anchorIndex = eligibleIndexes[Math.floor(eligibleIndexes.length / 2)];
-  return letters
-    .map((letter, index) =>
-      index === anchorIndex ? `${letter}${"ـ".repeat(kashidaCount)}` : letter,
-    )
-    .join("");
+  const insertIndexes = [];
+  for (let index = 0; index < letters.length - 1; index += 1) {
+    const prev = letters[index];
+    const next = letters[index + 1];
+    const isPrevValid = validLetters.has(prev) && prev !== "ـ";
+    const isNextValid = validLetters.has(next) && next !== "ـ";
+    const prevCanJoin = isPrevValid && !terminalLetters.has(prev);
+    const nextCanJoin = isNextValid && !(index + 1 === letters.length - 1 && terminalLetters.has(next));
+
+    if (prevCanJoin && nextCanJoin) {
+      insertIndexes.push(index + 1);
+    }
+  }
+
+  if (insertIndexes.length === 0) return value;
+
+  const targetKashidaCount =
+    chordCount === 2
+      ? 2 + Math.min(1, Math.max(0, letters.length - 5))
+      : 5 + Math.min(3, Math.max(0, chordCount - 3));
+
+  const anchorIndex = insertIndexes[Math.min(insertIndexes.length - 1, Math.floor(insertIndexes.length / 2))];
+  const stretched = letters.map((letter, index) => {
+    if (index !== anchorIndex) return letter;
+    return `${letter}${"ـ".repeat(Math.min(24, Math.max(2, targetKashidaCount)))}`;
+  });
+
+  return stretched.join("");
 }
 
 function normalizeGapChords(gapChords, count) {

@@ -348,7 +348,8 @@ function ChordPicker({
           className="input chordInput chordSelect"
           value={bassSelectValue}
           onChange={(e) => {
-            const nextBass = e.target.value === EMPTY_BASS ? "" : e.target.value;
+            const nextBass =
+              e.target.value === EMPTY_BASS ? "" : e.target.value;
             const nextChord = composeChord({
               root: parts.root,
               type: parts.type,
