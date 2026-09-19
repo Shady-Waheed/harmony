@@ -1208,7 +1208,8 @@ body {
 
 .lyricWord--multi .lyricWordChords {
   width: 100%;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 10px;
   flex: 0 0 auto;
 }
 
@@ -1880,6 +1881,7 @@ body {
     flex-wrap: wrap;
     white-space: normal;
     justify-content: center;
+    gap: 10px;
   }
 
   .hymnSheet .lyricWordText,
