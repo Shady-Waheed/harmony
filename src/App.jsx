@@ -10,6 +10,9 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocFromCache,
+  getDocFromServer,
+  getDocsFromServer,
   onSnapshot,
   orderBy,
   query,
@@ -149,6 +152,51 @@ function decodeSectionsFromFirestore(sections = []) {
       };
     }),
   }));
+}
+
+async function fetchHymnDocFromServer(hymnId) {
+  if (!db || !hasFirebaseConfig || !hymnId) {
+    return null;
+  }
+
+  try {
+    const snapshot = await getDocFromServer(doc(db, "hymns", hymnId));
+    if (!snapshot.exists()) {
+      return null;
+    }
+    return { id: snapshot.id, ...snapshot.data() };
+  } catch (error) {
+    console.warn("[fetchHymnDocFromServer] server failed:", error);
+    try {
+      const snapshot = await getDocFromCache(doc(db, "hymns", hymnId));
+      if (!snapshot.exists()) {
+        return null;
+      }
+      return { id: snapshot.id, ...snapshot.data() };
+    } catch (cacheError) {
+      console.warn("[fetchHymnDocFromServer] cache fallback failed:", cacheError);
+      return null;
+    }
+  }
+}
+
+async function refreshHymnsListFromServer() {
+  if (!db || !hasFirebaseConfig) {
+    return [];
+  }
+
+  const hymnsQuery = query(
+    collection(db, "hymns"),
+    orderBy("createdAt", "desc"),
+  );
+
+  const snapshot = await getDocsFromServer(hymnsQuery);
+  const nextHymns = snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+  }));
+
+  return nextHymns;
 }
 
 function AppShell() {
@@ -300,7 +348,7 @@ function AppShell() {
     );
     const unsubscribe = onSnapshot(
       hymnsQuery,
-      { includeMetadataChanges: true },
+      { includeMetadataChanges: true, source: "server" },
       (snapshot) => {
         const nextHymns = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -332,7 +380,7 @@ function AppShell() {
     const teamRef = doc(db, SETTINGS_TEAM_DOC.collection, SETTINGS_TEAM_DOC.id);
     const unsubscribe = onSnapshot(
       teamRef,
-      { includeMetadataChanges: true },
+      { includeMetadataChanges: true, source: "server" },
       (snapshot) => {
         setTeamData(snapshot.exists() ? snapshot.data() : { members: [] });
         setTeamFromCache(snapshot.metadata.fromCache);
@@ -398,10 +446,17 @@ function AppShell() {
   }, [online, pendingFirestoreWrites, showNotice]);
 
   const onSelectHymn = useCallback(
-    (hymnDoc, { fromRoute = false } = {}) => {
-      const exclusiveOwnerUid = String(hymnDoc.exclusiveOwnerUid || "");
+    async (hymnDoc, { fromRoute = false } = {}) => {
+      const remoteDoc =
+        hymnDoc?.id && db && hasFirebaseConfig
+          ? await fetchHymnDocFromServer(hymnDoc.id)
+          : null;
+      const sourceDoc = remoteDoc || hymnDoc;
+      if (!sourceDoc) return false;
+
+      const exclusiveOwnerUid = String(sourceDoc.exclusiveOwnerUid || "");
       const isExclusive =
-        Boolean(hymnDoc.isExclusive) || exclusiveOwnerUid.length > 0;
+        Boolean(sourceDoc.isExclusive) || exclusiveOwnerUid.length > 0;
       const canOpenExclusive =
         !isExclusive ||
         (currentUser && exclusiveOwnerUid === String(currentUser.uid || ""));
@@ -409,16 +464,16 @@ function AppShell() {
         showNotice("هذه الترانيمة حصرية وغير متاحة لهذا الحساب.", "error");
         return false;
       }
-      setSelectedHymnId(hymnDoc.id);
+      setSelectedHymnId(sourceDoc.id);
       if (!fromRoute) {
-        navigateHymn(hymnDoc.id);
+        navigateHymn(sourceDoc.id);
       }
       loadHymn(
         {
-          id: hymnDoc.id,
-          title: hymnDoc.title || "",
-          key: hymnDoc.key || "",
-          sections: decodeSectionsFromFirestore(hymnDoc.sections || []),
+          id: sourceDoc.id,
+          title: sourceDoc.title || "",
+          key: sourceDoc.key || "",
+          sections: decodeSectionsFromFirestore(sourceDoc.sections || []),
           isExclusive,
           exclusiveOwnerUid,
         },
@@ -556,6 +611,21 @@ function AppShell() {
         await setDoc(doc(db, "hymns", selectedHymnId), payload, {
           merge: true,
         });
+        setHymns((prev) =>
+          prev.map((item) =>
+            item.id === selectedHymnId
+              ? {
+                  ...item,
+                  title,
+                  key: payload.key,
+                  sections: payload.sections,
+                  isExclusive: payload.isExclusive,
+                  exclusiveOwnerUid: payload.exclusiveOwnerUid,
+                  updatedAt: Date.now(),
+                }
+              : item,
+          ),
+        );
         markHymnSaved({
           ...state.hymn,
           id: selectedHymnId,
@@ -577,6 +647,18 @@ function AppShell() {
         createdAt: Timestamp.now(),
       });
       setSelectedHymnId(created.id);
+      setHymns((prev) => [
+        {
+          id: created.id,
+          title,
+          key: payload.key,
+          sections: payload.sections,
+          isExclusive: payload.isExclusive,
+          exclusiveOwnerUid: payload.exclusiveOwnerUid,
+          updatedAt: Date.now(),
+        },
+        ...prev.filter((item) => item.id !== created.id),
+      ]);
       loadHymn(
         {
           ...state.hymn,
@@ -612,7 +694,10 @@ function AppShell() {
       setDeletingHymn(true);
       const offline = isBrowserOffline();
       await deleteDoc(doc(db, "hymns", selectedHymnId));
-      onNewNote();
+      setHymns((prev) => prev.filter((item) => item.id !== selectedHymnId));
+      setSelectedHymnId("");
+      navigateHymn("");
+      createNewHymn();
       showNotice(
         offline ? offlineSaveNotice("delete") : "تم حذف الترانيمة.",
         "success",
@@ -623,6 +708,47 @@ function AppShell() {
       setDeletingHymn(false);
     }
   };
+
+  const onRefreshFromServer = useCallback(async () => {
+    if (!db || !hasFirebaseConfig) {
+      return;
+    }
+
+    try {
+      setLoadingHymns(true);
+      const nextHymns = await refreshHymnsListFromServer();
+      setHymns(nextHymns);
+      setHymnsFromCache(false);
+      setPendingFirestoreWrites(false);
+
+      if (selectedHymnId) {
+        const remoteDoc = await fetchHymnDocFromServer(selectedHymnId);
+        if (remoteDoc) {
+          const sourceDoc = remoteDoc;
+          loadHymn(
+            {
+              id: sourceDoc.id,
+              title: sourceDoc.title || "",
+              key: sourceDoc.key || "",
+              sections: decodeSectionsFromFirestore(sourceDoc.sections || []),
+              isExclusive:
+                Boolean(sourceDoc.isExclusive) ||
+                Boolean(sourceDoc.exclusiveOwnerUid),
+              exclusiveOwnerUid: String(sourceDoc.exclusiveOwnerUid || ""),
+            },
+            { mode: isAdmin ? "edit" : "view" },
+          );
+        }
+      }
+
+      showNotice("تم تحديث البيانات من السيرفر بنجاح.", "success");
+    } catch (error) {
+      console.warn("[refreshFromServer]", error);
+      showNotice(`فشل التحديث من السيرفر: ${error.message}`, "error");
+    } finally {
+      setLoadingHymns(false);
+    }
+  }, [isAdmin, loadHymn, selectedHymnId, showNotice]);
 
   const onExport = async () => {
     if (!viewRef.current) return;
@@ -860,6 +986,9 @@ function AppShell() {
               </button>
             </>
           ) : null}
+          <button className="btn" onClick={onRefreshFromServer}>
+            تحديث / مزامنة
+          </button>
           <button className="btn" onClick={onExport} disabled={loadingExport}>
             {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
           </button>

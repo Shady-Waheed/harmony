@@ -158,7 +158,10 @@ function transposeHymnShape(hymn, steps) {
             steps,
           ),
           gapChords: transposeChordCollection(normalized.gapChords, steps),
-          gapInversions: transposeChordCollection(normalized.gapInversions, steps),
+          gapInversions: transposeChordCollection(
+            normalized.gapInversions,
+            steps,
+          ),
           beforeWordChords: transposeChordCollection(
             normalized.beforeWordChords,
             steps,
