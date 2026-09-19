@@ -78,6 +78,7 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
     item.style.minWidth = "0";
     item.style.borderRadius = "0";
     item.style.background = "transparent";
+    item.style.border = "none";
   });
 
   clone.querySelectorAll(".sidebar-logo, .watermark-box, .previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge").forEach((nodeItem) => {
@@ -178,6 +179,7 @@ export async function exportNodeToPng(
       cacheBust: true,
       scale: 2,
       useCORS: true,
+      logging: false,
       backgroundColor: "#ffffff",
       width: desktopWidth,
       height: rootForCapture.scrollHeight,
@@ -188,16 +190,48 @@ export async function exportNodeToPng(
         height: "auto",
         overflow: "visible",
         background: "#ffffff",
+        direction: "rtl",
+        textAlign: "right",
+      },
+      onclone: (clonedDocument) => {
+        const exportRoot =
+          clonedDocument.querySelector(".export-container") ||
+          clonedDocument.body;
+
+        if (exportRoot) {
+          exportRoot.setAttribute("dir", "rtl");
+          exportRoot.style.direction = "rtl";
+          exportRoot.style.textAlign = "right";
+        }
+
+        clonedDocument.querySelectorAll(
+          ".sidebar-logo, .watermark-box, .previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge, .sheetKicker, .sheetMetaHint",
+        ).forEach((item) => {
+          item.style.display = "none";
+        });
+
+        clonedDocument.querySelectorAll(
+          ".chord, .chord-badge, .lyricWordChord .chord",
+        ).forEach((item) => {
+          item.style.background = "transparent";
+          item.style.border = "none";
+          item.style.borderRadius = "0";
+          item.style.color = "#c0392b";
+          item.style.boxShadow = "none";
+          item.style.fontWeight = "bold";
+        });
       },
     });
   } finally {
     wrapper.remove();
   }
   let nextDataUrl = dataUrl;
-  try {
-    nextDataUrl = await appendLogoToDataUrl(dataUrl, options.logoUrl);
-  } catch {
-    nextDataUrl = dataUrl;
+  if (options.logoUrl) {
+    try {
+      nextDataUrl = await appendLogoToDataUrl(dataUrl, options.logoUrl);
+    } catch {
+      nextDataUrl = dataUrl;
+    }
   }
 
   const link = document.createElement("a");

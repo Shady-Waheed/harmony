@@ -43,8 +43,6 @@ import { hymnShareUrl, useHymnRoute } from "./hooks/useHymnRoute";
 import { hymnMatchesQuery } from "./utils/hymnSearch";
 import SetlistPanel from "./components/SetlistPanel";
 
-const EXPORT_LOGO_URL = "/harmony-notes-logo.png";
-
 function sanitizeForFirestoreValue(value) {
   if (Array.isArray(value)) {
     return value.flatMap((item) => {
@@ -175,6 +173,7 @@ function AppShell() {
   } = useHymnStore();
   const { routeHymnId, navigateHymn } = useHymnRoute();
   const [loadingExport, setLoadingExport] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [hymns, setHymns] = useState([]);
   const [loadingHymns, setLoadingHymns] = useState(true);
   const [selectedHymnId, setSelectedHymnId] = useState("");
@@ -629,12 +628,12 @@ function AppShell() {
     if (!viewRef.current) return;
     try {
       setLoadingExport(true);
+      setIsExporting(true);
       await exportNodeToPng(
         viewRef.current,
         `${state.hymn.title || "harmony-notes"}.png`,
         isDark,
         {
-          logoUrl: EXPORT_LOGO_URL,
           desktopWidth: 800,
         },
       );
@@ -642,6 +641,7 @@ function AppShell() {
       showNotice(`فشل التصدير: ${error.message}`, "error");
     } finally {
       setLoadingExport(false);
+      setIsExporting(false);
     }
   };
 
@@ -1084,7 +1084,7 @@ function AppShell() {
           {state.mode === "edit" && isAdmin ? (
             <HymnEditor />
           ) : (
-            <HymnView ref={viewRef} />
+            <HymnView ref={viewRef} isExporting={isExporting} />
           )}
         </div>
       </main>
@@ -1092,7 +1092,7 @@ function AppShell() {
       {state.mode === "edit" && isAdmin ? (
         <section className="previewWrap">
           <h3>معاينة مباشرة</h3>
-          <HymnView ref={viewRef} />
+          <HymnView ref={viewRef} isExporting={isExporting} />
         </section>
       ) : null}
 

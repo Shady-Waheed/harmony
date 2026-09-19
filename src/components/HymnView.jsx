@@ -137,7 +137,7 @@ function SheetStaffMark() {
   );
 }
 
-function ChordLabels({ entries = [] }) {
+function ChordLabels({ entries = [], isExporting = false }) {
   const visibleEntries = entries.filter((entry) => Boolean(entry.chord));
 
   return (
@@ -146,7 +146,21 @@ function ChordLabels({ entries = [] }) {
     >
       {visibleEntries.map((entry, index) => (
         <span className="lyricWordChord" key={`${entry.chord}-${index}`}>
-          <span className="chord hasPreview" tabIndex={0}>
+          <span
+            className="chord hasPreview"
+            tabIndex={0}
+            style={
+              isExporting
+                ? {
+                    background: "transparent",
+                    border: "none",
+                    color: "#c0392b",
+                    boxShadow: "none",
+                    fontWeight: "bold",
+                  }
+                : undefined
+            }
+          >
             {formatChordLabel(entry.chord, entry.inversion)}
             <ChordPianoPreview
               chord={entry.chord}
@@ -159,7 +173,7 @@ function ChordLabels({ entries = [] }) {
   );
 }
 
-const HymnView = forwardRef(function HymnView(_, ref) {
+const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
   const { state } = useHymnStore();
   const { hymn } = state;
   const hasSections = (hymn.sections || []).some(
@@ -167,8 +181,16 @@ const HymnView = forwardRef(function HymnView(_, ref) {
   );
 
   return (
-    <section ref={ref} className="card hymnSheet" dir="rtl">
-      <header className="sheetHeader">
+    <section
+      ref={ref}
+      className="card hymnSheet"
+      dir="rtl"
+      style={{ direction: "rtl", textAlign: isExporting ? "right" : undefined }}
+    >
+      <header
+        className="sheetHeader"
+        style={{ textAlign: isExporting ? "right" : undefined }}
+      >
         <SheetStaffMark />
         <p className="sheetKicker">Harmony Notes</p>
         <h1>{hymn.title || "ترنيمة بدون عنوان"}</h1>
@@ -247,8 +269,12 @@ const HymnView = forwardRef(function HymnView(_, ref) {
                       >
                         <span
                           className={`lyricWord ${cell.type === "word" ? "" : "lyricWord--gap"} ${visibleChordCount > 1 ? "lyricWord--multi" : ""}`}
+                          style={{ textAlign: isExporting ? "right" : undefined }}
                         >
-                          <ChordLabels entries={wordChordEntries} />
+                          <ChordLabels
+                            entries={wordChordEntries}
+                            isExporting={isExporting}
+                          />
                           <span className="lyricWordText">
                             {cell.type === "word"
                               ? stretchArabicWord(cell.word, visibleChordCount)
