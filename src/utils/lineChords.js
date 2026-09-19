@@ -20,9 +20,52 @@ export function stretchArabicWord(word, chordCount) {
   const letters = splitWordLetters(value);
   if (chordCount <= 1 || letters.length < 2) return value;
 
-  const terminalLetters = new Set(["ا", "أ", "إ", "آ", "ة", "ء", "ؤ", "ئ", "ى", "و", "ي"]);
+  const terminalLetters = new Set([
+    "ا",
+    "أ",
+    "إ",
+    "آ",
+    "ة",
+    "ء",
+    "ؤ",
+    "ئ",
+    "ى",
+    "و",
+    "ي",
+  ]);
   const validLetters = new Set([
-    "ا","أ","إ","آ","ب","ت","ث","ج","ح","خ","س","ش","ص","ض","ط","ظ","ع","غ","ف","ق","ك","ل","م","ن","ه","ي","ئ","ؤ","ة","و","ى","ـ",
+    "ا",
+    "أ",
+    "إ",
+    "آ",
+    "ب",
+    "ت",
+    "ث",
+    "ج",
+    "ح",
+    "خ",
+    "س",
+    "ش",
+    "ص",
+    "ض",
+    "ط",
+    "ظ",
+    "ع",
+    "غ",
+    "ف",
+    "ق",
+    "ك",
+    "ل",
+    "م",
+    "ن",
+    "ه",
+    "ي",
+    "ئ",
+    "ؤ",
+    "ة",
+    "و",
+    "ى",
+    "ـ",
   ]);
 
   const insertIndexes = [];
@@ -32,7 +75,9 @@ export function stretchArabicWord(word, chordCount) {
     const isPrevValid = validLetters.has(prev) && prev !== "ـ";
     const isNextValid = validLetters.has(next) && next !== "ـ";
     const prevCanJoin = isPrevValid && !terminalLetters.has(prev);
-    const nextCanJoin = isNextValid && !(index + 1 === letters.length - 1 && terminalLetters.has(next));
+    const nextCanJoin =
+      isNextValid &&
+      !(index + 1 === letters.length - 1 && terminalLetters.has(next));
 
     if (prevCanJoin && nextCanJoin) {
       insertIndexes.push(index + 1);
@@ -46,7 +91,10 @@ export function stretchArabicWord(word, chordCount) {
       ? 2 + Math.min(1, Math.max(0, letters.length - 5))
       : 5 + Math.min(3, Math.max(0, chordCount - 3));
 
-  const anchorIndex = insertIndexes[Math.min(insertIndexes.length - 1, Math.floor(insertIndexes.length / 2))];
+  const anchorIndex =
+    insertIndexes[
+      Math.min(insertIndexes.length - 1, Math.floor(insertIndexes.length / 2))
+    ];
   const stretched = letters.map((letter, index) => {
     if (index !== anchorIndex) return letter;
     return `${letter}${"ـ".repeat(Math.min(24, Math.max(2, targetKashidaCount)))}`;
