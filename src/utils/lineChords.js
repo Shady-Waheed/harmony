@@ -64,7 +64,9 @@ export function normalizeLineStructure(line) {
   const wordChords = Array.from({ length: words.length }, (_, i) => {
     if (Array.isArray(line?.wordChords)) {
       const value = line.wordChords[i];
-      return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+      return Array.isArray(value)
+        ? String(value[0] || "")
+        : String(value || "");
     }
 
     // Backward compatibility with old linear chords array format.

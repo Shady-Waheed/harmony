@@ -788,8 +788,52 @@ body {
   margin-top: 0.28rem;
 }
 
+.customChordInputWrap {
+  position: relative;
+  z-index: 4;
+}
+
 .chordBuilderCustom .chordCustomInput {
   margin-top: 0;
+}
+
+.chordCustomInput.invalid {
+  border-color: color-mix(in srgb, var(--danger) 70%, var(--border));
+}
+
+.customChordSuggestions {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.customChordSuggestion {
+  min-height: 30px;
+  padding: 0.22rem 0.48rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--btn-bg);
+  color: var(--chord);
+  cursor: pointer;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: var(--font-chord);
+  font-weight: 700;
+}
+
+.customChordSuggestion:hover,
+.customChordSuggestion:focus-visible {
+  border-color: var(--primary);
+  outline: none;
 }
 
 .chordBuilder {

@@ -65,6 +65,65 @@ const NOTE_INDEX = {
   B: 11,
 };
 
+const CUSTOM_CHORD_SUFFIXES = [
+  "",
+  "m",
+  "min",
+  "7",
+  "m7",
+  "min7",
+  "maj7",
+  "maj9",
+  "maj11",
+  "maj13",
+  "m9",
+  "m11",
+  "m13",
+  "m7b5",
+  "dim7",
+  "7b5",
+  "7#5",
+  "7b9",
+  "7#9",
+  "7#11",
+  "11",
+  "13",
+  "b5",
+  "#5",
+  "b9",
+  "#9",
+  "#11",
+  "add2",
+  "add4",
+  "add9",
+  "add11",
+  "add13",
+  "sus2",
+  "sus4",
+  "dim",
+  "aug",
+];
+
+function customChordSuggestions(value) {
+  const query = String(value || "").trim();
+  const rootMatch = query.match(/^([A-G](?:#|b)?)/i);
+  const root = rootMatch ? rootMatch[1] : "G";
+  const bassNotes = ROOT_NOTES.map((note) => `${root}/${note}`);
+  const candidates = query.includes("/")
+    ? bassNotes
+    : CUSTOM_CHORD_SUFFIXES.map((suffix) => `${root}${suffix}`);
+  const normalizedQuery = query.toLowerCase();
+  return [...new Set(candidates)].filter(
+    (candidate) => !normalizedQuery || candidate.toLowerCase().startsWith(normalizedQuery),
+  );
+}
+
+function isExtendedChordLike(value) {
+  return /^([A-G](?:#|b)?)(?:[a-zA-Z+#b0-9()-]*)?(?:\/[A-G](?:#|b)?)?$/.test(
+    String(value || "").trim(),
+  );
+}
+
 function parseChordParts(chord) {
   if (!chord?.trim()) {
     return { root: "", type: "", bass: "", custom: false };
@@ -152,6 +211,9 @@ function ChordPicker({
   compact = false,
 }) {
   const parts = parseChordParts(value);
+  const [customMode, setCustomMode] = useState(
+    value === "X" || parts.custom,
+  );
   const bassSelectValue = parts.bass || EMPTY_BASS;
   const inversionOptions = getInversionOptions(parts.root, parts.type);
   const inversionValue = inversionOptions.some(
@@ -160,20 +222,54 @@ function ChordPicker({
     ? inversion
     : EMPTY_INVERSION;
 
-  if (parts.custom) {
+  if (customMode) {
     const customInversionValue = ["first", "second", "third"].includes(
       inversion,
     )
       ? inversion
       : EMPTY_INVERSION;
+    const customValue = value === "X" ? "" : value || "";
+    const suggestions = customChordSuggestions(customValue);
+    const chordLooksValid = !customValue || isExtendedChordLike(customValue);
+
+    const commitCustomValue = (nextValue = customValue) => {
+      const trimmed = String(nextValue || "").trim();
+      onChange(trimmed || "X");
+    };
+
     return (
       <div className="chordBuilder chordBuilderCustom">
-        <input
-          className="input chordInput chordCustomInput"
-          value={value || ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="اكتب الكورد"
-        />
+        <div className="customChordInputWrap">
+          <input
+            className={`input chordInput chordCustomInput ${chordLooksValid ? "" : "invalid"}`}
+            value={customValue}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                commitCustomValue();
+              }
+            }}
+            placeholder="اكتب الكورد مثل Gadd9 أو Bm7b5"
+            aria-label="كورد مخصص"
+            autoComplete="off"
+          />
+          {suggestions.length > 0 ? (
+            <div className="customChordSuggestions" role="listbox">
+              {suggestions.slice(0, 8).map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  className="customChordSuggestion"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => commitCustomValue(suggestion)}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
         <select
           className="input chordInput chordSelect"
           value={customInversionValue}
@@ -192,7 +288,10 @@ function ChordPicker({
         </select>
         <button
           className="btn chordModeBtn"
-          onClick={() => onChange("")}
+          onClick={() => {
+            setCustomMode(false);
+            onChange("");
+          }}
           type="button"
         >
           رجوع للتقسيم
@@ -283,7 +382,10 @@ function ChordPicker({
       </div>
       <button
         className="btn chordModeBtn"
-        onClick={() => onChange("X")}
+        onClick={() => {
+          setCustomMode(true);
+          onChange(value || "X");
+        }}
         type="button"
       >
         كورد مخصص

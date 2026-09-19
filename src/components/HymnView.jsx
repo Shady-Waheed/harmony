@@ -141,7 +141,9 @@ function ChordLabels({ entries = [] }) {
   const visibleEntries = entries.filter((entry) => Boolean(entry.chord));
 
   return (
-    <span className={`lyricWordChords ${visibleEntries.length === 0 ? "lyricWordChords--empty" : ""}`}>
+    <span
+      className={`lyricWordChords ${visibleEntries.length === 0 ? "lyricWordChords--empty" : ""}`}
+    >
       {visibleEntries.map((entry, index) => (
         <span className="lyricWordChord" key={`${entry.chord}-${index}`}>
           <span className="chord hasPreview" tabIndex={0}>
