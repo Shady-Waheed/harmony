@@ -87,7 +87,19 @@ export function normalizeLineStructure(line) {
   const lyrics = String(line?.lyrics || "");
   const words = splitWords(lyrics);
 
+  const letterChordGroups = Array.from({ length: words.length }, (_, i) => {
+    const source = Array.isArray(line?.wordLetterChords?.[i])
+      ? line.wordLetterChords[i]
+      : [];
+    return source.flatMap((group) => normalizeChordGroup(group));
+  });
+
   const wordChords = Array.from({ length: words.length }, (_, i) => {
+    const letterGroup = letterChordGroups[i];
+    if (letterGroup.length > 0) {
+      return String(letterGroup[0] || "");
+    }
+
     if (Array.isArray(line?.wordChords)) {
       const value = line.wordChords[i];
       return Array.isArray(value)
@@ -104,6 +116,9 @@ export function normalizeLineStructure(line) {
   });
 
   const wordChordGroups = Array.from({ length: words.length }, (_, i) => {
+    const directLetterGroup = letterChordGroups[i];
+    if (directLetterGroup.length > 0) return directLetterGroup;
+
     const source = line?.wordChordGroups?.[i] ?? wordChords[i];
     const directGroup = normalizeChordGroup(source);
     if (directGroup.length > 0) return directGroup;
