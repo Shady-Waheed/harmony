@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import { useHymnStore } from "../store/hymnStore.jsx";
-import { buildDisplayCells } from "../utils/lineChords";
+import { buildDisplayCells, stretchArabicWord } from "../utils/lineChords";
 import {
   formatChordLabel,
   getChordEffectiveInversion,
@@ -250,7 +250,9 @@ const HymnView = forwardRef(function HymnView(_, ref) {
                         >
                           <ChordLabels entries={wordChordEntries} />
                           <span className="lyricWordText">
-                            {cell.type === "word" ? cell.word : "\u00A0"}
+                            {cell.type === "word"
+                              ? stretchArabicWord(cell.word, visibleChordCount)
+                              : "\u00A0"}
                           </span>
                         </span>
                       </div>
