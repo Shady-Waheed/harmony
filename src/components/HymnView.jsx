@@ -153,9 +153,12 @@ function ChordLabels({ entries = [], isExporting = false }) {
               isExporting
                 ? {
                     background: "transparent",
+                    backgroundColor: "transparent",
                     border: "none",
+                    borderColor: "transparent",
                     color: "#c0392b",
                     boxShadow: "none",
+                    padding: "0",
                     fontWeight: "bold",
                   }
                 : undefined

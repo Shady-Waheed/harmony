@@ -209,24 +209,39 @@ export async function exportNodeToPng(
           item.style.display = "none";
         });
 
-        const chordBadges = clonedDoc.querySelectorAll(
-          '.chord-badge, .chord, [class*="chord"]',
-        );
+        const exportContainer =
+          clonedDoc.querySelector(".export-container") || clonedDoc.body;
+        const allElements = exportContainer.querySelectorAll("*");
 
-        chordBadges.forEach((el) => {
-          el.style.background = "transparent";
-          el.style.backgroundColor = "transparent";
-          el.style.border = "none";
-          el.style.borderColor = "transparent";
-          el.style.outline = "none";
-          el.style.boxShadow = "none";
-          el.style.WebkitBoxShadow = "none";
-          el.style.borderRadius = "0";
-          el.style.color = "#c0392b";
-          el.style.fontWeight = "bold";
-          el.style.padding = "0";
-          el.style.minWidth = "0";
-          el.style.textShadow = "none";
+        const chordPattern =
+          /^[A-G][b#]?(m|maj|min|dim|aug|add)?[0-9]*(\/[A-G][b#]?)?$/i;
+
+        allElements.forEach((el) => {
+          const text = (el.innerText || "").trim();
+          const hasChordClass = /(^|\s)chord(\s|$)|chord-badge/i.test(
+            el.className || "",
+          );
+          const isChordText = Boolean(text) && chordPattern.test(text);
+
+          if (hasChordClass || isChordText) {
+            el.style.setProperty("background", "transparent", "important");
+            el.style.setProperty(
+              "background-color",
+              "transparent",
+              "important",
+            );
+            el.style.setProperty("border", "none", "important");
+            el.style.setProperty("border-color", "transparent", "important");
+            el.style.setProperty("border-radius", "0", "important");
+            el.style.setProperty("box-shadow", "none", "important");
+            el.style.setProperty("-webkit-box-shadow", "none", "important");
+            el.style.setProperty("color", "#c0392b", "important");
+            el.style.setProperty("font-weight", "bold", "important");
+            el.style.setProperty("padding", "0", "important");
+            el.style.setProperty("min-width", "0", "important");
+            el.style.setProperty("outline", "none", "important");
+            el.style.setProperty("text-shadow", "none", "important");
+          }
         });
       },
     });
