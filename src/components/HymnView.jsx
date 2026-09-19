@@ -139,10 +139,9 @@ function SheetStaffMark() {
 
 function ChordLabels({ entries = [] }) {
   const visibleEntries = entries.filter((entry) => Boolean(entry.chord));
-  if (visibleEntries.length === 0) return null;
 
   return (
-    <span className="lyricWordChords">
+    <span className={`lyricWordChords ${visibleEntries.length === 0 ? "lyricWordChords--empty" : ""}`}>
       {visibleEntries.map((entry, index) => (
         <span className="lyricWordChord" key={`${entry.chord}-${index}`}>
           <span className="chord hasPreview" tabIndex={0}>

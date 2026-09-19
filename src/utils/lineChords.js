@@ -52,13 +52,19 @@ function normalizeWordSlotInversions(slotInversions, slotChords) {
   });
 }
 
+function normalizeChordGroup(value) {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return values.map((item) => String(item || "")).filter(Boolean);
+}
+
 export function normalizeLineStructure(line) {
   const lyrics = String(line?.lyrics || "");
   const words = splitWords(lyrics);
 
   const wordChords = Array.from({ length: words.length }, (_, i) => {
     if (Array.isArray(line?.wordChords)) {
-      return String(line.wordChords[i] || "");
+      const value = line.wordChords[i];
+      return Array.isArray(value) ? String(value[0] || "") : String(value || "");
     }
 
     // Backward compatibility with old linear chords array format.
@@ -70,10 +76,8 @@ export function normalizeLineStructure(line) {
   });
 
   const wordChordGroups = Array.from({ length: words.length }, (_, i) => {
-    const group = Array.isArray(line?.wordChordGroups?.[i])
-      ? line.wordChordGroups[i]
-      : [wordChords[i]];
-    return group.map((item) => String(item || ""));
+    const source = line?.wordChordGroups?.[i] ?? wordChords[i];
+    return normalizeChordGroup(source);
   });
 
   const wordLetterChords = words.map((word, wordIndex) => {
