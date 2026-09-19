@@ -109,11 +109,21 @@ function transposeRoot(root, steps, preferFlat) {
 }
 
 export function transposeChord(chord, steps) {
-  if (!steps) {
+  if (Array.isArray(chord)) {
+    return chord.map((item) => transposeChord(item, steps));
+  }
+
+  if (!steps || typeof chord !== "string") {
     return chord;
   }
 
-  const [head, bass] = chord.split("/");
+  const value = String(chord || "").trim();
+  if (!value) {
+    return chord;
+  }
+
+  const [head, ...bassParts] = value.split("/");
+  const bass = bassParts.join("/");
   const parsedHead = splitChord(head);
 
   if (!parsedHead) {
@@ -134,6 +144,18 @@ export function transposeChord(chord, steps) {
 
   const nextBass = `${transposeRoot(parsedBass.root, steps, bass.includes("b"))}${parsedBass.suffix}`;
   return `${nextHead}/${nextBass}`;
+}
+
+export function transposeChordCollection(value, steps) {
+  if (Array.isArray(value)) {
+    return value.map((item) => transposeChordCollection(item, steps));
+  }
+
+  if (typeof value === "string") {
+    return transposeChord(value, steps);
+  }
+
+  return value;
 }
 
 export function transposeInlineChords(text, steps) {

@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { normalizeLineStructure } from "../utils/lineChords";
-import { transposeChord } from "../utils/chords";
+import { transposeChordCollection } from "../utils/chords";
 import { clearDraft, getDraft, writeDraft } from "../utils/hymnDrafts";
 
 const STORAGE_KEY = "harmony-notes-hymn-v2";
@@ -133,32 +133,30 @@ function transposeHymnShape(hymn, steps) {
   if (!steps) return hymn;
   return {
     ...hymn,
-    key: transposeChord(hymn.key || "", steps),
+    key: transposeChordCollection(hymn.key || "", steps),
     sections: hymn.sections.map((section) => ({
       ...section,
       lines: section.lines.map((line) => {
         const normalized = normalizeLineStructure(line);
         return {
           ...normalized,
-          wordChords: normalized.wordChords.map((chord) =>
-            transposeChord(chord || "", steps),
+          wordChords: transposeChordCollection(normalized.wordChords, steps),
+          wordChordGroups: transposeChordCollection(
+            normalized.wordChordGroups,
+            steps,
           ),
-          wordChordGroups: normalized.wordChordGroups.map((group) =>
-            group.map((chord) => transposeChord(chord || "", steps)),
+          wordLetterChords: transposeChordCollection(
+            normalized.wordLetterChords,
+            steps,
           ),
-          wordLetterChords: normalized.wordLetterChords.map((letters) =>
-            letters.map((group) =>
-              group.map((chord) => transposeChord(chord || "", steps)),
-            ),
+          gapChords: transposeChordCollection(normalized.gapChords, steps),
+          beforeWordChords: transposeChordCollection(
+            normalized.beforeWordChords,
+            steps,
           ),
-          gapChords: normalized.gapChords.map((group) =>
-            group.map((chord) => transposeChord(chord || "", steps)),
-          ),
-          beforeWordChords: normalized.beforeWordChords.map((group) =>
-            group.map((chord) => transposeChord(chord || "", steps)),
-          ),
-          afterWordChords: normalized.afterWordChords.map((group) =>
-            group.map((chord) => transposeChord(chord || "", steps)),
+          afterWordChords: transposeChordCollection(
+            normalized.afterWordChords,
+            steps,
           ),
         };
       }),
