@@ -1490,8 +1490,8 @@ body {
   border-radius: 0 !important;
   border: 0 !important;
   box-shadow: none !important;
-  padding: 74px 78px 82px !important;
-  background: #f7f0e3 !important;
+  padding: 26px 28px 30px !important;
+  background: #ffffff !important;
   color: #241f1a !important;
   position: relative;
 }
@@ -1730,6 +1730,9 @@ body {
 
 .exportSheet .sheetLines {
   gap: 20px;
+  overflow: visible !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .exportSheet .sheetLine {
@@ -1738,6 +1741,15 @@ body {
   column-gap: 18px;
   padding: 0;
   border-bottom: 0;
+  overflow: visible !important;
+}
+
+.exportSheet .sheetLines::-webkit-scrollbar,
+.exportSheet .sheetLine::-webkit-scrollbar,
+.exportSheet *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .exportSheet .cell {
@@ -1769,8 +1781,8 @@ body {
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
-  color: #d74444 !important;
-  font-size: 1.45rem !important;
+  color: #c0392b !important;
+  font-size: 1.32rem !important;
   font-weight: 700;
 }
 

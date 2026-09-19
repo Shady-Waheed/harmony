@@ -7,48 +7,86 @@ function loadImage(src) {
   });
 }
 
-function createExportClone(node, desktopWidth = 1140, dark = true) {
+function createExportClone(node, desktopWidth = 800, dark = true) {
   const wrapper = document.createElement("div");
   wrapper.style.position = "fixed";
   wrapper.style.left = "-100000px";
   wrapper.style.top = "0";
+  wrapper.style.width = `${desktopWidth}px`;
+  wrapper.style.height = "auto";
+  wrapper.style.maxHeight = "none";
+  wrapper.style.overflow = "visible";
   wrapper.style.pointerEvents = "none";
   wrapper.style.opacity = "0";
-  wrapper.style.width = `${desktopWidth}px`;
 
-  // النسخة تُلحق بـ body خارج `.app.light` / `.app.dark` فـ `var(--sheet-text)` و `--lyric`
-  // تفضّل قيم الداكن (نص فاتح) مع خلفية تصدير بيضاء. لفّ الشجرة بنفس ثيم التصدير.
   const themeRoot = document.createElement("div");
   themeRoot.className = dark ? "app dark" : "app light";
   themeRoot.lang = "ar";
   themeRoot.setAttribute("dir", "rtl");
   themeRoot.style.width = `${desktopWidth}px`;
+  themeRoot.style.maxWidth = `${desktopWidth}px`;
   themeRoot.style.minHeight = "0";
+  themeRoot.style.height = "auto";
   themeRoot.style.padding = "0";
   themeRoot.style.margin = "0";
-  themeRoot.style.background = "transparent";
+  themeRoot.style.background = "#ffffff";
+  themeRoot.style.overflow = "visible";
 
   const clone = node.cloneNode(true);
   clone.classList.add("exportSheet");
-  clone.style.overflow = "visible";
   clone.style.width = `${desktopWidth}px`;
-  clone.style.maxWidth = "none";
-  clone.style.height = "auto";
+  clone.style.maxWidth = `${desktopWidth}px`;
   clone.style.minWidth = `${desktopWidth}px`;
+  clone.style.height = "auto";
+  clone.style.maxHeight = "none";
+  clone.style.overflow = "visible";
+  clone.style.background = "#ffffff";
+  clone.style.boxShadow = "none";
+  clone.style.border = "0";
+  clone.style.borderRadius = "0";
+  clone.style.padding = "22px 24px 28px";
 
   clone.querySelectorAll(".hymnSheet").forEach((sheet) => {
     sheet.style.overflow = "visible";
     sheet.style.width = `${desktopWidth}px`;
-    sheet.style.maxWidth = "none";
+    sheet.style.maxWidth = `${desktopWidth}px`;
     sheet.style.minWidth = `${desktopWidth}px`;
+    sheet.style.height = "auto";
+    sheet.style.maxHeight = "none";
+    sheet.style.background = "transparent";
+  });
+
+  clone.querySelectorAll(".sheetLines, .sheetLine, .lyricWord, .lyricWordChords, .cell").forEach((item) => {
+    item.style.overflow = "visible";
+    item.style.maxWidth = "none";
+    item.style.minWidth = "0";
+  });
+
+  clone.querySelectorAll(".hymnSheet .chord, .lyricWordChord, .lyricWordText").forEach((item) => {
+    item.style.background = "transparent";
+    item.style.border = "0";
+    item.style.boxShadow = "none";
+    item.style.textShadow = "none";
   });
 
   clone.querySelectorAll(".hymnSheet .chord").forEach((item) => {
-    item.style.fontSize = "0.95rem";
+    item.style.color = "#c0392b";
+    item.style.fontSize = "1.05rem";
+    item.style.fontWeight = "700";
+    item.style.padding = "0";
+    item.style.minWidth = "0";
+    item.style.borderRadius = "0";
+    item.style.background = "transparent";
   });
 
   clone.querySelectorAll(".hymnSheet .lyric").forEach((item) => {
-    item.style.fontSize = "1.42rem";
+    item.style.fontSize = "1.5rem";
+    item.style.background = "transparent";
+    item.style.color = "#191919";
+  });
+
+  clone.querySelectorAll(".previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge").forEach((nodeItem) => {
+    nodeItem.style.display = "none";
   });
 
   themeRoot.appendChild(clone);
@@ -110,7 +148,7 @@ export async function exportNodeToPng(
   options = {},
 ) {
   const { toPng } = await import("html-to-image");
-  const desktopWidth = options.desktopWidth || 1140;
+  const desktopWidth = options.desktopWidth || 800;
   const { wrapper, rootForCapture } = createExportClone(
     node,
     desktopWidth,
@@ -120,13 +158,18 @@ export async function exportNodeToPng(
   try {
     dataUrl = await toPng(rootForCapture, {
       cacheBust: true,
-      pixelRatio: 3,
-      backgroundColor: dark ? "#16131c" : "#f4eee3",
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
       width: desktopWidth,
       height: rootForCapture.scrollHeight,
+      scrollY: -window.scrollY,
+      windowWidth: document.documentElement.offsetWidth,
       style: {
         width: `${desktopWidth}px`,
-        height: `${rootForCapture.scrollHeight}px`,
+        height: "auto",
+        overflow: "visible",
+        background: "#ffffff",
       },
     });
   } finally {

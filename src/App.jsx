@@ -635,7 +635,7 @@ function AppShell() {
         isDark,
         {
           logoUrl: EXPORT_LOGO_URL,
-          desktopWidth: 1140,
+          desktopWidth: 800,
         },
       );
     } catch (error) {
