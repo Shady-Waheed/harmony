@@ -629,6 +629,7 @@ function AppShell() {
     try {
       setLoadingExport(true);
       setIsExporting(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
       await exportNodeToPng(
         viewRef.current,
         `${state.hymn.title || "harmony-notes"}.png`,

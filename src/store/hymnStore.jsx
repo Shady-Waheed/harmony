@@ -149,13 +149,30 @@ function transposeHymnShape(hymn, steps) {
             normalized.wordLetterChords,
             steps,
           ),
+          wordInversions: transposeChordCollection(
+            normalized.wordInversions,
+            steps,
+          ),
+          wordLetterInversions: transposeChordCollection(
+            normalized.wordLetterInversions,
+            steps,
+          ),
           gapChords: transposeChordCollection(normalized.gapChords, steps),
+          gapInversions: transposeChordCollection(normalized.gapInversions, steps),
           beforeWordChords: transposeChordCollection(
             normalized.beforeWordChords,
             steps,
           ),
+          beforeWordInversions: transposeChordCollection(
+            normalized.beforeWordInversions,
+            steps,
+          ),
           afterWordChords: transposeChordCollection(
             normalized.afterWordChords,
+            steps,
+          ),
+          afterWordInversions: transposeChordCollection(
+            normalized.afterWordInversions,
             steps,
           ),
         };

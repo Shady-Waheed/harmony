@@ -1149,6 +1149,24 @@ body {
   justify-content: center;
 }
 
+.lyric-word-container {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: max-content;
+  flex-shrink: 0;
+  gap: 0.42rem;
+  direction: rtl;
+  position: relative;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.lyric-word-container--gap {
+  min-width: 1.15rem;
+}
+
 .lyricWord {
   display: inline-flex;
   flex-direction: column;
@@ -1170,7 +1188,8 @@ body {
   gap: 0.55rem;
   min-width: max-content;
   min-height: 1.8rem;
-  direction: rtl;
+  direction: ltr;
+  unicode-bidi: isolate;
   writing-mode: horizontal-tb;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1220,7 +1239,7 @@ body {
   min-width: 1.15rem;
 }
 
-.lyricWord--multi {
+.lyric-word-container--multi {
   width: fit-content;
   min-width: max-content;
   max-width: 100%;
@@ -1229,7 +1248,7 @@ body {
   box-sizing: border-box;
 }
 
-.lyricWord--multi .lyricWordChords {
+.lyric-word-container--multi .lyricWordChords {
   width: 100%;
   justify-content: space-between;
   gap: 10px;
@@ -1237,7 +1256,7 @@ body {
   min-width: max-content;
 }
 
-.lyricWord--multi .lyricWordText {
+.lyric-word-container--multi .lyricWordText {
   width: 100%;
   min-width: max-content;
   text-align: justify;

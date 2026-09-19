@@ -20,7 +20,9 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
   wrapper.style.opacity = "0";
 
   const themeRoot = document.createElement("div");
-  themeRoot.className = dark ? "app dark export-container" : "app light export-container";
+  themeRoot.className = dark
+    ? "app dark export-container"
+    : "app light export-container";
   themeRoot.lang = "ar";
   themeRoot.setAttribute("dir", "rtl");
   themeRoot.style.width = `${desktopWidth}px`;
@@ -47,6 +49,35 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
   clone.style.borderRadius = "0";
   clone.style.padding = "22px 24px 28px";
 
+  clone
+    .querySelectorAll(
+      '.chord, .chord-badge, .lyricWordChord, [class*="chord"], [data-chord]',
+    )
+    .forEach((item) => {
+      item.style.setProperty("background", "transparent", "important");
+      item.style.setProperty("background-color", "transparent", "important");
+      item.style.setProperty("background-image", "none", "important");
+      item.style.setProperty("border", "none", "important");
+      item.style.setProperty("box-shadow", "none", "important");
+      item.style.setProperty("color", "#c0392b", "important");
+      item.style.setProperty("opacity", "1", "important");
+      item.style.setProperty("font-weight", "800", "important");
+      item.style.setProperty("filter", "none", "important");
+      item.style.setProperty("padding", "0", "important");
+    });
+
+  clone
+    .querySelectorAll(
+      '.chord *, .chord-badge *, .lyricWordChord *, [class*="chord"] *',
+    )
+    .forEach((child) => {
+      child.style.setProperty("background", "transparent", "important");
+      child.style.setProperty("background-color", "transparent", "important");
+      child.style.setProperty("color", "#c0392b", "important");
+      child.style.setProperty("opacity", "1", "important");
+      child.style.setProperty("font-weight", "800", "important");
+    });
+
   clone.querySelectorAll(".hymnSheet").forEach((sheet) => {
     sheet.style.overflow = "visible";
     sheet.style.width = `${desktopWidth}px`;
@@ -57,18 +88,24 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
     sheet.style.background = "transparent";
   });
 
-  clone.querySelectorAll(".sheetLines, .sheetLine, .lyricWord, .lyricWordChords, .cell").forEach((item) => {
-    item.style.overflow = "visible";
-    item.style.maxWidth = "none";
-    item.style.minWidth = "0";
-  });
+  clone
+    .querySelectorAll(
+      ".sheetLines, .sheetLine, .lyricWord, .lyricWordChords, .cell",
+    )
+    .forEach((item) => {
+      item.style.overflow = "visible";
+      item.style.maxWidth = "none";
+      item.style.minWidth = "0";
+    });
 
-  clone.querySelectorAll(".hymnSheet .chord, .lyricWordChord, .lyricWordText").forEach((item) => {
-    item.style.background = "transparent";
-    item.style.border = "0";
-    item.style.boxShadow = "none";
-    item.style.textShadow = "none";
-  });
+  clone
+    .querySelectorAll(".hymnSheet .chord, .lyricWordChord, .lyricWordText")
+    .forEach((item) => {
+      item.style.background = "transparent";
+      item.style.border = "0";
+      item.style.boxShadow = "none";
+      item.style.textShadow = "none";
+    });
 
   clone.querySelectorAll(".hymnSheet .chord").forEach((item) => {
     item.style.color = "#c0392b";
@@ -81,9 +118,13 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
     item.style.border = "none";
   });
 
-  clone.querySelectorAll(".sidebar-logo, .watermark-box, .previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge").forEach((nodeItem) => {
-    nodeItem.style.display = "none";
-  });
+  clone
+    .querySelectorAll(
+      ".sidebar-logo, .watermark-box, .previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge",
+    )
+    .forEach((nodeItem) => {
+      nodeItem.style.display = "none";
+    });
 
   const exportHeader = clone.querySelector(".sheetHeader");
   if (exportHeader) {
@@ -107,6 +148,54 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
     item.style.background = "transparent";
     item.style.color = "#191919";
   });
+
+  clone
+    .querySelectorAll(
+      '.chord, .chord-badge, .lyricWordChord, [class*="chord"], [data-chord]',
+    )
+    .forEach((item) => {
+      item.style.setProperty("background", "transparent", "important");
+      item.style.setProperty("background-color", "transparent", "important");
+      item.style.setProperty("background-image", "none", "important");
+      item.style.setProperty("border", "none", "important");
+      item.style.setProperty("outline", "none", "important");
+      item.style.setProperty("box-shadow", "none", "important");
+      item.style.setProperty("color", "#c0392b", "important");
+      item.style.setProperty("opacity", "1", "important");
+      item.style.setProperty("font-weight", "800", "important");
+      item.style.setProperty("padding", "0", "important");
+    });
+
+  clone
+    .querySelectorAll(
+      '.chord *, .chord-badge *, .lyricWordChord *, [class*="chord"] *',
+    )
+    .forEach((child) => {
+      child.style.setProperty("background", "transparent", "important");
+      child.style.setProperty("background-color", "transparent", "important");
+      child.style.setProperty("color", "#c0392b", "important");
+      child.style.setProperty("opacity", "1", "important");
+      child.style.setProperty("font-weight", "800", "important");
+    });
+
+  const exportStyle = document.createElement("style");
+  exportStyle.innerHTML = `
+    .export-container .chord,
+    .export-container .chord-badge,
+    .export-container .lyricWordChord,
+    .export-container [class*="chord"],
+    .export-container [class*="chord"] * {
+      background: transparent !important;
+      background-color: transparent !important;
+      background-image: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: #c0392b !important;
+      opacity: 1 !important;
+      font-weight: 800 !important;
+    }
+  `;
+  themeRoot.appendChild(exportStyle);
 
   themeRoot.appendChild(clone);
   wrapper.appendChild(themeRoot);
@@ -192,57 +281,6 @@ export async function exportNodeToPng(
         background: "#ffffff",
         direction: "rtl",
         textAlign: "right",
-      },
-      onclone: (clonedDoc) => {
-        const exportRoot =
-          clonedDoc.querySelector(".export-container") || clonedDoc.body;
-
-        if (exportRoot) {
-          exportRoot.setAttribute("dir", "rtl");
-          exportRoot.style.direction = "rtl";
-          exportRoot.style.textAlign = "right";
-        }
-
-        clonedDoc.querySelectorAll(
-          ".sidebar-logo, .watermark-box, .previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge, .sheetKicker, .sheetMetaHint",
-        ).forEach((item) => {
-          item.style.display = "none";
-        });
-
-        const exportContainer =
-          clonedDoc.querySelector(".export-container") || clonedDoc.body;
-        const allElements = exportContainer.querySelectorAll("*");
-
-        const chordPattern =
-          /^[A-G][b#]?(m|maj|min|dim|aug|add)?[0-9]*(\/[A-G][b#]?)?$/i;
-
-        allElements.forEach((el) => {
-          const text = (el.innerText || "").trim();
-          const hasChordClass = /(^|\s)chord(\s|$)|chord-badge/i.test(
-            el.className || "",
-          );
-          const isChordText = Boolean(text) && chordPattern.test(text);
-
-          if (hasChordClass || isChordText) {
-            el.style.setProperty("background", "transparent", "important");
-            el.style.setProperty(
-              "background-color",
-              "transparent",
-              "important",
-            );
-            el.style.setProperty("border", "none", "important");
-            el.style.setProperty("border-color", "transparent", "important");
-            el.style.setProperty("border-radius", "0", "important");
-            el.style.setProperty("box-shadow", "none", "important");
-            el.style.setProperty("-webkit-box-shadow", "none", "important");
-            el.style.setProperty("color", "#c0392b", "important");
-            el.style.setProperty("font-weight", "bold", "important");
-            el.style.setProperty("padding", "0", "important");
-            el.style.setProperty("min-width", "0", "important");
-            el.style.setProperty("outline", "none", "important");
-            el.style.setProperty("text-shadow", "none", "important");
-          }
-        });
       },
     });
   } finally {

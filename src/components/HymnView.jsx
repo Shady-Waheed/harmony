@@ -270,9 +270,11 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                         key={`${line.id}-${i}`}
                         className={`cell cell--${cell.type} ${isGap ? "gap" : ""} ${hasChord ? "hasChord" : "noChord"}`}
                       >
-                        <span
-                          className={`lyricWord ${cell.type === "word" ? "" : "lyricWord--gap"} ${visibleChordCount > 1 ? "lyricWord--multi" : ""}`}
-                          style={{ textAlign: isExporting ? "right" : undefined }}
+                        <div
+                          className={`lyric-word-container ${cell.type === "word" ? "" : "lyric-word-container--gap"} ${visibleChordCount > 1 ? "lyric-word-container--multi" : ""}`}
+                          style={{
+                            textAlign: isExporting ? "right" : undefined,
+                          }}
                         >
                           <ChordLabels
                             entries={wordChordEntries}
@@ -283,7 +285,7 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                               ? stretchArabicWord(cell.word, visibleChordCount)
                               : "\u00A0"}
                           </span>
-                        </span>
+                        </div>
                       </div>
                     );
                   })}
