@@ -1,181 +1,269 @@
-import { forwardRef } from 'react'
-import { useHymnStore } from '../store/hymnStore.jsx'
-import { buildDisplayCells } from '../utils/lineChords'
+import { forwardRef } from "react";
+import { useHymnStore } from "../store/hymnStore.jsx";
+import { buildDisplayCells } from "../utils/lineChords";
 import {
   formatChordLabel,
   getChordEffectiveInversion,
   getChordOrderedNoteNames,
   getChordVoicingKeyIndexes,
-} from '../utils/chords'
+} from "../utils/chords";
 
 const WHITE_KEY_STEPS = [
-  { rel: 0, note: 'C' },
-  { rel: 2, note: 'D' },
-  { rel: 4, note: 'E' },
-  { rel: 5, note: 'F' },
-  { rel: 7, note: 'G' },
-  { rel: 9, note: 'A' },
-  { rel: 11, note: 'B' },
-]
+  { rel: 0, note: "C" },
+  { rel: 2, note: "D" },
+  { rel: 4, note: "E" },
+  { rel: 5, note: "F" },
+  { rel: 7, note: "G" },
+  { rel: 9, note: "A" },
+  { rel: 11, note: "B" },
+];
 
 const BLACK_KEY_STEPS = [
-  { rel: 1, note: 'C#', left: 11.5 },
-  { rel: 3, note: 'D#', left: 25.7 },
-  { rel: 6, note: 'F#', left: 54.2 },
-  { rel: 8, note: 'G#', left: 68.4 },
-  { rel: 10, note: 'A#', left: 82.6 },
-]
+  { rel: 1, note: "C#", left: 11.5 },
+  { rel: 3, note: "D#", left: 25.7 },
+  { rel: 6, note: "F#", left: 54.2 },
+  { rel: 8, note: "G#", left: 68.4 },
+  { rel: 10, note: "A#", left: 82.6 },
+];
 
 function buildMiniKeyboardKeys(baseC, nOctaves) {
-  const whites = []
-  const blacks = []
+  const whites = [];
+  const blacks = [];
   for (let o = 0; o < nOctaves; o += 1) {
-    const octaveBase = baseC + o * 12
+    const octaveBase = baseC + o * 12;
     for (const { rel, note } of WHITE_KEY_STEPS) {
-      const abs = octaveBase + rel
-      whites.push({ abs, note, key: `w-${abs}` })
+      const abs = octaveBase + rel;
+      whites.push({ abs, note, key: `w-${abs}` });
     }
     for (const { rel, note, left } of BLACK_KEY_STEPS) {
-      const abs = octaveBase + rel
-      blacks.push({ abs, note, left, o, key: `b-${abs}` })
+      const abs = octaveBase + rel;
+      blacks.push({ abs, note, left, o, key: `b-${abs}` });
     }
   }
-  return { whites, blacks }
+  return { whites, blacks };
 }
 
 function ChordPianoPreview({ chord, inversion }) {
-  const voicingIndexes = getChordVoicingKeyIndexes(chord, inversion)
-  const orderedNoteNames = getChordOrderedNoteNames(chord, inversion)
-  const effectiveInversion = getChordEffectiveInversion(chord, inversion)
-  if (voicingIndexes.length === 0) return null
+  const voicingIndexes = getChordVoicingKeyIndexes(chord, inversion);
+  const orderedNoteNames = getChordOrderedNoteNames(chord, inversion);
+  const effectiveInversion = getChordEffectiveInversion(chord, inversion);
+  if (voicingIndexes.length === 0) return null;
 
-  const minV = Math.min(...voicingIndexes)
-  const maxV = Math.max(...voicingIndexes)
-  const baseC = Math.floor(minV / 12) * 12
-  const nOctaves = Math.max(2, Math.ceil((maxV + 1 - baseC) / 12))
-  const { whites, blacks } = buildMiniKeyboardKeys(baseC, nOctaves)
+  const minV = Math.min(...voicingIndexes);
+  const maxV = Math.max(...voicingIndexes);
+  const baseC = Math.floor(minV / 12) * 12;
+  const nOctaves = Math.max(2, Math.ceil((maxV + 1 - baseC) / 12));
+  const { whites, blacks } = buildMiniKeyboardKeys(baseC, nOctaves);
 
-  const activeAbs = new Set(voicingIndexes)
-  const bassAbs = voicingIndexes[0]
-  const orderByAbs = new Map(voicingIndexes.map((abs, idx) => [abs, idx + 1]))
+  const activeAbs = new Set(voicingIndexes);
+  const bassAbs = voicingIndexes[0];
+  const orderByAbs = new Map(voicingIndexes.map((abs, idx) => [abs, idx + 1]));
 
   const inversionLabel =
-    effectiveInversion === 'first' ? '1st' : effectiveInversion === 'second' ? '2nd' : effectiveInversion === 'third' ? '3rd' : 'Root'
+    effectiveInversion === "first"
+      ? "1st"
+      : effectiveInversion === "second"
+        ? "2nd"
+        : effectiveInversion === "third"
+          ? "3rd"
+          : "Root";
 
-  const octaveWidthPct = 100 / nOctaves
+  const octaveWidthPct = 100 / nOctaves;
 
   return (
     <span className="chordPreviewPopup" role="tooltip" aria-hidden="true">
-      <span className="chordPreviewTitle">{formatChordLabel(chord, inversion)}</span>
+      <span className="chordPreviewTitle">
+        {formatChordLabel(chord, inversion)}
+      </span>
       <span className="chordPreviewMeta">{inversionLabel}</span>
       <span
         className="miniPiano"
         aria-hidden="true"
         style={{
           gridTemplateColumns: `repeat(${whites.length}, minmax(0, 1fr))`,
-          '--mini-white-count': whites.length,
+          "--mini-white-count": whites.length,
         }}
       >
         {whites.map((key) => (
           <span
             key={key.key}
-            className={`miniKey white ${activeAbs.has(key.abs) ? 'active' : ''} ${bassAbs === key.abs ? 'bass' : ''}`}
+            className={`miniKey white ${activeAbs.has(key.abs) ? "active" : ""} ${bassAbs === key.abs ? "bass" : ""}`}
           >
-            {orderByAbs.has(key.abs) ? <span className="miniKeyOrder">{orderByAbs.get(key.abs)}</span> : null}
+            {orderByAbs.has(key.abs) ? (
+              <span className="miniKeyOrder">{orderByAbs.get(key.abs)}</span>
+            ) : null}
           </span>
         ))}
         {blacks.map((key) => (
           <span
             key={key.key}
-            className={`miniKey black ${activeAbs.has(key.abs) ? 'active' : ''} ${bassAbs === key.abs ? 'bass' : ''}`}
+            className={`miniKey black ${activeAbs.has(key.abs) ? "active" : ""} ${bassAbs === key.abs ? "bass" : ""}`}
             style={{ left: `${octaveWidthPct * (key.o + key.left / 100)}%` }}
           >
-            {orderByAbs.has(key.abs) ? <span className="miniKeyOrder">{orderByAbs.get(key.abs)}</span> : null}
+            {orderByAbs.has(key.abs) ? (
+              <span className="miniKeyOrder">{orderByAbs.get(key.abs)}</span>
+            ) : null}
           </span>
         ))}
       </span>
-      {orderedNoteNames.length > 0 ? <span className="chordPreviewNotes">{orderedNoteNames.join(' - ')}</span> : null}
+      {orderedNoteNames.length > 0 ? (
+        <span className="chordPreviewNotes">
+          {orderedNoteNames.join(" - ")}
+        </span>
+      ) : null}
     </span>
-  )
+  );
 }
 
 function SheetStaffMark() {
   return (
-    <svg className="sheetStaffMark" viewBox="0 0 88 22" aria-hidden="true" focusable="false">
-      <g fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round">
+    <svg
+      className="sheetStaffMark"
+      viewBox="0 0 88 22"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <g
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+      >
         <path d="M4 3.2h80M4 7.4h80M4 11.6h80M4 15.8h80" />
         <path d="M18 1.6v18.2" />
         <path d="M22.2 6.2c4.8-4.4 11.4 0.4 7.2 6.4-3.6 5.2-9.4 7.6-9.4 7.6" />
       </g>
     </svg>
-  )
+  );
+}
+
+function ChordLabels({ entries = [] }) {
+  const visibleEntries = entries.filter((entry) => Boolean(entry.chord));
+  if (visibleEntries.length === 0) return null;
+
+  return (
+    <span className="lyricWordChords">
+      {visibleEntries.map((entry, index) => (
+        <span className="lyricWordChord" key={`${entry.chord}-${index}`}>
+          <span className="chord hasPreview" tabIndex={0}>
+            {formatChordLabel(entry.chord, entry.inversion)}
+            <ChordPianoPreview
+              chord={entry.chord}
+              inversion={entry.inversion}
+            />
+          </span>
+        </span>
+      ))}
+    </span>
+  );
 }
 
 const HymnView = forwardRef(function HymnView(_, ref) {
-  const { state } = useHymnStore()
-  const { hymn } = state
-  const hasSections = (hymn.sections || []).some((section) => (section.lines || []).length > 0)
+  const { state } = useHymnStore();
+  const { hymn } = state;
+  const hasSections = (hymn.sections || []).some(
+    (section) => (section.lines || []).length > 0,
+  );
 
   return (
     <section ref={ref} className="card hymnSheet" dir="rtl">
       <header className="sheetHeader">
         <SheetStaffMark />
         <p className="sheetKicker">Harmony Notes</p>
-        <h1>{hymn.title || 'ترنيمة بدون عنوان'}</h1>
+        <h1>{hymn.title || "ترنيمة بدون عنوان"}</h1>
         <div className="sheetMeta">
           <span className="sheetKeyPill">
             <small>Key</small>
-            <strong>{hymn.key || '—'}</strong>
+            <strong>{hymn.key || "—"}</strong>
           </span>
           <span className="sheetMetaHint">مرّر على الكورد لمعاينة البيانو</span>
         </div>
       </header>
 
       {!hasSections ? (
-        <p className="sheetEmpty">لا توجد كلمات بعد. اكتب الترنيمة من وضع التعديل.</p>
+        <p className="sheetEmpty">
+          لا توجد كلمات بعد. اكتب الترنيمة من وضع التعديل.
+        </p>
       ) : null}
 
       {(hymn.sections || []).map((section, sectionIndex) => (
         <article key={section.id} className="sheetSection">
           <div className="sheetSectionHead">
-            <span className="sheetSectionIndex">{String(sectionIndex + 1).padStart(2, '0')}</span>
-            <h2>{section.title || 'قسم'}</h2>
+            <span className="sheetSectionIndex">
+              {String(sectionIndex + 1).padStart(2, "0")}
+            </span>
+            <h2>{section.title || "قسم"}</h2>
           </div>
           <div className="sheetLines">
             {(section.lines || []).map((line) => {
-              const cells = buildDisplayCells(line)
+              const cells = buildDisplayCells(line);
               if (cells.length === 0) {
-                return <div key={line.id} className="sheetLine sheetLine--empty" />
+                return (
+                  <div key={line.id} className="sheetLine sheetLine--empty" />
+                );
               }
               return (
                 <div key={line.id} className="sheetLine">
                   {cells.map((cell, i) => {
-                    const isGap = cell.type === 'before' || cell.type === 'after'
-                    const hasChord = Boolean(cell.chord)
+                    const isGap =
+                      cell.type === "before" || cell.type === "after";
+                    const cellLetters =
+                      cell.type === "word"
+                        ? cell.letters || []
+                        : [
+                            {
+                              letter: cell.word || "\u00A0",
+                              chords: [
+                                {
+                                  chord: cell.chord,
+                                  inversion: cell.inversion,
+                                },
+                              ],
+                            },
+                          ];
+                    const hasChord = cellLetters.some((letter) =>
+                      (letter.chords || []).some((item) =>
+                        Boolean(item.chord || item),
+                      ),
+                    );
+                    const wordChordEntries =
+                      cell.type === "word"
+                        ? cellLetters.flatMap((letter) =>
+                            (letter.chords || []).map((item) => ({
+                              chord:
+                                typeof item === "string" ? item : item.chord,
+                              inversion:
+                                typeof item === "string" ? "" : item.inversion,
+                            })),
+                          )
+                        : [{ chord: cell.chord, inversion: cell.inversion }];
+                    const visibleChordCount = wordChordEntries.filter((entry) =>
+                      Boolean(entry.chord),
+                    ).length;
                     return (
                       <div
                         key={`${line.id}-${i}`}
-                        className={`cell cell--${cell.type} ${isGap ? 'gap' : ''} ${hasChord ? 'hasChord' : 'noChord'}`}
+                        className={`cell cell--${cell.type} ${isGap ? "gap" : ""} ${hasChord ? "hasChord" : "noChord"}`}
                       >
                         <span
-                          className={`chord ${hasChord ? 'hasPreview' : ''}`}
-                          tabIndex={hasChord ? 0 : undefined}
+                          className={`lyricWord ${cell.type === "word" ? "" : "lyricWord--gap"} ${visibleChordCount > 1 ? "lyricWord--multi" : ""}`}
                         >
-                          {formatChordLabel(cell.chord, cell.inversion) || '\u00A0'}
-                          {hasChord ? <ChordPianoPreview chord={cell.chord} inversion={cell.inversion} /> : null}
+                          <ChordLabels entries={wordChordEntries} />
+                          <span className="lyricWordText">
+                            {cell.type === "word" ? cell.word : "\u00A0"}
+                          </span>
                         </span>
-                        <span className="lyric">{cell.word || '\u00A0'}</span>
                       </div>
-                    )
+                    );
                   })}
                 </div>
-              )
+              );
             })}
           </div>
         </article>
       ))}
     </section>
-  )
-})
+  );
+});
 
-export default HymnView
+export default HymnView;

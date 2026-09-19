@@ -213,7 +213,7 @@ export function formatChordLabel(chord, inversion = "") {
   const rootIndex = NOTE_INDEX[root];
   if (rootIndex === undefined) return value;
 
-  const base = `${root}${suffix ? ` ${suffix}` : ""}`;
+  const base = `${root}${suffix}`;
   const inversionLabel =
     effectiveInversion === "first"
       ? "1st"
@@ -224,10 +224,10 @@ export function formatChordLabel(chord, inversion = "") {
           : "";
 
   if (bass && inversionLabel) {
-    return `${base} /${bass} ${inversionLabel}`;
+    return `${base}/${bass} ${inversionLabel}`;
   }
   if (bass) {
-    return `${base} /${bass}`;
+    return `${base}/${bass}`;
   }
   if (inversionLabel) {
     return `${base} ${inversionLabel}`;

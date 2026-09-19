@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useHymnStore } from "../store/hymnStore.jsx";
-import { normalizeLineStructure, splitWords } from "../utils/lineChords";
+import {
+  normalizeLineStructure,
+  splitWordLetters,
+  splitWords,
+} from "../utils/lineChords";
 import { ROOT_NOTES, formatChordLabel } from "../utils/chords";
 
 const EMPTY_BASS = "__no_bass__";
@@ -706,69 +710,233 @@ function HymnEditor() {
                                 </div>
 
                                 <div className="wordChordCell word">
-                                  <button
-                                    className="wordTokenBtn"
-                                    type="button"
-                                    onClick={() =>
-                                      setActiveEditorId(
-                                        getEditorId(line.id, "word", wordIndex),
-                                      )
-                                    }
-                                  >
-                                    <span className="wordTokenChord">
-                                      {formatChordLabel(
-                                        normalizedLine.wordChords[wordIndex] ||
-                                          "",
-                                        normalizedLine.wordInversions[
-                                          wordIndex
-                                        ] || "",
-                                      ) || "بدون كورد"}
-                                    </span>
-                                    <span className="wordLabel">{word}</span>
-                                  </button>
-                                  {activeEditorId ===
-                                    getEditorId(line.id, "word", wordIndex) && (
-                                    <div className="inlineEditorPanel">
-                                      <ChordPicker
-                                        value={
-                                          normalizedLine.wordChords[
+                                  <div className="letterEditorRun">
+                                    {splitWordLetters(word).map(
+                                      (letter, letterIndex) => {
+                                        const chordGroup =
+                                          normalizedLine.wordLetterChords[
                                             wordIndex
-                                          ] || ""
-                                        }
-                                        inversion={
-                                          normalizedLine.wordInversions[
+                                          ]?.[letterIndex] || [];
+                                        const inversionGroup =
+                                          normalizedLine.wordLetterInversions[
                                             wordIndex
-                                          ] || ""
-                                        }
-                                        onChange={(nextChord) => {
-                                          const nextWordChords = [
-                                            ...normalizedLine.wordChords,
-                                          ];
-                                          nextWordChords[wordIndex] = nextChord;
-                                          updateLine(section.id, line.id, {
-                                            wordChords: nextWordChords,
-                                          });
-                                        }}
-                                        onInversionChange={(nextInversion) => {
-                                          const nextWordInversions = [
-                                            ...normalizedLine.wordInversions,
-                                          ];
-                                          nextWordInversions[wordIndex] =
-                                            nextInversion;
-                                          updateLine(section.id, line.id, {
-                                            wordInversions: nextWordInversions,
-                                          });
-                                        }}
-                                      />
-                                      <button
-                                        className="btn chordModeBtn"
-                                        type="button"
-                                        onClick={() => setActiveEditorId("")}
-                                      >
-                                        تم
-                                      </button>
-                                    </div>
-                                  )}
+                                          ]?.[letterIndex] || [];
+                                        return (
+                                          <div
+                                            className="letterEditorCell"
+                                            key={`${line.id}-letter-${wordIndex}-${letterIndex}`}
+                                          >
+                                            <div className="letterChordSlotList">
+                                              {chordGroup.map(
+                                                (chord, chordIndex) => (
+                                                  <button
+                                                    key={`${line.id}-letter-chord-${wordIndex}-${letterIndex}-${chordIndex}`}
+                                                    className="wordTokenBtn"
+                                                    type="button"
+                                                    onClick={() =>
+                                                      setActiveEditorId(
+                                                        getEditorId(
+                                                          line.id,
+                                                          "letter",
+                                                          wordIndex,
+                                                          letterIndex * 100 +
+                                                            chordIndex,
+                                                        ),
+                                                      )
+                                                    }
+                                                  >
+                                                    <span className="wordTokenChord">
+                                                      {formatChordLabel(
+                                                        chord,
+                                                        inversionGroup[
+                                                          chordIndex
+                                                        ] || "",
+                                                      ) ||
+                                                        `كورد ${chordIndex + 1}`}
+                                                    </span>
+                                                  </button>
+                                                ),
+                                              )}
+                                            </div>
+                                            <span className="letterLabel">
+                                              {letter}
+                                            </span>
+                                            <button
+                                              className="miniAddBtn wordChordAddBtn"
+                                              type="button"
+                                              onClick={() => {
+                                                const nextChords =
+                                                  normalizedLine.wordLetterChords.map(
+                                                    (group) =>
+                                                      group.map((letters) => [
+                                                        ...letters,
+                                                      ]),
+                                                  );
+                                                const nextInversions =
+                                                  normalizedLine.wordLetterInversions.map(
+                                                    (group) =>
+                                                      group.map((letters) => [
+                                                        ...letters,
+                                                      ]),
+                                                  );
+                                                nextChords[wordIndex][
+                                                  letterIndex
+                                                ] = [...chordGroup, ""];
+                                                nextInversions[wordIndex][
+                                                  letterIndex
+                                                ] = [...inversionGroup, ""];
+                                                updateLine(
+                                                  section.id,
+                                                  line.id,
+                                                  {
+                                                    wordLetterChords:
+                                                      nextChords,
+                                                    wordLetterInversions:
+                                                      nextInversions,
+                                                  },
+                                                );
+                                              }}
+                                            >
+                                              +
+                                            </button>
+                                            {chordGroup.map((_, chordIndex) => {
+                                              const editorId = getEditorId(
+                                                line.id,
+                                                "letter",
+                                                wordIndex,
+                                                letterIndex * 100 + chordIndex,
+                                              );
+                                              if (activeEditorId !== editorId)
+                                                return null;
+                                              return (
+                                                <div
+                                                  className="inlineEditorPanel"
+                                                  key={`${editorId}-panel`}
+                                                >
+                                                  <ChordPicker
+                                                    value={
+                                                      chordGroup[chordIndex] ||
+                                                      ""
+                                                    }
+                                                    inversion={
+                                                      inversionGroup[
+                                                        chordIndex
+                                                      ] || ""
+                                                    }
+                                                    onChange={(nextChord) => {
+                                                      const nextChords =
+                                                        normalizedLine.wordLetterChords.map(
+                                                          (group) =>
+                                                            group.map(
+                                                              (letters) => [
+                                                                ...letters,
+                                                              ],
+                                                            ),
+                                                        );
+                                                      nextChords[wordIndex][
+                                                        letterIndex
+                                                      ][chordIndex] = nextChord;
+                                                      updateLine(
+                                                        section.id,
+                                                        line.id,
+                                                        {
+                                                          wordLetterChords:
+                                                            nextChords,
+                                                        },
+                                                      );
+                                                    }}
+                                                    onInversionChange={(
+                                                      nextInversion,
+                                                    ) => {
+                                                      const nextInversions =
+                                                        normalizedLine.wordLetterInversions.map(
+                                                          (group) =>
+                                                            group.map(
+                                                              (letters) => [
+                                                                ...letters,
+                                                              ],
+                                                            ),
+                                                        );
+                                                      nextInversions[wordIndex][
+                                                        letterIndex
+                                                      ][chordIndex] =
+                                                        nextInversion;
+                                                      updateLine(
+                                                        section.id,
+                                                        line.id,
+                                                        {
+                                                          wordLetterInversions:
+                                                            nextInversions,
+                                                        },
+                                                      );
+                                                    }}
+                                                  />
+                                                  <div className="row wrap">
+                                                    <button
+                                                      className="btn chordModeBtn"
+                                                      type="button"
+                                                      onClick={() =>
+                                                        setActiveEditorId("")
+                                                      }
+                                                    >
+                                                      تم
+                                                    </button>
+                                                    <button
+                                                      className="btn chordModeBtn danger"
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const nextChords =
+                                                          normalizedLine.wordLetterChords.map(
+                                                            (group) =>
+                                                              group.map(
+                                                                (letters) => [
+                                                                  ...letters,
+                                                                ],
+                                                              ),
+                                                          );
+                                                        const nextInversions =
+                                                          normalizedLine.wordLetterInversions.map(
+                                                            (group) =>
+                                                              group.map(
+                                                                (letters) => [
+                                                                  ...letters,
+                                                                ],
+                                                              ),
+                                                          );
+                                                        nextChords[wordIndex][
+                                                          letterIndex
+                                                        ].splice(chordIndex, 1);
+                                                        nextInversions[
+                                                          wordIndex
+                                                        ][letterIndex].splice(
+                                                          chordIndex,
+                                                          1,
+                                                        );
+                                                        updateLine(
+                                                          section.id,
+                                                          line.id,
+                                                          {
+                                                            wordLetterChords:
+                                                              nextChords,
+                                                            wordLetterInversions:
+                                                              nextInversions,
+                                                          },
+                                                        );
+                                                        setActiveEditorId("");
+                                                      }}
+                                                    >
+                                                      حذف
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        );
+                                      },
+                                    )}
+                                  </div>
+                                  <span className="wordLabel">{word}</span>
                                 </div>
 
                                 <div className="gapEditor">
