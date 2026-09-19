@@ -1190,6 +1190,7 @@ body {
   white-space: nowrap;
   direction: rtl;
   unicode-bidi: plaintext;
+  text-align: center;
 }
 
 .lyricWord--gap {
@@ -1200,10 +1201,31 @@ body {
   width: fit-content;
   min-width: max-content;
   max-width: 100%;
+  align-items: stretch;
+  padding-inline: 4px;
+  box-sizing: border-box;
 }
 
 .lyricWord--multi .lyricWordChords {
+  width: 100%;
+  justify-content: space-between;
   flex: 0 0 auto;
+}
+
+.lyricWord--multi .lyricWordText {
+  width: 100%;
+  text-align: justify;
+  text-align-last: justify;
+  text-justify: inter-character;
+  letter-spacing: 0.025em;
+  padding-inline: 4px;
+  box-sizing: border-box;
+}
+
+@supports (text-justify: kashida) {
+  .lyricWord--multi .lyricWordText {
+    text-justify: kashida;
+  }
 }
 
 .wordChordStack {
@@ -1850,6 +1872,7 @@ body {
   .hymnSheet .lyricWord--multi {
     width: fit-content;
     min-width: 0;
+    max-width: 100%;
   }
 
   .hymnSheet .lyricWord--multi .lyricWordChords {
