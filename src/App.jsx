@@ -480,7 +480,11 @@ function AppShell() {
           isExclusive,
           exclusiveOwnerUid,
         },
-        { mode: isAdmin ? "edit" : "view" },
+        {
+          ignoreDraft: true,
+          useDraft: false,
+          mode: isAdmin ? "edit" : "view",
+        },
       );
       return true;
     },
@@ -739,7 +743,11 @@ function AppShell() {
                 Boolean(sourceDoc.exclusiveOwnerUid),
               exclusiveOwnerUid: String(sourceDoc.exclusiveOwnerUid || ""),
             },
-            { mode: isAdmin ? "edit" : "view" },
+            {
+              ignoreDraft: true,
+              useDraft: false,
+              mode: isAdmin ? "edit" : "view",
+            },
           );
         }
       }

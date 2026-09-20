@@ -148,10 +148,18 @@ function normalizeChordGroup(value) {
 export function normalizeLineStructure(line) {
   const lyrics = String(line?.lyrics || "");
   const words = splitWords(lyrics);
+  const clampWordArray = (values) =>
+    Array.isArray(values) ? values.slice(0, Math.max(words.length, 0)) : [];
+
+  const rawWordChords = clampWordArray(line?.wordChords);
+  const rawWordChordGroups = clampWordArray(line?.wordChordGroups);
+  const rawWordInversions = clampWordArray(line?.wordInversions);
+  const rawWordLetterChords = clampWordArray(line?.wordLetterChords);
+  const rawWordLetterInversions = clampWordArray(line?.wordLetterInversions);
 
   const letterChordGroups = Array.from({ length: words.length }, (_, i) => {
-    const source = Array.isArray(line?.wordLetterChords?.[i])
-      ? line.wordLetterChords[i]
+    const source = Array.isArray(rawWordLetterChords[i])
+      ? rawWordLetterChords[i]
       : [];
     return source.flatMap((group) => normalizeChordGroup(group));
   });
@@ -162,8 +170,8 @@ export function normalizeLineStructure(line) {
       return String(letterGroup[0] || "");
     }
 
-    if (Array.isArray(line?.wordChords)) {
-      const value = line.wordChords[i];
+    if (Array.isArray(rawWordChords)) {
+      const value = rawWordChords[i];
       return Array.isArray(value)
         ? String(value[0] || "")
         : String(value || "");
@@ -181,11 +189,11 @@ export function normalizeLineStructure(line) {
     const directLetterGroup = letterChordGroups[i];
     if (directLetterGroup.length > 0) return directLetterGroup;
 
-    const source = line?.wordChordGroups?.[i] ?? wordChords[i];
+    const source = rawWordChordGroups[i] ?? wordChords[i];
     const directGroup = normalizeChordGroup(source);
     if (directGroup.length > 0) return directGroup;
 
-    const letterGroup = line?.wordLetterChords?.[i];
+    const letterGroup = rawWordLetterChords[i];
     return Array.isArray(letterGroup)
       ? letterGroup.flatMap((group) => normalizeChordGroup(group))
       : [];
@@ -193,8 +201,8 @@ export function normalizeLineStructure(line) {
 
   const wordLetterChords = words.map((word, wordIndex) => {
     const letters = splitWordLetters(word);
-    const source = Array.isArray(line?.wordLetterChords?.[wordIndex])
-      ? line.wordLetterChords[wordIndex]
+    const source = Array.isArray(rawWordLetterChords[wordIndex])
+      ? rawWordLetterChords[wordIndex]
       : [];
     if (source.length === letters.length) {
       return source.map((group) =>
@@ -213,16 +221,18 @@ export function normalizeLineStructure(line) {
 
   const gapChords = normalizeGapChords(line?.gapChords, words.length - 1);
   const wordInversions = wordChordGroups.map((group, i) => {
-    const source = Array.isArray(line?.wordInversions?.[i])
-      ? line.wordInversions[i]
-      : [line?.wordInversions?.[i] || ""];
+    const source = Array.isArray(rawWordInversions[i])
+      ? rawWordInversions[i]
+      : [rawWordInversions[i] || ""];
     return Array.from({ length: group.length }, (_, chordIndex) =>
       String(source[chordIndex] || ""),
     );
   });
   const wordLetterInversions = wordLetterChords.map((groups, wordIndex) =>
     groups.map((group, letterIndex) => {
-      const source = line?.wordLetterInversions?.[wordIndex]?.[letterIndex];
+      const source = Array.isArray(rawWordLetterInversions[wordIndex])
+        ? rawWordLetterInversions[wordIndex][letterIndex]
+        : [];
       return group.map((_, chordIndex) => String(source?.[chordIndex] || ""));
     }),
   );

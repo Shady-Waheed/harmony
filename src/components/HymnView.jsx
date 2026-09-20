@@ -143,6 +143,13 @@ function ChordLabels({ entries = [], isExporting = false }) {
   return (
     <span
       className={`lyricWordChords ${visibleEntries.length === 0 ? "lyricWordChords--empty" : ""}`}
+      dir="ltr"
+      style={{
+        display: "inline-flex",
+        gap: "0.3rem",
+        direction: "ltr",
+        alignItems: "baseline",
+      }}
     >
       {visibleEntries.map((entry, index) => (
         <span className="lyricWordChord" key={`${entry.chord}-${index}`}>
@@ -236,7 +243,16 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                   );
                 }
                 return (
-                  <div key={line.id} className="sheetLine">
+                  <div
+                    key={line.id}
+                    className="sheetLine"
+                    style={{
+                      display: "flex",
+                      flexDirection: "row",
+                      direction: "rtl",
+                      justifyContent: "flex-start",
+                    }}
+                  >
                     {cells.map((cell, i) => {
                       const isGap =
                         cell.type === "before" || cell.type === "after";
@@ -259,16 +275,25 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                           Boolean(item.chord || item),
                         ),
                       );
-                      const wordChordEntries =
+                      const rawChords =
                         cell.type === "word"
-                          ? (cell.chords || []).map((chord, chordIndex) => ({
-                              chord,
-                              inversion:
-                                cell.letters?.flatMap(
-                                  (letter) => letter.inversions || [],
-                                )[chordIndex] || "",
-                            }))
-                          : [{ chord: cell.chord, inversion: cell.inversion }];
+                          ? (Array.isArray(cell.chords)
+                              ? cell.chords
+                              : [cell.chord]
+                            ).filter(Boolean)
+                          : [cell.chord].filter(Boolean);
+                      const rawInversions =
+                        cell.type === "word"
+                          ? Array.isArray(cell.inversions)
+                            ? cell.inversions
+                            : [cell.inversion]
+                          : [cell.inversion];
+                      const wordChordEntries = rawChords.map(
+                        (chord, chordIndex) => ({
+                          chord,
+                          inversion: rawInversions[chordIndex] || "",
+                        }),
+                      );
                       const visibleChordCount = wordChordEntries.filter(
                         (entry) => Boolean(entry.chord),
                       ).length;
@@ -280,6 +305,9 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                           <div
                             className={`lyric-word-container ${cell.type === "word" ? "" : "lyric-word-container--gap"} ${visibleChordCount > 1 ? "lyric-word-container--multi" : ""}`}
                             style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              direction: "rtl",
                               textAlign: isExporting ? "right" : undefined,
                             }}
                           >

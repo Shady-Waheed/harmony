@@ -131,6 +131,19 @@ function loadInitial() {
 
 function transposeHymnShape(hymn, steps) {
   if (!steps) return hymn;
+
+  const transposeWordIndexScale = (values) => {
+    if (!Array.isArray(values)) return values;
+    return values
+      .map((entry) => {
+        if (Array.isArray(entry)) {
+          return entry.map((item) => transposeChordCollection(item, steps));
+        }
+        return transposeChordCollection(entry, steps);
+      })
+      .filter((_, index) => index < 512);
+  };
+
   return {
     ...hymn,
     key: transposeChordCollection(hymn.key || "", steps),
@@ -138,46 +151,44 @@ function transposeHymnShape(hymn, steps) {
       ...section,
       lines: section.lines.map((line) => {
         const normalized = normalizeLineStructure(line);
+        const words = String(normalized.lyrics || "")
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+        const safeWordCount = words.length;
+
         return {
           ...normalized,
-          wordChords: transposeChordCollection(normalized.wordChords, steps),
-          wordChordGroups: transposeChordCollection(
+          wordChords: transposeWordIndexScale(normalized.wordChords).slice(
+            0,
+            safeWordCount,
+          ),
+          wordChordGroups: transposeWordIndexScale(
             normalized.wordChordGroups,
-            steps,
-          ),
-          wordLetterChords: transposeChordCollection(
+          ).slice(0, safeWordCount),
+          wordLetterChords: transposeWordIndexScale(
             normalized.wordLetterChords,
-            steps,
-          ),
-          wordInversions: transposeChordCollection(
+          ).slice(0, safeWordCount),
+          wordInversions: transposeWordIndexScale(
             normalized.wordInversions,
-            steps,
-          ),
-          wordLetterInversions: transposeChordCollection(
+          ).slice(0, safeWordCount),
+          wordLetterInversions: transposeWordIndexScale(
             normalized.wordLetterInversions,
-            steps,
-          ),
-          gapChords: transposeChordCollection(normalized.gapChords, steps),
-          gapInversions: transposeChordCollection(
-            normalized.gapInversions,
-            steps,
-          ),
-          beforeWordChords: transposeChordCollection(
+          ).slice(0, safeWordCount),
+          gapChords: transposeWordIndexScale(normalized.gapChords),
+          gapInversions: transposeWordIndexScale(normalized.gapInversions),
+          beforeWordChords: transposeWordIndexScale(
             normalized.beforeWordChords,
-            steps,
-          ),
-          beforeWordInversions: transposeChordCollection(
+          ).slice(0, safeWordCount),
+          beforeWordInversions: transposeWordIndexScale(
             normalized.beforeWordInversions,
-            steps,
-          ),
-          afterWordChords: transposeChordCollection(
+          ).slice(0, safeWordCount),
+          afterWordChords: transposeWordIndexScale(
             normalized.afterWordChords,
-            steps,
-          ),
-          afterWordInversions: transposeChordCollection(
+          ).slice(0, safeWordCount),
+          afterWordInversions: transposeWordIndexScale(
             normalized.afterWordInversions,
-            steps,
-          ),
+          ).slice(0, safeWordCount),
         };
       }),
     })),
@@ -261,8 +272,18 @@ export function HymnProvider({ children }) {
 
     const loadHymn = (hymn, options = {}) => {
       const normalized = normalizeHymn(hymn);
+      const forceFreshServerData = Boolean(
+        options.ignoreDraft || options.useDraft === false,
+      );
+
+      if (forceFreshServerData && normalized.id) {
+        clearDraft(normalized.id);
+      }
+
       const draft =
-        persistFullHymnRef.current && options.useDraft !== false
+        persistFullHymnRef.current &&
+        options.useDraft !== false &&
+        !forceFreshServerData
           ? getDraft(normalized.id)
           : null;
       const working =
@@ -273,8 +294,12 @@ export function HymnProvider({ children }) {
       setState((prev) => ({
         ...prev,
         hymn: working,
-        committedHymn: persistFullHymnRef.current ? working : normalized,
-        lastSavedHymn: cloneHymn(normalized),
+        committedHymn: forceFreshServerData
+          ? working
+          : persistFullHymnRef.current
+            ? working
+            : normalized,
+        lastSavedHymn: cloneHymn(working),
         undoStack: [],
         redoStack: [],
         mode: options.mode || prev.mode,
