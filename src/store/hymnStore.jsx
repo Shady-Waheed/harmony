@@ -1,11 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeLineStructure } from '../utils/lineChords'
 import { transposeChord } from '../utils/chords'
-import { clearDraft, getDraft, writeDraft } from '../utils/hymnDrafts'
 
 const STORAGE_KEY = 'harmony-notes-hymn-v2'
-const HISTORY_LIMIT = 50
-const HISTORY_GROUP_MS = 800
 
 const defaultHymn = {
   id: 'hymn-1',
@@ -33,14 +30,6 @@ function uid(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100000)}`
 }
 
-function cloneHymn(hymn) {
-  return JSON.parse(JSON.stringify(hymn))
-}
-
-function hymnsEqual(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b)
-}
-
 function normalizeHymn(hymn) {
   return {
     ...hymn,
@@ -53,35 +42,24 @@ function normalizeHymn(hymn) {
   }
 }
 
-function withHistoryFields(project) {
-  return {
-    ...project,
-    undoStack: [],
-    redoStack: [],
-    lastSavedHymn: project.lastSavedHymn || null,
-  }
-}
-
 function normalizeProject(project) {
   const hymn = normalizeHymn(project?.hymn || defaultHymn)
-  return withHistoryFields({
+  return {
     hymn,
     committedHymn: hymn,
     mode: project?.mode === 'view' ? 'view' : 'edit',
     theme: project?.theme === 'light' ? 'light' : 'dark',
-    lastSavedHymn: null,
-  })
+  }
 }
 
 function createFreshState(theme = 'dark') {
   const hymn = normalizeHymn(defaultHymn)
-  return withHistoryFields({
+  return {
     hymn,
     committedHymn: hymn,
     mode: 'edit',
     theme: theme === 'light' ? 'light' : 'dark',
-    lastSavedHymn: cloneHymn(hymn),
-  })
+  }
 }
 
 function createEmptyHymn() {
@@ -137,11 +115,8 @@ function transposeHymnShape(hymn, steps) {
 
 export function HymnProvider({ children }) {
   const persistFullHymnRef = useRef(true)
-  const historyGroupRef = useRef(0)
   const [state, setState] = useState(loadInitial)
   const [persistRevision, setPersistRevision] = useState(0)
-  const stateRef = useRef(state)
-  stateRef.current = state
 
   const setPersistFullHymn = useCallback((value) => {
     persistFullHymnRef.current = Boolean(value)
@@ -157,21 +132,7 @@ export function HymnProvider({ children }) {
       theme: state.theme,
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-  }, [state.hymn, state.committedHymn, state.mode, state.theme, persistRevision])
-
-  useEffect(() => {
-    if (!persistFullHymnRef.current) return undefined
-    const id = state.hymn?.id
-    if (!id) return undefined
-    const timer = window.setTimeout(() => {
-      if (state.lastSavedHymn && hymnsEqual(state.hymn, state.lastSavedHymn)) {
-        clearDraft(id)
-        return
-      }
-      writeDraft(id, state.hymn)
-    }, 500)
-    return () => window.clearTimeout(timer)
-  }, [state.hymn, state.lastSavedHymn])
+  }, [state, persistRevision])
 
   const actions = useMemo(() => {
     const withCommitted = (prev, nextHymn) => ({
@@ -180,63 +141,23 @@ export function HymnProvider({ children }) {
       committedHymn: persistFullHymnRef.current ? nextHymn : prev.committedHymn,
     })
 
-    const applyHymn = (prev, nextHymn, grouped = false) => {
-      if (hymnsEqual(prev.hymn, nextHymn)) return prev
-      const now = Date.now()
-      const skipPush = grouped && now - historyGroupRef.current < HISTORY_GROUP_MS
-      if (grouped) historyGroupRef.current = now
-      else historyGroupRef.current = 0
-
-      const withStacks = skipPush
-        ? prev
-        : {
-            ...prev,
-            undoStack: [...(prev.undoStack || []), cloneHymn(prev.hymn)].slice(-HISTORY_LIMIT),
-            redoStack: [],
-          }
-      return withCommitted(withStacks, nextHymn)
-    }
-
     const updateHymn = (patch) => {
-      setState((prev) => applyHymn(prev, { ...prev.hymn, ...patch }, true))
+      setState((prev) => withCommitted(prev, { ...prev.hymn, ...patch }))
     }
 
-    const loadHymn = (hymn, options = {}) => {
+    const loadHymn = (hymn) => {
       const normalized = normalizeHymn(hymn)
-      const draft = persistFullHymnRef.current && options.useDraft !== false ? getDraft(normalized.id) : null
-      const working =
-        draft?.hymn && !options.ignoreDraft
-          ? normalizeHymn({ ...draft.hymn, id: normalized.id })
-          : normalized
-      historyGroupRef.current = 0
-      setState((prev) => ({
-        ...prev,
-        hymn: working,
-        committedHymn: persistFullHymnRef.current ? working : normalized,
-        lastSavedHymn: cloneHymn(normalized),
-        undoStack: [],
-        redoStack: [],
-        mode: options.mode || prev.mode,
-      }))
+      setState((prev) => ({ ...prev, hymn: normalized, committedHymn: normalized, mode: 'edit' }))
     }
 
     const createNewHymn = () => {
       const empty = createEmptyHymn()
-      historyGroupRef.current = 0
-      setState((prev) => ({
-        ...prev,
-        hymn: empty,
-        committedHymn: empty,
-        lastSavedHymn: cloneHymn(empty),
-        undoStack: [],
-        redoStack: [],
-        mode: 'edit',
-      }))
+      setState((prev) => ({ ...prev, hymn: empty, committedHymn: empty, mode: 'edit' }))
     }
 
     const addSection = () => {
       setState((prev) =>
-        applyHymn(prev, {
+        withCommitted(prev, {
           ...prev.hymn,
           sections: [
             ...prev.hymn.sections,
@@ -252,7 +173,7 @@ export function HymnProvider({ children }) {
 
     const removeSection = (sectionId) => {
       setState((prev) =>
-        applyHymn(prev, {
+        withCommitted(prev, {
           ...prev.hymn,
           sections: prev.hymn.sections.filter((sec) => sec.id !== sectionId),
         }),
@@ -261,20 +182,16 @@ export function HymnProvider({ children }) {
 
     const updateSectionTitle = (sectionId, title) => {
       setState((prev) =>
-        applyHymn(
-          prev,
-          {
-            ...prev.hymn,
-            sections: prev.hymn.sections.map((sec) => (sec.id === sectionId ? { ...sec, title } : sec)),
-          },
-          true,
-        ),
+        withCommitted(prev, {
+          ...prev.hymn,
+          sections: prev.hymn.sections.map((sec) => (sec.id === sectionId ? { ...sec, title } : sec)),
+        }),
       )
     }
 
     const addLine = (sectionId) => {
       setState((prev) =>
-        applyHymn(prev, {
+        withCommitted(prev, {
           ...prev.hymn,
           sections: prev.hymn.sections.map((sec) => {
             if (sec.id !== sectionId) return sec
@@ -289,7 +206,7 @@ export function HymnProvider({ children }) {
 
     const removeLine = (sectionId, lineId) => {
       setState((prev) =>
-        applyHymn(prev, {
+        withCommitted(prev, {
           ...prev.hymn,
           sections: prev.hymn.sections.map((sec) => {
             if (sec.id !== sectionId) return sec
@@ -304,59 +221,31 @@ export function HymnProvider({ children }) {
 
     const updateLine = (sectionId, lineId, patch) => {
       setState((prev) =>
-        applyHymn(
-          prev,
-          {
-            ...prev.hymn,
-            sections: prev.hymn.sections.map((sec) => {
-              if (sec.id !== sectionId) return sec
-              return {
-                ...sec,
-                lines: sec.lines.map((line) => {
-                  if (line.id !== lineId) return line
-                  return normalizeLineStructure({ ...line, ...patch })
-                }),
-              }
-            }),
-          },
-          true,
-        ),
+        withCommitted(prev, {
+          ...prev.hymn,
+          sections: prev.hymn.sections.map((sec) => {
+            if (sec.id !== sectionId) return sec
+            return {
+              ...sec,
+              lines: sec.lines.map((line) => {
+                if (line.id !== lineId) return line
+                return normalizeLineStructure({ ...line, ...patch })
+              }),
+            }
+          }),
+        }),
       )
     }
 
     const transposeHymn = (steps) => {
       if (!steps) return
-      setState((prev) => applyHymn(prev, transposeHymnShape(prev.hymn, steps)))
-    }
 
-    const undo = () => {
-      historyGroupRef.current = 0
       setState((prev) => {
-        const undoStack = [...(prev.undoStack || [])]
-        if (!undoStack.length) return prev
-        const previous = undoStack.pop()
+        const nextHymn = transposeHymnShape(prev.hymn, steps)
         return {
           ...prev,
-          hymn: previous,
-          committedHymn: persistFullHymnRef.current ? previous : prev.committedHymn,
-          undoStack,
-          redoStack: [...(prev.redoStack || []), cloneHymn(prev.hymn)].slice(-HISTORY_LIMIT),
-        }
-      })
-    }
-
-    const redo = () => {
-      historyGroupRef.current = 0
-      setState((prev) => {
-        const redoStack = [...(prev.redoStack || [])]
-        if (!redoStack.length) return prev
-        const next = redoStack.pop()
-        return {
-          ...prev,
-          hymn: next,
-          committedHymn: persistFullHymnRef.current ? next : prev.committedHymn,
-          redoStack,
-          undoStack: [...(prev.undoStack || []), cloneHymn(prev.hymn)].slice(-HISTORY_LIMIT),
+          hymn: nextHymn,
+          committedHymn: persistFullHymnRef.current ? nextHymn : prev.committedHymn,
         }
       })
     }
@@ -369,51 +258,11 @@ export function HymnProvider({ children }) {
       }))
 
     const importProject = (project) => {
-      historyGroupRef.current = 0
-      setState((prev) => ({ ...prev, ...normalizeProject(project), theme: prev.theme }))
+      setState((prev) => ({ ...prev, ...normalizeProject(project) }))
     }
 
     const resetProject = () => {
-      historyGroupRef.current = 0
       setState((prev) => ({ ...prev, ...createFreshState(prev.theme) }))
-    }
-
-    const markHymnSaved = (hymn) => {
-      const normalized = normalizeHymn(hymn)
-      clearDraft(normalized.id)
-      setState((prev) => ({
-        ...prev,
-        lastSavedHymn: cloneHymn(normalized),
-      }))
-    }
-
-    const syncLastSavedIfEmpty = (hymn) => {
-      const normalized = normalizeHymn(hymn)
-      setState((prev) => {
-        if (prev.lastSavedHymn) return prev
-        return { ...prev, lastSavedHymn: cloneHymn(normalized) }
-      })
-    }
-
-    const saveDraftNow = () => {
-      const id = stateRef.current.hymn?.id
-      if (id) writeDraft(id, stateRef.current.hymn)
-    }
-
-    const discardDraft = () => {
-      setState((prev) => {
-        if (!prev.lastSavedHymn) return prev
-        clearDraft(prev.hymn.id)
-        historyGroupRef.current = 0
-        const restored = cloneHymn(prev.lastSavedHymn)
-        return {
-          ...prev,
-          hymn: restored,
-          committedHymn: persistFullHymnRef.current ? restored : prev.committedHymn,
-          undoStack: [],
-          redoStack: [],
-        }
-      })
     }
 
     return {
@@ -427,32 +276,15 @@ export function HymnProvider({ children }) {
       removeLine,
       updateLine,
       transposeHymn,
-      undo,
-      redo,
       setMode,
       toggleTheme,
       importProject,
       resetProject,
       setPersistFullHymn,
-      markHymnSaved,
-      syncLastSavedIfEmpty,
-      saveDraftNow,
-      discardDraft,
     }
-  }, [setPersistFullHymn])
+  }, [])
 
-  const isDirty = useMemo(() => {
-    if (!state.lastSavedHymn) return Boolean(state.hymn?.title || state.hymn?.sections?.length)
-    return !hymnsEqual(state.hymn, state.lastSavedHymn)
-  }, [state.hymn, state.lastSavedHymn])
-
-  const canUndo = (state.undoStack || []).length > 0
-  const canRedo = (state.redoStack || []).length > 0
-
-  const value = useMemo(
-    () => ({ state, isDirty, canUndo, canRedo, ...actions }),
-    [state, isDirty, canUndo, canRedo, actions],
-  )
+  const value = useMemo(() => ({ state, ...actions }), [state, actions])
   return <HymnContext.Provider value={value}>{children}</HymnContext.Provider>
 }
 

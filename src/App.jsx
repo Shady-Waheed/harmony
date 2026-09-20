@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AdminDashboard from "./components/AdminDashboard";
 import HymnEditor from "./components/HymnEditor";
 import HymnView from "./components/HymnView";
@@ -35,9 +35,6 @@ import {
   readTextFile,
 } from "./utils/projectFile";
 import { useOfflineSync, isBrowserOffline, offlineSaveNotice } from "./hooks/useOfflineSync";
-import { hymnShareUrl, useHymnRoute } from "./hooks/useHymnRoute";
-import { hymnMatchesQuery } from "./utils/hymnSearch";
-import SetlistPanel from "./components/SetlistPanel";
 
 const EXPORT_LOGO_URL = "/harmony-notes-logo.png";
 
@@ -121,6 +118,23 @@ function decodeSectionsFromFirestore(sections = []) {
   }));
 }
 
+function normalizeHymnSearchText(value) {
+  return String(value || "")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[إأآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function hymnTitleMatches(title, query) {
+  const q = normalizeHymnSearchText(query);
+  if (!q) return true;
+  return normalizeHymnSearchText(title).includes(q);
+}
+
 function AppShell() {
   const {
     state,
@@ -133,15 +147,7 @@ function AppShell() {
     createNewHymn,
     transposeHymn,
     setPersistFullHymn,
-    markHymnSaved,
-    syncLastSavedIfEmpty,
-    saveDraftNow,
-    discardDraft,
-    isDirty,
-    undo,
-    redo,
   } = useHymnStore();
-  const { routeHymnId, navigateHymn } = useHymnRoute();
   const [loadingExport, setLoadingExport] = useState(false);
   const [hymns, setHymns] = useState([]);
   const [loadingHymns, setLoadingHymns] = useState(true);
@@ -161,7 +167,6 @@ function AppShell() {
   const [teamFromCache, setTeamFromCache] = useState(false);
   const [pendingFirestoreWrites, setPendingFirestoreWrites] = useState(false);
   const pendingSyncNoticeRef = useRef(false);
-  const lastRouteAttemptRef = useRef("");
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
 
@@ -211,9 +216,11 @@ function AppShell() {
     [hymns, currentUser],
   );
 
-    const filteredHymns = useMemo(
+  const filteredHymns = useMemo(
     () =>
-      visibleHymns.filter((item) => hymnMatchesQuery(item, hymnSearchQuery)),
+      visibleHymns.filter((item) =>
+        hymnTitleMatches(item.title, hymnSearchQuery),
+      ),
     [visibleHymns, hymnSearchQuery],
   );
 
@@ -222,11 +229,11 @@ function AppShell() {
     [teamData],
   );
 
-  const showNotice = useCallback((message, type = "info") => {
+  const showNotice = (message, type = "info") => {
     setNotice({ message, type });
     window.clearTimeout(noticeTimeoutRef.current);
     noticeTimeoutRef.current = window.setTimeout(() => setNotice(null), 2800);
-  }, []);
+  };
 
   useEffect(() => {
     if (currentUser && (perms.isAdmin || perms.canSaveFirebase || perms.canDelete)) {
@@ -311,7 +318,7 @@ function AppShell() {
       },
     );
     return () => unsubscribe();
-  }, [authLoading, currentUser]);
+  }, [hasFirebaseConfig, authLoading, currentUser?.uid]);
 
   useEffect(() => {
     if (!canAccessTeamDashboard(currentUser, teamData || {})) {
@@ -354,114 +361,33 @@ function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [online, pendingFirestoreWrites, showNotice]);
+  }, [online, pendingFirestoreWrites]);
 
-  const onSelectHymn = useCallback(
-    (hymnDoc, { fromRoute = false } = {}) => {
-      const exclusiveOwnerUid = String(hymnDoc.exclusiveOwnerUid || "");
-      const isExclusive =
-        Boolean(hymnDoc.isExclusive) || exclusiveOwnerUid.length > 0;
-      const canOpenExclusive =
-        !isExclusive ||
-        (currentUser && exclusiveOwnerUid === String(currentUser.uid || ""));
-      if (!canOpenExclusive) {
-        showNotice("هذه الترانيمة حصرية وغير متاحة لهذا الحساب.", "error");
-        return false;
-      }
-      setSelectedHymnId(hymnDoc.id);
-      if (!fromRoute) {
-        navigateHymn(hymnDoc.id);
-      }
-      loadHymn(
-        {
-          id: hymnDoc.id,
-          title: hymnDoc.title || "",
-          key: hymnDoc.key || "",
-          sections: decodeSectionsFromFirestore(hymnDoc.sections || []),
-          isExclusive,
-          exclusiveOwnerUid,
-        },
-        { mode: isAdmin ? "edit" : "view" },
-      );
-      return true;
-    },
-    [currentUser, isAdmin, loadHymn, navigateHymn, showNotice],
-  );
-
-  useEffect(() => {
-    if (loadingHymns || !routeHymnId) return;
-    if (selectedHymnId === routeHymnId) return;
-    const hymnDoc = hymns.find((item) => item.id === routeHymnId);
-    if (!hymnDoc) {
-      if (!hymns.length) return;
-      if (lastRouteAttemptRef.current !== routeHymnId) {
-        lastRouteAttemptRef.current = routeHymnId;
-        showNotice("الترنيمة غير موجودة.", "error");
-      }
+  const onSelectHymn = (hymnDoc) => {
+    const exclusiveOwnerUid = String(hymnDoc.exclusiveOwnerUid || "");
+    const isExclusive =
+      Boolean(hymnDoc.isExclusive) || exclusiveOwnerUid.length > 0;
+    const canOpenExclusive =
+      !isExclusive ||
+      (currentUser && exclusiveOwnerUid === String(currentUser.uid || ""));
+    if (!canOpenExclusive) {
+      showNotice("هذه الترانيمة حصرية وغير متاحة لهذا الحساب.", "error");
       return;
     }
-    const opened = onSelectHymn(hymnDoc, { fromRoute: true });
-    lastRouteAttemptRef.current = opened ? "" : routeHymnId;
-  }, [loadingHymns, routeHymnId, hymns, selectedHymnId, onSelectHymn, showNotice]);
-
-  useEffect(() => {
-    const id = state.hymn?.id;
-    if (!id || loadingHymns) return;
-    const hymnDoc = hymns.find((item) => item.id === id);
-    if (!hymnDoc) return;
-    if (selectedHymnId !== id) setSelectedHymnId(id);
-    syncLastSavedIfEmpty({
+    setSelectedHymnId(hymnDoc.id);
+    loadHymn({
       id: hymnDoc.id,
       title: hymnDoc.title || "",
       key: hymnDoc.key || "",
       sections: decodeSectionsFromFirestore(hymnDoc.sections || []),
-      isExclusive: Boolean(hymnDoc.isExclusive) || Boolean(hymnDoc.exclusiveOwnerUid),
-      exclusiveOwnerUid: String(hymnDoc.exclusiveOwnerUid || ""),
+      isExclusive,
+      exclusiveOwnerUid,
     });
-    if (!routeHymnId) {
-      navigateHymn(id, { replace: true });
-    }
-  }, [loadingHymns, hymns, state.hymn.id, selectedHymnId, routeHymnId, navigateHymn, syncLastSavedIfEmpty]);
-
-  useEffect(() => {
-    if (!isAdmin || !isDirty) return undefined;
-    const onBeforeUnload = (event) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [isAdmin, isDirty]);
-
-  useEffect(() => {
-    if (!isAdmin) return undefined;
-    const onKeyDown = (event) => {
-      const modifier = event.ctrlKey || event.metaKey;
-      if (!modifier) return;
-      const key = String(event.key || "").toLowerCase();
-      if (key === "z" && event.shiftKey) {
-        event.preventDefault();
-        redo();
-        return;
-      }
-      if (key === "z") {
-        event.preventDefault();
-        undo();
-        return;
-      }
-      if (key === "y") {
-        event.preventDefault();
-        redo();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isAdmin, undo, redo]);
+  };
 
   const onNewNote = () => {
     if (!isAdmin) return;
     setSelectedHymnId("");
-    navigateHymn("");
     createNewHymn();
   };
 
@@ -497,17 +423,8 @@ function AppShell() {
         await setDoc(doc(db, "hymns", selectedHymnId), payload, {
           merge: true,
         });
-        markHymnSaved({
-          ...state.hymn,
-          id: selectedHymnId,
-          title,
-          key: payload.key,
-          isExclusive: payload.isExclusive,
-          exclusiveOwnerUid: payload.exclusiveOwnerUid,
-        });
-        navigateHymn(selectedHymnId, { replace: true });
         showNotice(
-          offline ? offlineSaveNotice("save") : "تم تحديث الترنيمة.",
+          offline ? offlineSaveNotice("save") : "تم تحديث الترانيمة.",
           "success",
         );
         return;
@@ -518,11 +435,7 @@ function AppShell() {
         createdAt: Timestamp.now(),
       });
       setSelectedHymnId(created.id);
-      loadHymn(
-        { ...state.hymn, id: created.id, title, isExclusive: payload.isExclusive, exclusiveOwnerUid: payload.exclusiveOwnerUid },
-        { ignoreDraft: true, mode: "edit" },
-      );
-      navigateHymn(created.id, { replace: true });
+      loadHymn({ ...state.hymn, id: created.id });
       showNotice(
         offline ? offlineSaveNotice("save") : "تم حفظ ترنيمة جديدة.",
         "success",
@@ -577,42 +490,6 @@ function AppShell() {
     } finally {
       setLoadingExport(false);
     }
-  };
-
-  const onCopyHymnLink = async () => {
-    if (!selectedHymnId) {
-      showNotice("احفظ الترنيمة على السيرفر أولاً لنسخ الرابط.", "error");
-      return;
-    }
-    const url = hymnShareUrl(selectedHymnId);
-    try {
-      await navigator.clipboard.writeText(url);
-      showNotice("تم نسخ رابط الترنيمة.", "success");
-    } catch {
-      showNotice(url, "info");
-    }
-  };
-
-  const onOpenSetlistHymn = (id) => {
-    const hymnDoc = hymns.find((item) => item.id === id);
-    if (!hymnDoc) {
-      showNotice("الترنيمة غير موجودة في القائمة.", "error");
-      return;
-    }
-    onSelectHymn(hymnDoc);
-  };
-
-  const onSaveDraftClick = () => {
-    saveDraftNow();
-    showNotice("تم حفظ المسودة على هذا الجهاز.", "success");
-  };
-
-  const onDiscardDraftClick = () => {
-    if (!isDirty) return;
-    const confirmed = window.confirm("تجاهل المسودة واسترجاع آخر نسخة من السيرفر؟");
-    if (!confirmed) return;
-    discardDraft();
-    showNotice("تم استرجاع آخر نسخة محفوظة.", "success");
   };
 
   const onSaveProjectFile = () => {
@@ -794,13 +671,6 @@ function AppShell() {
           <button className="btn" onClick={onExport} disabled={loadingExport}>
             {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
           </button>
-          <button
-            className="btn"
-            onClick={onCopyHymnLink}
-            disabled={!selectedHymnId}
-          >
-            نسخ الرابط
-          </button>
           {!authLoading && !currentUser ? (
             <button className="btn primary" onClick={onAdminSignIn}>
               دخول أدمن
@@ -863,13 +733,13 @@ function AppShell() {
                 id="hymn-search"
                 type="search"
                 className="input hymnSearchInput"
-                placeholder="بحث بالعنوان أو الكلمات…"
+                placeholder="بحث باسم الترنيمة…"
                 value={hymnSearchQuery}
                 onChange={(e) => setHymnSearchQuery(e.target.value)}
                 disabled={loadingHymns}
                 autoComplete="off"
                 spellCheck={false}
-                aria-label="بحث بالعنوان أو الكلمات"
+                aria-label="بحث باسم الترنيمة"
               />
               {!loadingHymns && hymns.length > 0 ? (
                 <p className="hymnSearchMeta" aria-live="polite">
@@ -917,28 +787,6 @@ function AppShell() {
                   {deletingHymn ? "جاري الحذف..." : "حذف الترانيمة"}
                 </button>
               ) : null}
-            </div>
-          ) : null}
-          {isAdmin ? (
-            <div className="draftActions">
-              {isDirty ? (
-                <p className="draftBadge" role="status">
-                  مسودة محلية — غير محفوظة على السيرفر
-                </p>
-              ) : null}
-              <div className="row wrap sidebarActions">
-                <button type="button" className="btn" onClick={onSaveDraftClick}>
-                  حفظ مسودة
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={onDiscardDraftClick}
-                  disabled={!isDirty || !state.lastSavedHymn}
-                >
-                  تجاهل المسودة
-                </button>
-              </div>
             </div>
           ) : null}
           <div className="row sidebarTransposeActions">
@@ -993,7 +841,7 @@ function AppShell() {
                     onClick={() => onSelectHymn(hymnItem)}
                   >
                     <span>{hymnItem.title || "ترنيمة بدون عنوان"}</span>
-                    {hymnItem.isExclusive ? (
+                    {Boolean(hymnItem.isExclusive) ? (
                       <small> (حصرية)</small>
                     ) : null}
                   </button>
@@ -1001,13 +849,6 @@ function AppShell() {
               ))}
             </ul>
           ) : null}
-
-          <SetlistPanel
-            currentId={selectedHymnId}
-            currentTitle={state.hymn.title}
-            canAdd={Boolean(selectedHymnId)}
-            onOpen={onOpenSetlistHymn}
-          />
         </aside>
 
         <div className="editorPane">

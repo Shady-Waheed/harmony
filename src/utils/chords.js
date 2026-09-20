@@ -58,6 +58,25 @@ const CHORD_QUALITIES = [
   "dim",
   "aug",
 ];
+const CHORD_BASS_NOTES = [
+  "C",
+  "C#",
+  "Db",
+  "D",
+  "D#",
+  "Eb",
+  "E",
+  "F",
+  "F#",
+  "Gb",
+  "G",
+  "G#",
+  "Ab",
+  "A",
+  "A#",
+  "Bb",
+  "B",
+];
 export const ROOT_NOTES = [
   "C",
   "C#",
@@ -159,6 +178,27 @@ export function transposeSongVersion(version, steps) {
   };
 }
 
+function getChordIntervals(type) {
+  switch (type) {
+    case "m":
+      return [0, 3, 7];
+    case "7":
+      return [0, 4, 7, 10];
+    case "m7":
+      return [0, 3, 7, 10];
+    case "maj7":
+      return [0, 4, 7, 11];
+    case "sus4":
+      return [0, 5, 7];
+    case "dim":
+      return [0, 3, 6];
+    case "aug":
+      return [0, 4, 8];
+    default:
+      return [0, 4, 7];
+  }
+}
+
 function normalizeInversionValue(inversion) {
   const value = String(inversion || "")
     .trim()
@@ -180,7 +220,7 @@ function splitChordWithOptionalInversion(chord, inversion = "") {
   const [, root, rawSuffix = "", bass = ""] = match;
   const suffixWithSpaces = String(rawSuffix || "");
   const suffixMatch = suffixWithSpaces.match(
-    /^(.*?)(?:\s*[[(]?\s*(1st|2nd|3rd|first|second|third)\s*[\])]?\s*)$/i,
+    /^(.*?)(?:\s*[\(\[]?\s*(1st|2nd|3rd|first|second|third)\s*[\)\]]?\s*)$/i,
   );
   const suffix = suffixMatch
     ? String(suffixMatch[1] || "").trim()

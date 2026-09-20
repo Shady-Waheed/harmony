@@ -11,22 +11,15 @@
   --primary-soft: rgba(79, 124, 255, 0.18);
   --danger: #ff6f8f;
   --section: #5a97ff;
-  --chord: #e8b86d;
-  --lyric: #f3eee6;
+  --chord: #ff5d5d;
+  --lyric: #f7f9ff;
   --input-bg: rgba(255, 255, 255, 0.04);
   --btn-bg: rgba(255, 255, 255, 0.04);
-  --sheet-bg: #16131c;
-  --sheet-text: #f3eee6;
-  --sheet-ink: #c4b8a4;
-  --sheet-rule: rgba(232, 184, 109, 0.22);
-  --sheet-pill: #2a241c;
-  --font-chord:
-    ui-monospace, "Cascadia Code", "IBM Plex Mono", "SFMono-Regular", Menlo,
-    Consolas, monospace;
+  --sheet-bg: #0d1325;
+  --sheet-text: #ebefff;
   --shadow: 0 14px 32px rgba(5, 8, 20, 0.35);
-  --font-ui:
-    "Tajawal", "Cairo", "Noto Kufi Arabic", "Noto Sans Arabic", Inter,
-    system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-ui: 'Tajawal', 'Cairo', 'Noto Kufi Arabic', 'Noto Sans Arabic', Inter, system-ui, -apple-system,
+    'Segoe UI', Roboto, Arial, sans-serif;
 }
 
 .app.light {
@@ -42,15 +35,12 @@
   --primary-soft: rgba(47, 91, 234, 0.16);
   --danger: #d64568;
   --section: #2b63ea;
-  --chord: #9a3412;
-  --lyric: #1c1917;
+  --chord: #c02727;
+  --lyric: #1a2547;
   --input-bg: #ffffff;
   --btn-bg: #ffffff;
-  --sheet-bg: #f4eee3;
-  --sheet-text: #1c1917;
-  --sheet-ink: #57534e;
-  --sheet-rule: rgba(120, 53, 15, 0.16);
-  --sheet-pill: #fffaf3;
+  --sheet-bg: #ffffff;
+  --sheet-text: #121a34;
   --shadow: 0 12px 28px rgba(61, 88, 158, 0.14);
 }
 
@@ -75,11 +65,7 @@ body {
   text-align: right;
   overflow-x: hidden;
   color: var(--text);
-  background: radial-gradient(
-    circle at top right,
-    var(--bg-soft),
-    var(--bg) 55%
-  );
+  background: radial-gradient(circle at top right, var(--bg-soft), var(--bg) 55%);
 }
 
 .topBar,
@@ -155,67 +141,6 @@ body {
   margin: 0;
   font-size: 0.78rem;
   color: var(--muted);
-}
-
-.draftBadge {
-  margin: 0 0 0.45rem;
-  border-radius: 8px;
-  padding: 0.35rem 0.55rem;
-  font-size: 0.75rem;
-  line-height: 1.35;
-  background: color-mix(in srgb, #f5c542 14%, transparent);
-  border: 1px solid color-mix(in srgb, #f5c542 45%, var(--border));
-  color: #ffe08a;
-}
-
-.app.light .draftBadge {
-  color: #8a6a00;
-}
-
-.draftActions {
-  margin-bottom: 0.65rem;
-}
-
-.editorToolbar {
-  margin-bottom: 0.75rem;
-  gap: 0.5rem;
-}
-
-.editorToolbar h2 {
-  margin: 0;
-}
-
-.setlistPanel {
-  margin-top: 0.9rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
-}
-
-.setlistList {
-  max-height: 28vh;
-}
-
-.setlistRow {
-  display: flex;
-  gap: 0.3rem;
-  align-items: stretch;
-}
-
-.setlistRow .hymnListItem {
-  flex: 1;
-}
-
-.setlistRowActions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.setlistIconBtn {
-  min-height: 22px;
-  padding: 0 0.4rem;
-  font-size: 0.75rem;
-  line-height: 1;
 }
 
 .syncBadge {
@@ -421,11 +346,7 @@ body {
 }
 
 .btn.primary {
-  background: linear-gradient(
-    140deg,
-    color-mix(in srgb, var(--primary) 84%, #fff 16%),
-    var(--primary)
-  );
+  background: linear-gradient(140deg, color-mix(in srgb, var(--primary) 84%, #fff 16%), var(--primary));
   border-color: color-mix(in srgb, var(--primary) 75%, #fff 25%);
   color: #fff;
 }
@@ -473,10 +394,7 @@ body {
   justify-content: center;
   font-size: 1.15rem;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
-  transition:
-    transform 0.2s ease,
-    border-color 0.2s ease,
-    background 0.2s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
 .floatingThemeBtn:hover {
@@ -855,261 +773,80 @@ body {
   color: var(--muted);
 }
 
-.card.hymnSheet {
-  --font-chord:
-    ui-monospace, "Cascadia Code", "IBM Plex Mono", "SFMono-Regular", Menlo,
-    Consolas, monospace;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent 27px,
-      color-mix(in srgb, var(--sheet-rule) 35%, transparent) 28px
-    ),
-    var(--sheet-bg);
+.hymnSheet {
+  background: var(--sheet-bg);
   color: var(--sheet-text);
   overflow-x: auto;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  padding: clamp(1.1rem, 2.5vw, 2.1rem) clamp(0.9rem, 3vw, 2.2rem)
-    clamp(1.4rem, 3vw, 2.4rem);
-  border-radius: 22px;
-  border-color: color-mix(in srgb, var(--sheet-rule) 70%, var(--border));
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  padding: 1.1rem clamp(1rem, 3vw, 2rem);
 }
 
-.app.dark .card.hymnSheet {
-  background:
-    repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent 27px,
-      color-mix(in srgb, var(--sheet-rule) 28%, transparent) 28px
-    ),
-    var(--sheet-bg);
+.app.dark .hymnSheet {
+  background: var(--sheet-bg);
   color: var(--sheet-text);
 }
 
 .sheetHeader {
   text-align: center;
-  margin-bottom: clamp(1.2rem, 3vw, 1.8rem);
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--sheet-rule);
-}
-
-.sheetStaffMark {
-  display: block;
-  width: min(118px, 42vw);
-  height: 28px;
-  margin: 0 auto 0.55rem;
-  color: color-mix(in srgb, var(--chord) 70%, var(--sheet-ink) 30%);
-  opacity: 0.85;
-}
-
-.sheetKicker {
-  margin: 0 0 0.35rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--sheet-ink);
-  font-weight: 700;
+  margin-bottom: 1rem;
 }
 
 .sheetHeader h1 {
   margin: 0;
-  font-size: clamp(1.55rem, 1.1rem + 2.4vw, 2.35rem);
-  font-weight: 800;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
 }
 
-.sheetMeta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 0.55rem 0.9rem;
-  margin-top: 0.85rem;
-}
-
-.sheetKeyPill {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  padding: 0.28rem 0.8rem 0.32rem;
-  border-radius: 999px;
-  background: var(--sheet-pill);
-  border: 1px solid var(--sheet-rule);
-  color: var(--chord);
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-
-.sheetKeyPill small {
-  font-size: 0.62rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--sheet-ink);
-  font-weight: 700;
-}
-
-.sheetKeyPill strong {
-  font-family: var(--font-chord);
-  font-size: 1.05rem;
-  font-weight: 800;
-}
-
-.sheetMetaHint {
-  font-size: 0.75rem;
-  color: var(--sheet-ink);
-}
-
-.sheetEmpty {
-  margin: 0;
-  text-align: center;
-  color: var(--sheet-ink);
-  font-size: 0.95rem;
+.sheetHeader p {
+  margin: 0.25rem 0 0;
 }
 
 .sheetSection {
-  margin-bottom: clamp(1.15rem, 2.5vw, 1.7rem);
-}
-
-.sheetSection:last-child {
-  margin-bottom: 0;
-}
-
-.sheetSectionHead {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  margin-bottom: 0.85rem;
-}
-
-.sheetSectionIndex {
-  flex: 0 0 auto;
-  min-width: 2.15rem;
-  height: 2.15rem;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  border: 1px solid var(--sheet-rule);
-  background: var(--sheet-pill);
-  color: var(--chord);
-  font-family: var(--font-chord);
-  font-size: 0.78rem;
-  font-weight: 800;
-  direction: ltr;
+  margin-bottom: 1rem;
 }
 
 .sheetSection h2 {
-  color: var(--sheet-text);
-  margin: 0;
-  font-size: clamp(1.02rem, 0.92rem + 0.8vw, 1.22rem);
-  font-weight: 700;
-  padding-bottom: 0.2rem;
-  border-bottom: none;
-  width: auto;
-  flex: 1;
-  position: relative;
-}
-
-.sheetSection h2::after {
-  content: "";
-  display: block;
-  height: 1px;
-  margin-top: 0.35rem;
-  background: var(--sheet-rule);
-}
-
-.sheetLines {
-  display: flex;
-  flex-direction: column;
-  gap: clamp(0.85rem, 1.8vw, 1.2rem);
+  color: var(--section);
+  margin: 0 0 0.62rem;
+  font-size: clamp(1.02rem, 2vw, 1.2rem);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--section) 22%, transparent);
+  width: 100%;
 }
 
 .sheetLine {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: center;
-  direction: rtl;
-  column-gap: clamp(0.28rem, 0.8vw, 0.55rem);
-  row-gap: clamp(0.85rem, 1.6vw, 1.15rem);
+  gap: 0.22rem 0.32rem;
+  margin-bottom: 0.75rem;
   width: 100%;
   max-width: 100%;
-  padding: 0.35rem 0.15rem 0.15rem;
-}
-
-.sheetLine--empty {
-  min-height: 0.6rem;
 }
 
 .cell {
-  flex: 0 0 auto;
-  min-height: 0;
-  min-width: 1.7rem;
-  padding: 0;
-  display: grid;
-  grid-template-rows: 1.7rem auto;
-  justify-items: center;
-  align-items: end;
-  gap: 0.28rem;
+  min-height: calc(48px + 0.6vw);
+  min-width: 1.8rem;
+  padding-inline: clamp(0.12rem, 0.5vw, 0.35rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .cell.gap {
-  min-width: 1.15rem;
-  opacity: 1;
-}
-
-.cell.gap .lyric {
-  height: 0.2rem;
-  font-size: 0;
-  line-height: 0;
-  overflow: hidden;
+  min-width: 1.2rem;
+  opacity: 0.95;
 }
 
 .hymnSheet .chord {
   color: var(--chord);
-  font-family: var(--font-chord);
   font-weight: 700;
-  font-size: clamp(0.78rem, 0.62rem + 0.7vw, 0.98rem);
-  line-height: 1;
+  font-size: clamp(0.88rem, 1.85vw + 0.35rem, 1.08rem);
+  line-height: 1.15;
   direction: ltr;
   unicode-bidi: isolate;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 1.55rem;
-  min-width: 1.55rem;
-  padding: 0.18rem 0.48rem;
-  border-radius: 999px;
-  background: var(--sheet-pill);
-  border: 1px solid transparent;
-  box-sizing: border-box;
-}
-
-.hymnSheet .cell.noChord .chord {
-  min-width: 0.7rem;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  color: transparent;
-}
-
-.hymnSheet .cell.gap.hasChord .chord {
-  border-radius: 8px;
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--chord) 45%, transparent);
-  background: color-mix(in srgb, var(--sheet-pill) 70%, transparent);
-  font-size: clamp(0.7rem, 0.58rem + 0.55vw, 0.88rem);
-}
-
-.hymnSheet .cell.hasChord .chord {
-  border-color: color-mix(in srgb, var(--chord) 28%, var(--sheet-rule));
+  display: inline-block;
 }
 
 .hymnSheet .chord.hasPreview {
@@ -1117,14 +854,9 @@ body {
   cursor: help;
 }
 
-.hymnSheet .chord.hasPreview:focus {
-  outline: 2px solid color-mix(in srgb, var(--chord) 55%, transparent);
-  outline-offset: 2px;
-}
-
 .chordPreviewPopup {
   position: absolute;
-  bottom: calc(100% + 10px);
+  bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%) translateY(6px);
   opacity: 0;
@@ -1135,18 +867,15 @@ body {
   width: max-content;
   max-width: min(320px, calc(100vw - 1.25rem));
   min-width: min(260px, calc(100vw - 1.25rem));
-  border: 1px solid var(--sheet-rule);
-  border-radius: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   background: var(--sheet-bg);
   box-shadow: var(--shadow);
-  padding: 0.45rem 0.55rem 0.6rem;
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
+  padding: 0.4rem 0.5rem 0.55rem;
+  transition: opacity 0.16s ease, transform 0.16s ease;
 }
 
-.hymnSheet .chord.hasPreview:hover .chordPreviewPopup,
-.hymnSheet .chord.hasPreview:focus-within .chordPreviewPopup {
+.hymnSheet .chord.hasPreview:hover .chordPreviewPopup {
   opacity: 1;
   visibility: visible;
   transform: translateX(-50%) translateY(0);
@@ -1274,177 +1003,11 @@ body {
 
 .hymnSheet .lyric {
   color: var(--lyric);
-  font-size: clamp(1.08rem, 0.92rem + 1.1vw, 1.48rem);
+  font-size: clamp(1.02rem, 2.35vw + 0.35rem, 1.42rem);
   font-weight: 600;
-  margin-top: 0;
+  margin-top: 0.14rem;
   text-align: center;
-  direction: rtl;
-  unicode-bidi: plaintext;
   white-space: nowrap;
-  line-height: 1.35;
-}
-
-/* The downloaded image uses a calmer, print-like composition than the live sheet. */
-.exportSheet {
-  overflow: visible !important;
-  border-radius: 0 !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  padding: 74px 78px 82px !important;
-  background: #f7f0e3 !important;
-  color: #241f1a !important;
-  position: relative;
-}
-
-.exportSheet::before {
-  content: '';
-  position: absolute;
-  inset: 28px;
-  border: 1px solid rgba(151, 102, 42, 0.32);
-  pointer-events: none;
-}
-
-.exportSheet .sheetHeader {
-  margin-bottom: 44px;
-  padding: 0 0 26px;
-  border-bottom: 2px solid rgba(151, 102, 42, 0.34);
-  position: relative;
-}
-
-.exportSheet .sheetStaffMark {
-  width: 146px;
-  height: 34px;
-  color: #a16b25;
-}
-
-.exportSheet .sheetKicker {
-  color: #8a6a3a;
-  font-size: 0.8rem;
-  letter-spacing: 0.22em;
-}
-
-.exportSheet .sheetHeader h1 {
-  color: #241f1a;
-  font-size: 2.65rem;
-  letter-spacing: 0;
-}
-
-.exportSheet .sheetMeta {
-  margin-top: 1.15rem;
-}
-
-.exportSheet .sheetKeyPill {
-  background: #ead8b8;
-  border-color: rgba(151, 102, 42, 0.4);
-  color: #744718;
-  padding: 0.36rem 1rem 0.4rem;
-}
-
-.exportSheet .sheetMetaHint {
-  color: #8a6a3a;
-}
-
-.exportSheet .sheetSection {
-  margin-bottom: 34px;
-  position: relative;
-}
-
-.exportSheet .sheetSectionHead {
-  gap: 0.8rem;
-  margin-bottom: 18px;
-}
-
-.exportSheet .sheetSectionIndex {
-  min-width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 50%;
-  background: #ead8b8;
-  border-color: rgba(151, 102, 42, 0.4);
-  color: #744718;
-}
-
-.exportSheet .sheetSection h2 {
-  color: #33281d;
-  font-size: 1.35rem;
-}
-
-.exportSheet .sheetSection h2::after {
-  background: rgba(151, 102, 42, 0.28);
-}
-
-.exportSheet .sheetLines {
-  gap: 18px;
-}
-
-.exportSheet .sheetLine {
-  justify-content: flex-start;
-  flex-wrap: nowrap;
-  column-gap: 10px;
-  row-gap: 0;
-  padding: 8px 0 10px;
-  border-bottom: 1px solid rgba(151, 102, 42, 0.13);
-}
-
-.exportSheet .cell {
-  grid-template-rows: 2.1rem auto;
-  min-width: 2.2rem;
-  gap: 0.34rem;
-}
-
-.exportSheet .cell.gap {
-  min-width: 1.45rem;
-}
-
-.exportSheet .chord {
-  min-height: 1.85rem;
-  min-width: 1.85rem;
-  padding: 0.22rem 0.58rem;
-  border-radius: 7px !important;
-  background: #ead8b8 !important;
-  border: 1px solid rgba(151, 102, 42, 0.4) !important;
-  color: #744718 !important;
-  font-size: 1rem !important;
-  box-shadow: 0 2px 0 rgba(116, 71, 24, 0.12);
-}
-
-.exportSheet .cell.noChord .chord {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none;
-}
-
-.exportSheet .lyric {
-  color: #241f1a !important;
-  font-size: 1.42rem !important;
-  font-weight: 650;
-}
-
-.exportSheet .chordPreviewPopup,
-.exportSheet .sheetMetaHint {
-  display: none !important;
-}
-
-.app.dark .exportSheet {
-  background: #201c1b !important;
-  color: #f6eee0 !important;
-}
-
-.app.dark .exportSheet .sheetHeader h1,
-.app.dark .exportSheet .sheetSection h2,
-.app.dark .exportSheet .lyric {
-  color: #f6eee0 !important;
-}
-
-.app.dark .exportSheet .sheetSection h2::after,
-.app.dark .exportSheet .sheetLine {
-  border-color: rgba(229, 185, 105, 0.2);
-}
-
-.app.dark .exportSheet .chord,
-.app.dark .exportSheet .sheetKeyPill,
-.app.dark .exportSheet .sheetSectionIndex {
-  background: #3a2d1e !important;
-  color: #f0c477 !important;
 }
 
 @media (max-width: 1200px) {
@@ -1523,36 +1086,6 @@ body {
     border-radius: 14px;
   }
 
-  .card.hymnSheet {
-    padding: 1.05rem 0.8rem 1.3rem;
-    border-radius: 16px;
-  }
-
-  .sheetLine {
-    justify-content: flex-start;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--chord) 55%, transparent)
-      transparent;
-    padding-inline: 0.35rem;
-    padding-bottom: 0.42rem;
-  }
-
-  .sheetLine::-webkit-scrollbar {
-    height: 5px;
-  }
-
-  .sheetLine::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--chord) 55%, transparent);
-    border-radius: 999px;
-  }
-
-  .sheetLine::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
   .wordBlockWrap {
     width: 100%;
     flex-wrap: wrap;
@@ -1602,7 +1135,7 @@ body {
   }
 
   .hymnSheet .lyric {
-    font-size: clamp(1.02rem, 0.9rem + 1vw, 1.28rem);
+    font-size: clamp(0.96rem, 2.1vw + 0.3rem, 1.22rem);
   }
 
   .sidebarActions .btn,
@@ -1631,8 +1164,7 @@ body {
     padding: 0.36rem 0.45rem 0.48rem;
   }
 
-  .hymnSheet .chord.hasPreview:hover .chordPreviewPopup,
-  .hymnSheet .chord.hasPreview:focus-within .chordPreviewPopup {
+  .hymnSheet .chord.hasPreview:hover .chordPreviewPopup {
     transform: translateX(-50%) translateY(0);
   }
 
@@ -1733,28 +1265,19 @@ body {
   }
 
   .sheetHeader h1 {
-    font-size: 1.42rem;
+    font-size: 1.45rem;
   }
 
-  .sheetMetaHint {
-    width: 100%;
-    font-size: 0.7rem;
-  }
-
-  .sheetSectionIndex {
-    min-width: 1.9rem;
-    height: 1.9rem;
-    font-size: 0.72rem;
+  .sheetSection h2 {
+    font-size: 1rem;
   }
 
   .hymnSheet .chord {
-    font-size: clamp(0.74rem, 0.64rem + 0.6vw, 0.88rem);
-    min-height: 1.45rem;
-    padding: 0.14rem 0.4rem;
+    font-size: clamp(0.78rem, 1.65vw + 0.28rem, 0.92rem);
   }
 
   .hymnSheet .lyric {
-    font-size: clamp(0.98rem, 0.88rem + 0.9vw, 1.12rem);
+    font-size: clamp(0.9rem, 1.9vw + 0.3rem, 1.05rem);
   }
 
   .floatingResetBtn {
@@ -1846,10 +1369,6 @@ body {
 
   .card {
     padding: 0.74rem;
-  }
-
-  .card.hymnSheet {
-    padding: 0.95rem 0.7rem 1.15rem;
   }
 
   .topBar h1 {
@@ -2064,27 +1583,27 @@ body {
   }
 
   .adminDashboardTable td:nth-child(1)::before {
-    content: "البريد";
+    content: 'البريد';
   }
 
   .adminDashboardTable td:nth-child(2)::before {
-    content: "محرر";
+    content: 'محرر';
   }
 
   .adminDashboardTable td:nth-child(3)::before {
-    content: "حفظ";
+    content: 'حفظ';
   }
 
   .adminDashboardTable td:nth-child(4)::before {
-    content: "حذف";
+    content: 'حذف';
   }
 
   .adminDashboardTable td:nth-child(5)::before {
-    content: "لوحة";
+    content: 'لوحة';
   }
 
   .adminDashboardTable td:nth-child(6)::before {
-    content: "إجراء";
+    content: 'إجراء';
   }
 
   .adminDashboardTable td .btn {
@@ -2182,21 +1701,10 @@ body {
     color: #000000 !important;
   }
 
-  .hymnSheet {
-    background: #fff !important;
-    color: #111 !important;
-    box-shadow: none !important;
-    border: 0 !important;
-  }
-
   .topBar,
   .previewWrap h3,
   .miniAddBtn,
-  .miniRemoveBtn,
-  .sheetMetaHint,
-  .floatingResetBtn,
-  .floatingThemeBtn,
-  .hymnsSidebar {
+  .miniRemoveBtn {
     display: none !important;
   }
 
