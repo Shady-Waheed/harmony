@@ -1119,6 +1119,34 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+.hymn-viewer-container,
+.export-container {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.watermark-overlay {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  font-size: clamp(2.5rem, 4vw, 4.5rem);
+  font-weight: 900;
+  color: rgba(0, 0, 0, 0.08);
+  letter-spacing: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+  font-family: sans-serif;
+  line-height: 1;
+}
+
+.hymn-content {
+  position: relative;
+  z-index: 1;
+}
+
 .sheetLine {
   display: flex;
   flex-direction: row;

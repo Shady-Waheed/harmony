@@ -37,17 +37,47 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
   const clone = node.cloneNode(true);
   clone.classList.add("exportSheet");
   clone.classList.add("export-container");
+  clone.style.position = "relative";
+  clone.style.isolation = "isolate";
   clone.style.width = `${desktopWidth}px`;
   clone.style.maxWidth = `${desktopWidth}px`;
   clone.style.minWidth = `${desktopWidth}px`;
   clone.style.height = "auto";
   clone.style.maxHeight = "none";
-  clone.style.overflow = "visible";
+  clone.style.overflow = "hidden";
   clone.style.background = "#ffffff";
   clone.style.boxShadow = "none";
   clone.style.border = "0";
   clone.style.borderRadius = "0";
   clone.style.padding = "22px 24px 28px";
+
+  let watermarkNode = clone.querySelector(".watermark-overlay");
+  if (!watermarkNode) {
+    watermarkNode = document.createElement("div");
+    watermarkNode.className = "watermark-overlay";
+    watermarkNode.textContent = "HARMONY NOTES";
+    clone.insertBefore(watermarkNode, clone.firstChild);
+  }
+  watermarkNode.style.position = "absolute";
+  watermarkNode.style.top = "50%";
+  watermarkNode.style.left = "50%";
+  watermarkNode.style.transform = "translate(-50%, -50%) rotate(-45deg)";
+  watermarkNode.style.fontSize = "4.5rem";
+  watermarkNode.style.fontWeight = "900";
+  watermarkNode.style.color = "rgba(0, 0, 0, 0.1)";
+  watermarkNode.style.letterSpacing = "6px";
+  watermarkNode.style.whiteSpace = "nowrap";
+  watermarkNode.style.pointerEvents = "none";
+  watermarkNode.style.userSelect = "none";
+  watermarkNode.style.zIndex = "0";
+  watermarkNode.style.fontFamily = "sans-serif";
+  watermarkNode.style.lineHeight = "1";
+
+  const hymnContent = clone.querySelector(".hymn-content");
+  if (hymnContent) {
+    hymnContent.style.position = "relative";
+    hymnContent.style.zIndex = "1";
+  }
 
   clone
     .querySelectorAll(

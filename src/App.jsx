@@ -174,7 +174,10 @@ async function fetchHymnDocFromServer(hymnId) {
       }
       return { id: snapshot.id, ...snapshot.data() };
     } catch (cacheError) {
-      console.warn("[fetchHymnDocFromServer] cache fallback failed:", cacheError);
+      console.warn(
+        "[fetchHymnDocFromServer] cache fallback failed:",
+        cacheError,
+      );
       return null;
     }
   }

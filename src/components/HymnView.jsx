@@ -186,115 +186,126 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
   return (
     <section
       ref={ref}
-      className="card hymnSheet"
+      className="card hymnSheet hymn-viewer-container"
       dir="rtl"
       style={{ direction: "rtl", textAlign: isExporting ? "right" : undefined }}
     >
-      <header
-        className="sheetHeader"
-        style={{ textAlign: isExporting ? "right" : undefined }}
-      >
-        <SheetStaffMark />
-        <p className="sheetKicker">Harmony Notes</p>
-        <h1>{hymn.title || "ترنيمة بدون عنوان"}</h1>
-        <div className="sheetMeta">
-          <span className="sheetKeyPill">
-            <small>Key</small>
-            <strong>{hymn.key || "—"}</strong>
-          </span>
-          <span className="sheetMetaHint">مرّر على الكورد لمعاينة البيانو</span>
-        </div>
-      </header>
+      <div className="watermark-overlay" aria-hidden="true">
+        HARMONY NOTES
+      </div>
 
-      {!hasSections ? (
-        <p className="sheetEmpty">
-          لا توجد كلمات بعد. اكتب الترنيمة من وضع التعديل.
-        </p>
-      ) : null}
-
-      {(hymn.sections || []).map((section, sectionIndex) => (
-        <article key={section.id} className="sheetSection">
-          <div className="sheetSectionHead">
-            <span className="sheetSectionIndex">
-              {String(sectionIndex + 1).padStart(2, "0")}
+      <div className="hymn-content">
+        <header
+          className="sheetHeader"
+          style={{ textAlign: isExporting ? "right" : undefined }}
+        >
+          <SheetStaffMark />
+          <p className="sheetKicker">Harmony Notes</p>
+          <h1>{hymn.title || "ترنيمة بدون عنوان"}</h1>
+          <div className="sheetMeta">
+            <span className="sheetKeyPill">
+              <small>Key</small>
+              <strong>{hymn.key || "—"}</strong>
             </span>
-            <h2>{section.title || "قسم"}</h2>
+            <span className="sheetMetaHint">
+              مرّر على الكورد لمعاينة البيانو
+            </span>
           </div>
-          <div className="sheetLines">
-            {(section.lines || []).map((line) => {
-              const cells = buildDisplayCells(line);
-              if (cells.length === 0) {
+        </header>
+
+        {!hasSections ? (
+          <p className="sheetEmpty">
+            لا توجد كلمات بعد. اكتب الترنيمة من وضع التعديل.
+          </p>
+        ) : null}
+
+        {(hymn.sections || []).map((section, sectionIndex) => (
+          <article key={section.id} className="sheetSection">
+            <div className="sheetSectionHead">
+              <span className="sheetSectionIndex">
+                {String(sectionIndex + 1).padStart(2, "0")}
+              </span>
+              <h2>{section.title || "قسم"}</h2>
+            </div>
+            <div className="sheetLines">
+              {(section.lines || []).map((line) => {
+                const cells = buildDisplayCells(line);
+                if (cells.length === 0) {
+                  return (
+                    <div key={line.id} className="sheetLine sheetLine--empty" />
+                  );
+                }
                 return (
-                  <div key={line.id} className="sheetLine sheetLine--empty" />
-                );
-              }
-              return (
-                <div key={line.id} className="sheetLine">
-                  {cells.map((cell, i) => {
-                    const isGap =
-                      cell.type === "before" || cell.type === "after";
-                    const cellLetters =
-                      cell.type === "word"
-                        ? cell.letters || []
-                        : [
-                            {
-                              letter: cell.word || "\u00A0",
-                              chords: [
-                                {
-                                  chord: cell.chord,
-                                  inversion: cell.inversion,
-                                },
-                              ],
-                            },
-                          ];
-                    const hasChord = cellLetters.some((letter) =>
-                      (letter.chords || []).some((item) =>
-                        Boolean(item.chord || item),
-                      ),
-                    );
-                    const wordChordEntries =
-                      cell.type === "word"
-                        ? (cell.chords || []).map((chord, chordIndex) => ({
-                            chord,
-                            inversion:
-                              cell.letters?.flatMap(
-                                (letter) => letter.inversions || [],
-                              )[chordIndex] || "",
-                          }))
-                        : [{ chord: cell.chord, inversion: cell.inversion }];
-                    const visibleChordCount = wordChordEntries.filter((entry) =>
-                      Boolean(entry.chord),
-                    ).length;
-                    return (
-                      <div
-                        key={`${line.id}-${i}`}
-                        className={`cell cell--${cell.type} ${isGap ? "gap" : ""} ${hasChord ? "hasChord" : "noChord"}`}
-                      >
+                  <div key={line.id} className="sheetLine">
+                    {cells.map((cell, i) => {
+                      const isGap =
+                        cell.type === "before" || cell.type === "after";
+                      const cellLetters =
+                        cell.type === "word"
+                          ? cell.letters || []
+                          : [
+                              {
+                                letter: cell.word || "\u00A0",
+                                chords: [
+                                  {
+                                    chord: cell.chord,
+                                    inversion: cell.inversion,
+                                  },
+                                ],
+                              },
+                            ];
+                      const hasChord = cellLetters.some((letter) =>
+                        (letter.chords || []).some((item) =>
+                          Boolean(item.chord || item),
+                        ),
+                      );
+                      const wordChordEntries =
+                        cell.type === "word"
+                          ? (cell.chords || []).map((chord, chordIndex) => ({
+                              chord,
+                              inversion:
+                                cell.letters?.flatMap(
+                                  (letter) => letter.inversions || [],
+                                )[chordIndex] || "",
+                            }))
+                          : [{ chord: cell.chord, inversion: cell.inversion }];
+                      const visibleChordCount = wordChordEntries.filter(
+                        (entry) => Boolean(entry.chord),
+                      ).length;
+                      return (
                         <div
-                          className={`lyric-word-container ${cell.type === "word" ? "" : "lyric-word-container--gap"} ${visibleChordCount > 1 ? "lyric-word-container--multi" : ""}`}
-                          style={{
-                            textAlign: isExporting ? "right" : undefined,
-                          }}
+                          key={`${line.id}-${i}`}
+                          className={`cell cell--${cell.type} ${isGap ? "gap" : ""} ${hasChord ? "hasChord" : "noChord"}`}
                         >
-                          <ChordLabels
-                            entries={wordChordEntries}
-                            isExporting={isExporting}
-                          />
-                          <span className="lyricWordText">
-                            {cell.type === "word"
-                              ? stretchArabicWord(cell.word, visibleChordCount)
-                              : "\u00A0"}
-                          </span>
+                          <div
+                            className={`lyric-word-container ${cell.type === "word" ? "" : "lyric-word-container--gap"} ${visibleChordCount > 1 ? "lyric-word-container--multi" : ""}`}
+                            style={{
+                              textAlign: isExporting ? "right" : undefined,
+                            }}
+                          >
+                            <ChordLabels
+                              entries={wordChordEntries}
+                              isExporting={isExporting}
+                            />
+                            <span className="lyricWordText">
+                              {cell.type === "word"
+                                ? stretchArabicWord(
+                                    cell.word,
+                                    visibleChordCount,
+                                  )
+                                : "\u00A0"}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        </article>
-      ))}
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        ))}
+      </div>
     </section>
   );
 });
