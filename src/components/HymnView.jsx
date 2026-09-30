@@ -285,7 +285,7 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                             const fromLetters = (cell.letters || []).flatMap(
                               (letter) => chordEntriesFromLetter(letter),
                             );
-                            if (fromLetters.length) return fromLetters;
+                            if (fromLetters.length) return fromLetters.toReversed();
                             return (Array.isArray(cell.chords)
                               ? cell.chords
                               : [cell.chord]
@@ -296,7 +296,8 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                                 inversion: Array.isArray(cell.inversions)
                                   ? cell.inversions[chordIndex] || ""
                                   : cell.inversion || "",
-                              }));
+                              }))
+                              .toReversed();
                           })();
                       const visibleChordCount = wordChordEntries.length;
                       const hasChord = visibleChordCount > 0;
