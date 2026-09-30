@@ -1115,15 +1115,21 @@ body {
   display: flex;
   flex-direction: column;
   gap: clamp(0.85rem, 1.8vw, 1.2rem);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
 }
 
 .hymn-viewer-container,
 .export-container {
   position: relative;
-  overflow: hidden;
   isolation: isolate;
+}
+
+.hymn-viewer-container {
+  overflow: visible;
+}
+
+.export-container {
+  overflow: hidden;
 }
 
 .watermark-overlay {
@@ -1161,6 +1167,19 @@ body {
   max-width: 100%;
   padding: 0.35rem 0.15rem 0.15rem;
   white-space: nowrap;
+  position: relative;
+  z-index: 1;
+}
+
+.sheetLine:has(.chord.hasPreview:hover),
+.sheetLine:has(.chord.hasPreview:focus-within) {
+  z-index: 80;
+}
+
+.cell:has(.chord.hasPreview:hover),
+.cell:has(.chord.hasPreview:focus-within) {
+  position: relative;
+  z-index: 81;
 }
 
 .sheetLine--empty {
@@ -1377,7 +1396,7 @@ body {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  z-index: 25;
+  z-index: 90;
   box-sizing: border-box;
   width: max-content;
   max-width: min(320px, calc(100vw - 1.25rem));
