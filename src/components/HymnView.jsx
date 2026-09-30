@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import { useHymnStore } from "../store/hymnStore.jsx";
-import { buildDisplayCells, stretchArabicWord } from "../utils/lineChords";
+import { buildDisplayCells } from "../utils/lineChords";
 import {
   formatChordLabel,
   getChordEffectiveInversion,
@@ -137,6 +137,22 @@ function SheetStaffMark() {
   );
 }
 
+function chordEntriesFromLetter(letter = {}) {
+  const chords = Array.isArray(letter.chords) ? letter.chords : [];
+  const inversions = Array.isArray(letter.inversions) ? letter.inversions : [];
+  return chords
+    .map((item, index) => {
+      if (item && typeof item === "object") {
+        return {
+          chord: item.chord || "",
+          inversion: item.inversion || inversions[index] || "",
+        };
+      }
+      return { chord: item || "", inversion: inversions[index] || "" };
+    })
+    .filter((entry) => Boolean(entry.chord));
+}
+
 function ChordLabels({ entries = [], isExporting = false }) {
   const visibleEntries = entries.filter((entry) => Boolean(entry.chord));
 
@@ -256,73 +272,55 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                     {cells.map((cell, i) => {
                       const isGap =
                         cell.type === "before" || cell.type === "after";
-                      const cellLetters =
-                        cell.type === "word"
-                          ? cell.letters || []
-                          : [
-                              {
-                                letter: cell.word || "\u00A0",
-                                chords: [
-                                  {
-                                    chord: cell.chord,
-                                    inversion: cell.inversion,
-                                  },
-                                ],
-                              },
-                            ];
-                      const hasChord = cellLetters.some((letter) =>
-                        (letter.chords || []).some((item) =>
-                          Boolean(item.chord || item),
-                        ),
+                      const letterEntries = isGap
+                        ? [
+                            {
+                              letter: "\u00A0",
+                              entries: cell.chord
+                                ? [
+                                    {
+                                      chord: cell.chord,
+                                      inversion: cell.inversion || "",
+                                    },
+                                  ]
+                                : [],
+                            },
+                          ]
+                        : (cell.letters || []).map((letter) => ({
+                            letter: letter.letter,
+                            entries: chordEntriesFromLetter(letter),
+                          }));
+                      const hasChord = letterEntries.some(
+                        (letter) => letter.entries.length > 0,
                       );
-                      const rawChords =
-                        cell.type === "word"
-                          ? (Array.isArray(cell.chords)
-                              ? cell.chords
-                              : [cell.chord]
-                            ).filter(Boolean)
-                          : [cell.chord].filter(Boolean);
-                      const rawInversions =
-                        cell.type === "word"
-                          ? Array.isArray(cell.inversions)
-                            ? cell.inversions
-                            : [cell.inversion]
-                          : [cell.inversion];
-                      const wordChordEntries = rawChords.map(
-                        (chord, chordIndex) => ({
-                          chord,
-                          inversion: rawInversions[chordIndex] || "",
-                        }),
-                      );
-                      const visibleChordCount = wordChordEntries.filter(
-                        (entry) => Boolean(entry.chord),
-                      ).length;
                       return (
                         <div
                           key={`${line.id}-${i}`}
                           className={`cell cell--${cell.type} ${isGap ? "gap" : ""} ${hasChord ? "hasChord" : "noChord"}`}
                         >
                           <div
-                            className={`lyric-word-container ${cell.type === "word" ? "" : "lyric-word-container--gap"} ${visibleChordCount > 1 ? "lyric-word-container--multi" : ""}`}
+                            className={`lyric-word-container ${isGap ? "lyric-word-container--gap" : "lyric-word-container--letters"}`}
                             style={{
-                              display: "flex",
-                              flexDirection: "column",
+                              display: "inline-flex",
+                              flexDirection: "row",
                               direction: "rtl",
                               textAlign: isExporting ? "right" : undefined,
                             }}
                           >
-                            <ChordLabels
-                              entries={wordChordEntries}
-                              isExporting={isExporting}
-                            />
-                            <span className="lyricWordText">
-                              {cell.type === "word"
-                                ? stretchArabicWord(
-                                    cell.word,
-                                    visibleChordCount,
-                                  )
-                                : "\u00A0"}
-                            </span>
+                            {letterEntries.map((letter, letterIndex) => (
+                              <span
+                                className="lyricWord"
+                                key={`${line.id}-${i}-${letterIndex}`}
+                              >
+                                <ChordLabels
+                                  entries={letter.entries}
+                                  isExporting={isExporting}
+                                />
+                                <span className="lyricWordText">
+                                  {letter.letter}
+                                </span>
+                              </span>
+                            ))}
                           </div>
                         </div>
                       );
