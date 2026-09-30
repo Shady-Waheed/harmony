@@ -955,7 +955,7 @@ body {
     ),
     var(--sheet-bg);
   color: var(--sheet-text);
-  overflow-x: auto;
+  overflow: visible;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -1416,6 +1416,20 @@ body {
   opacity: 1;
   visibility: visible;
   transform: translateX(-50%) translateY(0);
+}
+
+.sheetLine > .cell:first-child .chordPreviewPopup,
+.sheetLine > .cell:nth-child(2) .chordPreviewPopup {
+  left: auto;
+  right: 0;
+  transform: translateY(6px);
+}
+
+.sheetLine > .cell:first-child .chord.hasPreview:hover .chordPreviewPopup,
+.sheetLine > .cell:first-child .chord.hasPreview:focus-within .chordPreviewPopup,
+.sheetLine > .cell:nth-child(2) .chord.hasPreview:hover .chordPreviewPopup,
+.sheetLine > .cell:nth-child(2) .chord.hasPreview:focus-within .chordPreviewPopup {
+  transform: translateY(0);
 }
 
 .chordPreviewTitle {
