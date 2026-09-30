@@ -1195,16 +1195,6 @@ body {
   min-width: 1.15rem;
 }
 
-.lyric-word-container--letters {
-  gap: 0;
-  align-items: flex-end;
-}
-
-.lyric-word-container--letters .lyricWord {
-  min-width: 0.85em;
-  gap: 0.2rem;
-}
-
 .lyricWord {
   display: inline-flex;
   flex-direction: column;
