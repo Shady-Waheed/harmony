@@ -132,18 +132,6 @@ function loadInitial() {
 function transposeHymnShape(hymn, steps) {
   if (!steps) return hymn;
 
-  const transposeWordIndexScale = (values) => {
-    if (!Array.isArray(values)) return values;
-    return values
-      .map((entry) => {
-        if (Array.isArray(entry)) {
-          return entry.map((item) => transposeChordCollection(item, steps));
-        }
-        return transposeChordCollection(entry, steps);
-      })
-      .filter((_, index) => index < 512);
-  };
-
   return {
     ...hymn,
     key: transposeChordCollection(hymn.key || "", steps),
@@ -151,45 +139,27 @@ function transposeHymnShape(hymn, steps) {
       ...section,
       lines: section.lines.map((line) => {
         const normalized = normalizeLineStructure(line);
-        const words = String(normalized.lyrics || "")
-          .trim()
-          .split(/\s+/)
-          .filter(Boolean);
-        const safeWordCount = words.length;
-
-        return {
+        return normalizeLineStructure({
           ...normalized,
-          wordChords: transposeWordIndexScale(normalized.wordChords).slice(
-            0,
-            safeWordCount,
-          ),
-          wordChordGroups: transposeWordIndexScale(
+          wordChords: transposeChordCollection(normalized.wordChords, steps),
+          wordChordGroups: transposeChordCollection(
             normalized.wordChordGroups,
-          ).slice(0, safeWordCount),
-          wordLetterChords: transposeWordIndexScale(
+            steps,
+          ),
+          wordLetterChords: transposeChordCollection(
             normalized.wordLetterChords,
-          ).slice(0, safeWordCount),
-          wordInversions: transposeWordIndexScale(
-            normalized.wordInversions,
-          ).slice(0, safeWordCount),
-          wordLetterInversions: transposeWordIndexScale(
-            normalized.wordLetterInversions,
-          ).slice(0, safeWordCount),
-          gapChords: transposeWordIndexScale(normalized.gapChords),
-          gapInversions: transposeWordIndexScale(normalized.gapInversions),
-          beforeWordChords: transposeWordIndexScale(
+            steps,
+          ),
+          gapChords: transposeChordCollection(normalized.gapChords, steps),
+          beforeWordChords: transposeChordCollection(
             normalized.beforeWordChords,
-          ).slice(0, safeWordCount),
-          beforeWordInversions: transposeWordIndexScale(
-            normalized.beforeWordInversions,
-          ).slice(0, safeWordCount),
-          afterWordChords: transposeWordIndexScale(
+            steps,
+          ),
+          afterWordChords: transposeChordCollection(
             normalized.afterWordChords,
-          ).slice(0, safeWordCount),
-          afterWordInversions: transposeWordIndexScale(
-            normalized.afterWordInversions,
-          ).slice(0, safeWordCount),
-        };
+            steps,
+          ),
+        });
       }),
     })),
   };

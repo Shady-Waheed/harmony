@@ -45,114 +45,11 @@ import {
 import { hymnShareUrl, useHymnRoute } from "./hooks/useHymnRoute";
 import { hymnMatchesQuery } from "./utils/hymnSearch";
 import SetlistPanel from "./components/SetlistPanel";
-
-function sanitizeForFirestoreValue(value) {
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => {
-      const sanitized = sanitizeForFirestoreValue(item);
-      return Array.isArray(sanitized) ? sanitized : [sanitized];
-    });
-  }
-
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        sanitizeForFirestoreValue(item),
-      ]),
-    );
-  }
-
-  return value;
-}
-
-function sanitizeHymnDataForFirestore(songData) {
-  const cleaned = sanitizeForFirestoreValue(songData);
-  return JSON.parse(JSON.stringify(cleaned));
-}
-
-function encodeSectionsForFirestore(sections = []) {
-  return (sections || []).map((section) => {
-    const sanitizedSection = sanitizeHymnDataForFirestore(section);
-    return {
-      ...sanitizedSection,
-      lines: (sanitizedSection.lines || []).map((line) => {
-        const {
-          gapChords = [],
-          gapInversions = [],
-          beforeWordChords = [],
-          beforeWordInversions = [],
-          afterWordChords = [],
-          afterWordInversions = [],
-          ...lineRest
-        } = line;
-        const gapEntries = gapChords.map((group, index) => ({
-          chords: Array.isArray(group) ? group : [],
-          inversions: Array.isArray(gapInversions[index])
-            ? gapInversions[index]
-            : [],
-        }));
-        const beforeWordEntries = beforeWordChords.map((group, index) => ({
-          chords: Array.isArray(group) ? group : [],
-          inversions: Array.isArray(beforeWordInversions[index])
-            ? beforeWordInversions[index]
-            : [],
-        }));
-        const afterWordEntries = afterWordChords.map((group, index) => ({
-          chords: Array.isArray(group) ? group : [],
-          inversions: Array.isArray(afterWordInversions[index])
-            ? afterWordInversions[index]
-            : [],
-        }));
-
-        return {
-          ...lineRest,
-          wordInversions: Array.isArray(line.wordInversions)
-            ? line.wordInversions
-            : [],
-          gapEntries,
-          beforeWordEntries,
-          afterWordEntries,
-        };
-      }),
-    };
-  });
-}
-
-function decodeSectionsFromFirestore(sections = []) {
-  return (sections || []).map((section) => ({
-    ...section,
-    lines: (section.lines || []).map((line) => {
-      const {
-        gapEntries = [],
-        beforeWordEntries = [],
-        afterWordEntries = [],
-        ...lineRest
-      } = line;
-      return {
-        ...lineRest,
-        gapChords: gapEntries.map((entry) =>
-          Array.isArray(entry?.chords) ? entry.chords : [],
-        ),
-        gapInversions: gapEntries.map((entry) =>
-          Array.isArray(entry?.inversions) ? entry.inversions : [],
-        ),
-        beforeWordChords: beforeWordEntries.map((entry) =>
-          Array.isArray(entry?.chords) ? entry.chords : [],
-        ),
-        beforeWordInversions: beforeWordEntries.map((entry) =>
-          Array.isArray(entry?.inversions) ? entry.inversions : [],
-        ),
-        afterWordChords: afterWordEntries.map((entry) =>
-          Array.isArray(entry?.chords) ? entry.chords : [],
-        ),
-        afterWordInversions: afterWordEntries.map((entry) =>
-          Array.isArray(entry?.inversions) ? entry.inversions : [],
-        ),
-      };
-    }),
-  }));
-}
+import {
+  decodeSectionsFromFirestore,
+  encodeSectionsForFirestore,
+  sanitizeHymnDataForFirestore,
+} from "./utils/hymnFirestore";
 
 async function fetchHymnDocFromServer(hymnId) {
   if (!db || !hasFirebaseConfig || !hymnId) {
@@ -596,12 +493,12 @@ function AppShell() {
       return;
     }
 
-    const sanitizedHymn = sanitizeHymnDataForFirestore(state.hymn);
-
     const payload = {
       title,
       key: state.hymn.key || "",
-      sections: encodeSectionsForFirestore(sanitizedHymn.sections || []),
+      sections: sanitizeHymnDataForFirestore(
+        encodeSectionsForFirestore(state.hymn.sections || []),
+      ),
       isExclusive: isSuperAdmin ? Boolean(state.hymn.isExclusive) : false,
       exclusiveOwnerUid:
         isSuperAdmin && state.hymn.isExclusive

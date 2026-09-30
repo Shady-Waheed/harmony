@@ -104,8 +104,9 @@ export function stretchArabicWord(word, chordCount) {
 }
 
 function normalizeGapChords(gapChords, count) {
+  const list = coerceIndexArray(gapChords);
   const next = Array.from({ length: Math.max(count, 0) }, (_, i) => {
-    const group = Array.isArray(gapChords?.[i]) ? gapChords[i] : [];
+    const group = coerceIndexArray(list[i]);
     return group.map((item) => String(item || ""));
   });
   return next;
@@ -123,8 +124,9 @@ function normalizeGapInversions(gapInversions, gapChords) {
 }
 
 function normalizeWordSlotGroups(slotGroups, count) {
+  const list = coerceIndexArray(slotGroups);
   return Array.from({ length: Math.max(count, 0) }, (_, i) => {
-    const group = Array.isArray(slotGroups?.[i]) ? slotGroups[i] : [];
+    const group = coerceIndexArray(list[i]);
     return group.map((item) => String(item || ""));
   });
 }
@@ -145,17 +147,91 @@ function normalizeChordGroup(value) {
   return values.map((item) => String(item || "")).filter(Boolean);
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function coerceIndexArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!isPlainObject(value)) return [];
+  return Object.keys(value)
+    .filter((key) => /^\d+$/.test(key))
+    .sort((a, b) => Number(a) - Number(b))
+    .map((key) => value[key]);
+}
+
+function coerceChordGroups(values) {
+  const list = coerceIndexArray(values);
+  return list.map((item) => {
+    if (Array.isArray(item) || isPlainObject(item)) {
+      return coerceIndexArray(item).map((entry) =>
+        Array.isArray(entry) ? String(entry[0] || "") : String(entry || ""),
+      );
+    }
+    return item ? [String(item)] : [];
+  });
+}
+
+function slotGroupsHaveValues(groups) {
+  return (groups || []).some((group) =>
+    Array.isArray(group) ? group.some(Boolean) : Boolean(group),
+  );
+}
+
+function coerceLetterMatrix(values) {
+  const words = coerceIndexArray(values);
+  const looksNested = words.some(
+    (word) => Array.isArray(word) || isPlainObject(word),
+  );
+  if (!looksNested) return [];
+  return words.map((word) => {
+    const letters = coerceIndexArray(word);
+    return letters.map((letter) => {
+      if (Array.isArray(letter) || isPlainObject(letter)) {
+        return coerceIndexArray(letter).map((item) => String(item || ""));
+      }
+      return letter ? [String(letter)] : [];
+    });
+  });
+}
+
 export function normalizeLineStructure(line) {
   const lyrics = String(line?.lyrics || "");
   const words = splitWords(lyrics);
   const clampWordArray = (values) =>
     Array.isArray(values) ? values.slice(0, Math.max(words.length, 0)) : [];
 
-  const rawWordChords = clampWordArray(line?.wordChords);
-  const rawWordChordGroups = clampWordArray(line?.wordChordGroups);
-  const rawWordInversions = clampWordArray(line?.wordInversions);
-  const rawWordLetterChords = clampWordArray(line?.wordLetterChords);
-  const rawWordLetterInversions = clampWordArray(line?.wordLetterInversions);
+  const rawWordChords = clampWordArray(coerceIndexArray(line?.wordChords));
+  const coercedWordChordGroups = coerceChordGroups(line?.wordChordGroups);
+  const rawWordChordGroups = clampWordArray(
+    coercedWordChordGroups.length === words.length || !rawWordChords.length
+      ? coercedWordChordGroups
+      : rawWordChords.map((item) => {
+          const value = Array.isArray(item) ? item[0] : item;
+          return value ? [String(value)] : [];
+        }),
+  );
+  const rawWordInversions = clampWordArray(
+    coerceChordGroups(line?.wordInversions),
+  );
+  const coercedLetterChords = coerceLetterMatrix(line?.wordLetterChords);
+  const rawWordLetterChords = clampWordArray(
+    !words.length ||
+      coercedLetterChords.length === 0 ||
+      coercedLetterChords.length === words.length
+      ? coercedLetterChords
+      : [],
+  );
+  const coercedLetterInversions = coerceLetterMatrix(
+    line?.wordLetterInversions,
+  );
+  const rawWordLetterInversions = clampWordArray(
+    !words.length ||
+      coercedLetterInversions.length === 0 ||
+      coercedLetterInversions.length === words.length
+      ? coercedLetterInversions
+      : [],
+  );
 
   const letterChordGroups = Array.from({ length: words.length }, (_, i) => {
     const source = Array.isArray(rawWordLetterChords[i])
@@ -204,12 +280,14 @@ export function normalizeLineStructure(line) {
     const source = Array.isArray(rawWordLetterChords[wordIndex])
       ? rawWordLetterChords[wordIndex]
       : [];
-    if (source.length === letters.length) {
-      return source.map((group) =>
-        (Array.isArray(group) ? group : [group]).map((item) =>
+    if (source.length > 0) {
+      return Array.from({ length: letters.length }, (_, letterIndex) => {
+        const group = source[letterIndex];
+        if (group === undefined) return [];
+        return (Array.isArray(group) ? group : [group]).map((item) =>
           String(item || ""),
-        ),
-      );
+        );
+      });
     }
     const fallback = Array.from({ length: letters.length }, () => []);
     wordChordGroups[wordIndex].forEach((chord, chordIndex) => {
@@ -219,7 +297,14 @@ export function normalizeLineStructure(line) {
     return fallback;
   });
 
-  const gapChords = normalizeGapChords(line?.gapChords, words.length - 1);
+  const loadedGapChords = normalizeGapChords(
+    line?.gapChords,
+    words.length - 1,
+  );
+  const loadedGapInversions = normalizeGapInversions(
+    line?.gapInversions,
+    loadedGapChords,
+  );
   const wordInversions = wordChordGroups.map((group, i) => {
     const source = Array.isArray(rawWordInversions[i])
       ? rawWordInversions[i]
@@ -236,7 +321,6 @@ export function normalizeLineStructure(line) {
       return group.map((_, chordIndex) => String(source?.[chordIndex] || ""));
     }),
   );
-  const gapInversions = normalizeGapInversions(line?.gapInversions, gapChords);
   const beforeWordChords = normalizeWordSlotGroups(
     line?.beforeWordChords,
     words.length,
@@ -245,15 +329,30 @@ export function normalizeLineStructure(line) {
     line?.beforeWordInversions,
     beforeWordChords,
   );
+  const coercedAfterWordChords = coerceChordGroups(line?.afterWordChords);
+  const coercedAfterWordInversions = coerceChordGroups(
+    line?.afterWordInversions,
+  );
   const afterWordChords = normalizeWordSlotGroups(
-    line?.afterWordChords ||
-      words.map((_, i) => (i < gapChords.length ? gapChords[i] : [])),
+    slotGroupsHaveValues(coercedAfterWordChords)
+      ? coercedAfterWordChords
+      : words.map((_, i) =>
+          i < loadedGapChords.length ? loadedGapChords[i] : [],
+        ),
     words.length,
   );
   const afterWordInversions = normalizeWordSlotInversions(
-    line?.afterWordInversions ||
-      words.map((_, i) => (i < gapInversions.length ? gapInversions[i] : [])),
+    slotGroupsHaveValues(coercedAfterWordInversions)
+      ? coercedAfterWordInversions
+      : words.map((_, i) =>
+          i < loadedGapInversions.length ? loadedGapInversions[i] : [],
+        ),
     afterWordChords,
+  );
+  const gapChords = afterWordChords.slice(0, Math.max(words.length - 1, 0));
+  const gapInversions = afterWordInversions.slice(
+    0,
+    Math.max(words.length - 1, 0),
   );
 
   return {
