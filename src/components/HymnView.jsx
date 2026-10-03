@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useState } from "react";
+import { forwardRef, useEffect, useMemo, useState } from "react";
 import { transposeHymnShape, useHymnStore } from "../store/hymnStore.jsx";
 import { buildDisplayCells, stretchArabicWord } from "../utils/lineChords";
 import {
@@ -245,9 +245,11 @@ function ChordLabels({
   entries = [],
   isExporting = false,
   interactive = true,
+  selectionScope = "",
+  selectedChordId = null,
+  onSelectChord,
 }) {
   const visibleEntries = entries.filter((entry) => Boolean(entry.chord));
-  const [activeChordKey, setActiveChordKey] = useState("");
 
   return (
     <span
@@ -261,8 +263,8 @@ function ChordLabels({
       }}
     >
       {visibleEntries.map((entry, index) => {
-        const entryKey = `${entry.chord}-${index}`;
-        const isActive = activeChordKey === entryKey && !isExporting;
+        const entryKey = `${selectionScope}:${index}`;
+        const isActive = selectedChordId === entryKey && !isExporting;
         const chordLabel = formatChordLabel(entry.chord, entry.inversion);
 
         if (!interactive) {
@@ -292,11 +294,7 @@ function ChordLabels({
                     }
                   : undefined
               }
-              onClick={() =>
-                setActiveChordKey((current) =>
-                  current === entryKey ? "" : entryKey,
-                )
-              }
+              onClick={() => onSelectChord?.(isActive ? null : entryKey)}
               aria-expanded={isActive}
               aria-label={`Chord ${formatChordLabel(entry.chord, entry.inversion)}`}
             >
@@ -322,6 +320,7 @@ const HymnView = forwardRef(function HymnView(
 ) {
   const { state, transposeHymn, resetTranspose } = useHymnStore();
   const { hymn, transposeOffset } = state;
+  const [selectedChordId, setSelectedChordId] = useState(null);
   const displayedHymn = useMemo(
     () => transposeHymnShape(hymn, transposeOffset || 0),
     [hymn, transposeOffset],
@@ -330,6 +329,10 @@ const HymnView = forwardRef(function HymnView(
   const hasSections = (displayedHymn.sections || []).some(
     (section) => (section.lines || []).length > 0,
   );
+
+  useEffect(() => {
+    setSelectedChordId(null);
+  }, [hymn.id]);
 
   return (
     <section
@@ -465,6 +468,9 @@ const HymnView = forwardRef(function HymnView(
                               entries={outputChordEntries}
                               isExporting={isExporting}
                               interactive={!outputOptions}
+                              selectionScope={`${hymn.id || "hymn"}:${section.id || sectionIndex}:${line.id || "line"}:${i}`}
+                              selectedChordId={selectedChordId}
+                              onSelectChord={setSelectedChordId}
                             />
                             <span className="lyricWordText">
                               {cell.type === "word"

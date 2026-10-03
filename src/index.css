@@ -10,6 +10,9 @@
   --primary: #4f7cff;
   --primary-button: #2f55b6;
   --primary-button-text: #ffffff;
+  --select-option-bg: #111936;
+  --select-option-selected-bg: #2f55b6;
+  --select-option-selected-text: #ffffff;
   --primary-soft: rgba(79, 124, 255, 0.18);
   --danger: #ff6f8f;
   --danger-ink: #ff9dae;
@@ -60,6 +63,9 @@
   --primary: #2f5bea;
   --primary-button: #284bb8;
   --primary-button-text: #ffffff;
+  --select-option-bg: #f8fafc;
+  --select-option-selected-bg: #d8e4ff;
+  --select-option-selected-text: #101a34;
   --primary-soft: rgba(47, 91, 234, 0.16);
   --danger: #d64568;
   --danger-ink: #a61f45;
@@ -587,6 +593,27 @@ body {
   letter-spacing: 0;
 }
 
+.app select {
+  color-scheme: inherit;
+  border-color: var(--border) !important;
+  background-color: var(--input-bg) !important;
+  color: var(--text) !important;
+}
+
+.app select option {
+  background-color: var(--select-option-bg);
+  color: var(--text);
+}
+
+.app select option:checked {
+  background-color: var(--select-option-selected-bg);
+  color: var(--select-option-selected-text);
+}
+
+.app select option:disabled {
+  color: var(--muted);
+}
+
 .app input::placeholder,
 .app textarea::placeholder {
   color: var(--muted);
@@ -618,7 +645,8 @@ body {
 .input:disabled,
 .textarea:disabled,
 .app select:disabled {
-  color: var(--muted);
+  background-color: var(--surface-strong) !important;
+  color: var(--muted) !important;
   cursor: not-allowed;
 }
 
@@ -1100,7 +1128,12 @@ body {
 .customChordSuggestion:hover,
 .customChordSuggestion:focus-visible {
   border-color: var(--primary);
-  outline: none;
+  background: var(--surface-strong);
+}
+
+.customChordSuggestion:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 .chordBuilder {
@@ -1378,6 +1411,23 @@ body {
   box-shadow: var(--shadow);
   padding: 0.7rem 0.75rem 0.68rem;
   color: var(--text);
+}
+
+@media (max-width: 768px) {
+  .chordDetailPanel {
+    position: fixed;
+    top: auto;
+    right: auto;
+    bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    z-index: 1100;
+    width: min(320px, calc(100vw - 1.25rem));
+    max-height: calc(100vh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px));
+    overflow: auto;
+    overscroll-behavior: contain;
+    transform: translateX(-50%);
+  }
 }
 
 .lyricWordChord {
