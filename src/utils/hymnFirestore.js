@@ -1,5 +1,157 @@
+export const CANONICAL_HYMN_SCHEMA_VERSION = 2;
+export const LEGACY_HYMN_SCHEMA_VERSION = 0;
+
+import { normalizeLineStructure } from "./lineChords.js";
+
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function detectFirestoreEncoding(sections = []) {
+  return (sections || []).some((section) =>
+    (section?.lines || []).some(
+      (line) =>
+        line &&
+        (line.wordChordEntries ||
+          line.wordLetterEntries ||
+          line.gapEntries ||
+          line.beforeWordEntries ||
+          line.afterWordEntries),
+    ),
+  );
+}
+
+export function detectStoredHymnVersion(hymn) {
+  const source = isPlainObject(hymn) ? hymn : {};
+  const rawVersion = source.schemaVersion;
+  if (rawVersion === undefined || rawVersion === null || rawVersion === "") {
+    return LEGACY_HYMN_SCHEMA_VERSION;
+  }
+  const parsed = Number(rawVersion);
+  return Number.isFinite(parsed) ? parsed : LEGACY_HYMN_SCHEMA_VERSION;
+}
+
+export class HymnSchemaVersionError extends Error {
+  constructor(version, message) {
+    super(message);
+    this.name = "HymnSchemaVersionError";
+    this.version = version;
+  }
+}
+
+function stripEncodedLineFields(line = {}) {
+  const next = { ...line };
+  [
+    "gapEntries",
+    "beforeWordEntries",
+    "afterWordEntries",
+    "wordChordEntries",
+    "wordLetterEntries",
+  ].forEach((key) => delete next[key]);
+  return next;
+}
+
+function normalizeCanonicalSections(sections = []) {
+  return (sections || []).map((section) => ({
+    ...section,
+    lines: (section?.lines || []).map((line) =>
+      stripEncodedLineFields(normalizeLineStructure(line)),
+    ),
+  }));
+}
+
+export function migrateLegacyHymnData(hymn) {
+  const source = isPlainObject(hymn) ? hymn : {};
+  const version = detectStoredHymnVersion(source);
+
+  if (version > CANONICAL_HYMN_SCHEMA_VERSION) {
+    throw new HymnSchemaVersionError(
+      version,
+      `This hymn was created with a newer Harmony Notes schema (v${version}). Please open it with a newer version of the app.`,
+    );
+  }
+
+  if (version === CANONICAL_HYMN_SCHEMA_VERSION) {
+    return {
+      ...source,
+      schemaVersion: CANONICAL_HYMN_SCHEMA_VERSION,
+      title: String(source.title || ""),
+      key: String(source.key || ""),
+      isExclusive: Boolean(source.isExclusive),
+      exclusiveOwnerUid: String(source.exclusiveOwnerUid || ""),
+      sections: normalizeCanonicalSections(source.sections || []),
+    };
+  }
+
+  const sections = Array.isArray(source.sections) ? source.sections : [];
+  const decodedSections = detectFirestoreEncoding(sections)
+    ? decodeSectionsFromFirestore(sections)
+    : normalizeCanonicalSections(sections);
+
+  return {
+    ...source,
+    schemaVersion: CANONICAL_HYMN_SCHEMA_VERSION,
+    title: String(source.title || ""),
+    key: String(source.key || ""),
+    isExclusive: Boolean(source.isExclusive),
+    exclusiveOwnerUid: String(source.exclusiveOwnerUid || ""),
+    sections: decodedSections,
+  };
+}
+
+export function normalizeCanonicalHymn(hymn) {
+  const source = isPlainObject(hymn) ? hymn : {};
+  const version = detectStoredHymnVersion(source);
+
+  if (version > CANONICAL_HYMN_SCHEMA_VERSION) {
+    throw new HymnSchemaVersionError(
+      version,
+      `This hymn was created with a newer Harmony Notes schema (v${version}). Please open it with a newer version of the app.`,
+    );
+  }
+
+  const migrated =
+    version === CANONICAL_HYMN_SCHEMA_VERSION
+      ? source
+      : migrateLegacyHymnData(source);
+
+  return {
+    ...migrated,
+    schemaVersion: CANONICAL_HYMN_SCHEMA_VERSION,
+    title: String(migrated.title || ""),
+    key: String(migrated.key || ""),
+    isExclusive: Boolean(migrated.isExclusive),
+    exclusiveOwnerUid: String(migrated.exclusiveOwnerUid || ""),
+    sections: normalizeCanonicalSections(migrated.sections || []),
+  };
+}
+
+export function decodeStoredHymn(hymn) {
+  const source = isPlainObject(hymn) ? hymn : {};
+  const version = detectStoredHymnVersion(source);
+
+  if (version > CANONICAL_HYMN_SCHEMA_VERSION) {
+    throw new HymnSchemaVersionError(
+      version,
+      `This hymn was created with a newer Harmony Notes schema (v${version}). Please open it with a newer version of the app.`,
+    );
+  }
+
+  if (version === CANONICAL_HYMN_SCHEMA_VERSION) {
+    return normalizeCanonicalHymn(source);
+  }
+
+  return migrateLegacyHymnData(source);
+}
+
+export function encodeHymnForFirestore(hymn) {
+  const canonical = decodeStoredHymn(hymn);
+  const rows = encodeSectionsForFirestore(canonical.sections || []);
+  return sanitizeHymnDataForFirestore({
+    ...canonical,
+    schemaVersion: CANONICAL_HYMN_SCHEMA_VERSION,
+    sections: rows,
+  });
 }
 
 function coerceIndexArray(value) {
@@ -208,6 +360,7 @@ export function encodeSectionsForFirestore(sections = []) {
     return {
       ...sectionRest,
       lines: lines.map((line) => {
+        const source = line || {};
         const {
           gapChords = [],
           gapInversions = [],
@@ -220,13 +373,16 @@ export function encodeSectionsForFirestore(sections = []) {
           wordInversions = [],
           wordLetterChords = [],
           wordLetterInversions = [],
-          gapEntries: _gapEntries,
-          beforeWordEntries: _beforeWordEntries,
-          afterWordEntries: _afterWordEntries,
-          wordChordEntries: _wordChordEntries,
-          wordLetterEntries: _wordLetterEntries,
-          ...lineRest
-        } = line || {};
+        } = source;
+        const lineRest = { ...source };
+
+        [
+          "gapEntries",
+          "beforeWordEntries",
+          "afterWordEntries",
+          "wordChordEntries",
+          "wordLetterEntries",
+        ].forEach((key) => delete lineRest[key]);
 
         return {
           ...lineRest,

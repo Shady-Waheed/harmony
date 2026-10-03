@@ -6,6 +6,18 @@ export default function SetlistPanel({
   currentTitle,
   onOpen,
   canAdd,
+  canManageSharedSetlists = false,
+  sharedSetlists = [],
+  selectedSharedSetlistId = "",
+  onSelectSharedSetlist,
+  onCreateSharedSetlist,
+  onDeleteSharedSetlist,
+  onRenameSharedSetlist,
+  onAddCurrentToSharedSetlist,
+  onMoveSharedSetlistItem,
+  onRemoveSharedSetlistItem,
+  sharedSetlistItems = [],
+  sharedSetlistsLoading = false,
 }) {
   const [items, setItems] = useState(loadSetlist);
 
@@ -14,6 +26,8 @@ export default function SetlistPanel({
   }, [items]);
 
   const alreadyAdded = items.some((item) => item.id === currentId);
+  const activeSharedSetlist =
+    sharedSetlists.find((item) => item.id === selectedSharedSetlistId) || null;
 
   const addCurrent = () => {
     if (!canAdd || !currentId || alreadyAdded) return;
@@ -36,6 +50,12 @@ export default function SetlistPanel({
       next.splice(target, 0, row);
       return next;
     });
+  };
+
+  const addCurrentToSharedSetlist = () => {
+    if (!canManageSharedSetlists || !selectedSharedSetlistId || !currentId)
+      return;
+    onAddCurrentToSharedSetlist?.(selectedSharedSetlistId, currentId);
   };
 
   return (
@@ -97,6 +117,146 @@ export default function SetlistPanel({
             </li>
           ))}
         </ul>
+      )}
+
+      {(canManageSharedSetlists || sharedSetlists.length > 0) && (
+        <div className="setlistPanel sharedSetlistPanel">
+          <div className="row between sidebarHeader">
+            <h3>قوائم الخدمة المشتركة</h3>
+            {canManageSharedSetlists ? (
+              <button
+                type="button"
+                className="btn"
+                onClick={onCreateSharedSetlist}
+              >
+                جديد
+              </button>
+            ) : null}
+          </div>
+
+          {sharedSetlistsLoading ? (
+            <p className="sidebarHint">جاري تحميل القوائم المشتركة...</p>
+          ) : sharedSetlists.length === 0 ? (
+            <p className="sidebarHint">لا توجد قوائم خدمة مشتركة بعد.</p>
+          ) : (
+            <div
+              className="row wrap"
+              style={{ gap: "0.4rem", marginBottom: "0.5rem" }}
+            >
+              {sharedSetlists.map((setlist) => (
+                <button
+                  key={setlist.id}
+                  type="button"
+                  className={`btn ${selectedSharedSetlistId === setlist.id ? "primary" : ""}`}
+                  onClick={() => onSelectSharedSetlist?.(setlist.id)}
+                >
+                  {setlist.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selectedSharedSetlistId && activeSharedSetlist ? (
+            <>
+              <div className="row wrap sidebarActions">
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={addCurrentToSharedSetlist}
+                  disabled={!canManageSharedSetlists || !currentId}
+                >
+                  إضافة الحالية
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() =>
+                    onRenameSharedSetlist?.(selectedSharedSetlistId)
+                  }
+                >
+                  تعديل الاسم
+                </button>
+                <button
+                  type="button"
+                  className="btn danger"
+                  onClick={() =>
+                    onDeleteSharedSetlist?.(selectedSharedSetlistId)
+                  }
+                >
+                  حذف القائمة
+                </button>
+              </div>
+
+              {sharedSetlistItems.length === 0 ? (
+                <p className="sidebarHint">
+                  لا توجد ترانيم في هذه القائمة بعد.
+                </p>
+              ) : (
+                <ul className="hymnList setlistList">
+                  {sharedSetlistItems.map((item, index) => (
+                    <li key={`${item.id}-${index}`} className="setlistRow">
+                      <button
+                        type="button"
+                        className={`hymnListItem ${currentId === item.id ? "active" : ""}`}
+                        onClick={() => onOpen(item.id)}
+                      >
+                        <span>
+                          {index + 1}. {item.title}
+                        </span>
+                        {item.missing ? <small> ⚠</small> : null}
+                      </button>
+                      <div className="setlistRowActions">
+                        <button
+                          type="button"
+                          className="btn setlistIconBtn"
+                          onClick={() =>
+                            onMoveSharedSetlistItem?.(
+                              selectedSharedSetlistId,
+                              index,
+                              -1,
+                            )
+                          }
+                          disabled={index === 0}
+                          aria-label="تحريك لأعلى"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="btn setlistIconBtn"
+                          onClick={() =>
+                            onMoveSharedSetlistItem?.(
+                              selectedSharedSetlistId,
+                              index,
+                              1,
+                            )
+                          }
+                          disabled={index === sharedSetlistItems.length - 1}
+                          aria-label="تحريك لأسفل"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="btn danger setlistIconBtn"
+                          onClick={() =>
+                            onRemoveSharedSetlistItem?.(
+                              selectedSharedSetlistId,
+                              item.id,
+                            )
+                          }
+                          aria-label="حذف من القائمة المشتركة"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : null}
+        </div>
       )}
     </div>
   );

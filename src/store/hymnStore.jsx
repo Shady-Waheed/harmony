@@ -9,6 +9,10 @@ import {
 } from "react";
 import { normalizeLineStructure } from "../utils/lineChords";
 import { transposeChordCollection } from "../utils/chords";
+import {
+  CANONICAL_HYMN_SCHEMA_VERSION,
+  normalizeCanonicalHymn,
+} from "../utils/hymnFirestore";
 import { clearDraft, getDraft, writeDraft } from "../utils/hymnDrafts";
 
 const STORAGE_KEY = "harmony-notes-hymn-v2";
@@ -17,6 +21,7 @@ const HISTORY_GROUP_MS = 800;
 
 const defaultHymn = {
   id: "hymn-1",
+  schemaVersion: CANONICAL_HYMN_SCHEMA_VERSION,
   title: "ترنيمة النعمة",
   key: "G",
   sections: [
@@ -50,15 +55,7 @@ function hymnsEqual(a, b) {
 }
 
 function normalizeHymn(hymn) {
-  return {
-    ...hymn,
-    isExclusive: Boolean(hymn?.isExclusive),
-    exclusiveOwnerUid: String(hymn?.exclusiveOwnerUid || ""),
-    sections: (hymn.sections || []).map((section) => ({
-      ...section,
-      lines: (section.lines || []).map((line) => normalizeLineStructure(line)),
-    })),
-  };
+  return normalizeCanonicalHymn(hymn);
 }
 
 function withHistoryFields(project) {

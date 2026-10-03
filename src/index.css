@@ -168,12 +168,94 @@ body {
   color: #ffe08a;
 }
 
+.saveStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.saveStatusDot {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+
+.saveStatus--saved {
+  color: #8ef0c4;
+  background: rgba(61, 220, 151, 0.12);
+}
+
+.saveStatus--dirty,
+.saveStatus--offline {
+  color: #ffe08a;
+  background: rgba(245, 197, 66, 0.12);
+}
+
+.saveStatus--saving,
+.saveStatus--pending-sync {
+  color: #c0d0ff;
+  background: rgba(99, 125, 255, 0.12);
+}
+
+.saveStatus--error {
+  color: #ff9dae;
+  background: rgba(255, 111, 143, 0.12);
+}
+
+.btnSmall {
+  min-height: 28px;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.76rem;
+}
+
 .app.light .draftBadge {
   color: #8a6a00;
 }
 
 .draftActions {
   margin-bottom: 0.65rem;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(4, 8, 18, 0.62);
+  z-index: 1000;
+}
+
+.confirmModal {
+  width: min(100%, 420px);
+  padding: 1.2rem;
+}
+
+.confirmModal h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+}
+
+.confirmModal p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.confirmActions {
+  justify-content: flex-end;
 }
 
 .editorToolbar {
@@ -1426,9 +1508,15 @@ body {
 }
 
 .sheetLine > .cell:first-child .chord.hasPreview:hover .chordPreviewPopup,
-.sheetLine > .cell:first-child .chord.hasPreview:focus-within .chordPreviewPopup,
+.sheetLine
+  > .cell:first-child
+  .chord.hasPreview:focus-within
+  .chordPreviewPopup,
 .sheetLine > .cell:nth-child(2) .chord.hasPreview:hover .chordPreviewPopup,
-.sheetLine > .cell:nth-child(2) .chord.hasPreview:focus-within .chordPreviewPopup {
+.sheetLine
+  > .cell:nth-child(2)
+  .chord.hasPreview:focus-within
+  .chordPreviewPopup {
   transform: translateY(0);
 }
 

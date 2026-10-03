@@ -37,6 +37,7 @@ import {
   PROJECT_EXTENSION,
   readTextFile,
 } from "./utils/projectFile";
+import { clearDraft, getDraft } from "./utils/hymnDrafts";
 import {
   useOfflineSync,
   isBrowserOffline,
@@ -46,10 +47,20 @@ import { hymnShareUrl, useHymnRoute } from "./hooks/useHymnRoute";
 import { hymnMatchesQuery } from "./utils/hymnSearch";
 import SetlistPanel from "./components/SetlistPanel";
 import {
-  decodeSectionsFromFirestore,
-  encodeSectionsForFirestore,
-  sanitizeHymnDataForFirestore,
+  decodeStoredHymn,
+  encodeHymnForFirestore,
 } from "./utils/hymnFirestore";
+import {
+  decodeStoredSetlist,
+  encodeSetlistForFirestore,
+  normalizeSharedSetlist,
+  reorderSetlistHymns,
+} from "./utils/setlistFirestore";
+import {
+  resolveSaveState,
+  shouldBlockBeforeUnload,
+  shouldPromptBeforeDiscard,
+} from "./utils/saveState";
 
 async function fetchHymnDocFromServer(hymnId) {
   if (!db || !hasFirebaseConfig || !hymnId) {
@@ -126,8 +137,10 @@ function AppShell() {
   const [loadingHymns, setLoadingHymns] = useState(true);
   const [selectedHymnId, setSelectedHymnId] = useState("");
   const [savingHymn, setSavingHymn] = useState(false);
+  const [saveError, setSaveError] = useState(null);
   const [deletingHymn, setDeletingHymn] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [pendingUnsafeTransition, setPendingUnsafeTransition] = useState(null);
   const [hymnSearchQuery, setHymnSearchQuery] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -143,6 +156,9 @@ function AppShell() {
   const lastRouteAttemptRef = useRef("");
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
+  const [sharedSetlists, setSharedSetlists] = useState([]);
+  const [sharedSetlistsLoading, setSharedSetlistsLoading] = useState(false);
+  const [selectedSharedSetlistId, setSelectedSharedSetlistId] = useState("");
 
   const {
     status: syncStatus,
@@ -204,12 +220,97 @@ function AppShell() {
     () => teamData?.members || [],
     [teamData],
   );
+  const canManageSharedSetlists = Boolean(
+    currentUser &&
+    hasFirebaseConfig &&
+    (canSaveFirebase || isAdmin || canDelete),
+  );
+  const selectedSharedSetlist = useMemo(
+    () =>
+      sharedSetlists.find((item) => item.id === selectedSharedSetlistId) ||
+      null,
+    [selectedSharedSetlistId, sharedSetlists],
+  );
+  const selectedSharedSetlistItems = useMemo(() => {
+    if (!selectedSharedSetlist) return [];
+    return selectedSharedSetlist.hymnIds
+      .map((hymnId) => {
+        const hymnDoc = hymns.find((item) => item.id === hymnId);
+        return {
+          id: hymnId,
+          title: hymnDoc?.title || "ترنيمة غير متاحة",
+          missing: !hymnDoc,
+        };
+      })
+      .filter((item) => item.id);
+  }, [hymns, selectedSharedSetlist]);
 
   const showNotice = useCallback((message, type = "info") => {
     setNotice({ message, type });
     window.clearTimeout(noticeTimeoutRef.current);
     noticeTimeoutRef.current = window.setTimeout(() => setNotice(null), 2800);
   }, []);
+
+  const hasLocalDraft = useMemo(() => {
+    const hymnId = state.hymn?.id;
+    if (!hymnId) return false;
+    return Boolean(getDraft(hymnId));
+  }, [state.hymn?.id]);
+
+  const saveState = useMemo(
+    () =>
+      resolveSaveState({
+        isDirty,
+        isSaving: savingHymn,
+        isOffline: !online,
+        isLoading: loadingHymns || authLoading,
+        hasLocalDraft,
+        saveFailed: Boolean(saveError),
+        pendingSync: Boolean(pendingFirestoreWrites),
+        hasServerState: Boolean(selectedHymnId || state.lastSavedHymn),
+      }),
+    [
+      authLoading,
+      hasLocalDraft,
+      isDirty,
+      loadingHymns,
+      online,
+      pendingFirestoreWrites,
+      saveError,
+      savingHymn,
+      selectedHymnId,
+      state.lastSavedHymn,
+    ],
+  );
+
+  const runGuardedTransition = useCallback(
+    ({ title, message, onSave, onDiscard, onCancel }) => {
+      if (
+        !shouldPromptBeforeDiscard({ isDirty, saveFailed: Boolean(saveError) })
+      ) {
+        onSave?.();
+        return;
+      }
+
+      setPendingUnsafeTransition({
+        title,
+        message,
+        onSave: async () => {
+          setPendingUnsafeTransition(null);
+          await onSave?.();
+        },
+        onDiscard: () => {
+          setPendingUnsafeTransition(null);
+          onDiscard?.();
+        },
+        onCancel: () => {
+          setPendingUnsafeTransition(null);
+          onCancel?.();
+        },
+      });
+    },
+    [isDirty, saveError],
+  );
 
   useEffect(() => {
     if (
@@ -266,7 +367,40 @@ function AppShell() {
     );
 
     return () => unsubscribe();
-  }, [authLoading, currentUser?.uid]);
+  }, [authLoading, currentUser]);
+
+  useEffect(() => {
+    if (!db || !hasFirebaseConfig || authLoading || !currentUser) {
+      setSharedSetlists([]);
+      setSelectedSharedSetlistId("");
+      setSharedSetlistsLoading(false);
+      return undefined;
+    }
+
+    setSharedSetlistsLoading(true);
+    const setlistsQuery = query(
+      collection(db, "setlists"),
+      orderBy("updatedAt", "desc"),
+    );
+    const unsubscribe = onSnapshot(
+      setlistsQuery,
+      (snapshot) => {
+        const nextSetlists = snapshot.docs.map((docSnap) => {
+          const raw = { id: docSnap.id, ...docSnap.data() };
+          return decodeStoredSetlist(raw);
+        });
+        setSharedSetlists(nextSetlists);
+        setSharedSetlistsLoading(false);
+      },
+      (err) => {
+        console.warn("[setlists snapshot]", err?.code || err?.message || err);
+        setSharedSetlists([]);
+        setSharedSetlistsLoading(false);
+      },
+    );
+
+    return () => unsubscribe();
+  }, [authLoading, currentUser]);
 
   useEffect(() => {
     if (!db || !hasFirebaseConfig || authLoading || !currentUser) {
@@ -345,7 +479,131 @@ function AppShell() {
     };
   }, [online, pendingFirestoreWrites, showNotice]);
 
-  const onSelectHymn = useCallback(
+  const onSaveHymnToFirebase = useCallback(
+    async ({ afterSave } = {}) => {
+      if (!canSaveFirebase) {
+        showNotice("ليس لديك صلاحية حفظ الترانيم على السيرفر.", "error");
+        return false;
+      }
+      if (!db || !hasFirebaseConfig) return false;
+      const title = String(state.hymn.title || "").trim();
+      if (!title) {
+        showNotice("اكتب عنوان الترانيمة قبل الحفظ.", "error");
+        return false;
+      }
+
+      const canonicalPayload = encodeHymnForFirestore(state.hymn);
+      const payload = {
+        title: canonicalPayload.title || title,
+        key: canonicalPayload.key || state.hymn.key || "",
+        sections: canonicalPayload.sections || [],
+        schemaVersion: canonicalPayload.schemaVersion || 2,
+        isExclusive: isSuperAdmin ? Boolean(state.hymn.isExclusive) : false,
+        exclusiveOwnerUid:
+          isSuperAdmin && state.hymn.isExclusive
+            ? String(currentUser?.uid || "")
+            : "",
+        updatedAt: serverTimestamp(),
+      };
+
+      try {
+        setSavingHymn(true);
+        setSaveError(null);
+        const offline = isBrowserOffline();
+
+        if (selectedHymnId) {
+          await setDoc(doc(db, "hymns", selectedHymnId), payload, {
+            merge: true,
+          });
+          setHymns((prev) =>
+            prev.map((item) =>
+              item.id === selectedHymnId
+                ? {
+                    ...item,
+                    title,
+                    key: payload.key,
+                    sections: payload.sections,
+                    isExclusive: payload.isExclusive,
+                    exclusiveOwnerUid: payload.exclusiveOwnerUid,
+                    updatedAt: Date.now(),
+                  }
+                : item,
+            ),
+          );
+          markHymnSaved({
+            ...state.hymn,
+            id: selectedHymnId,
+            title,
+            key: payload.key,
+            isExclusive: payload.isExclusive,
+            exclusiveOwnerUid: payload.exclusiveOwnerUid,
+          });
+          navigateHymn(selectedHymnId, { replace: true });
+          showNotice(
+            offline ? offlineSaveNotice("save") : "تم تحديث الترنيمة.",
+            "success",
+          );
+          if (afterSave) await afterSave();
+          return true;
+        }
+
+        const created = await addDoc(collection(db, "hymns"), {
+          ...payload,
+          createdAt: Timestamp.now(),
+        });
+        setSelectedHymnId(created.id);
+        setHymns((prev) => [
+          {
+            id: created.id,
+            title,
+            key: payload.key,
+            sections: payload.sections,
+            isExclusive: payload.isExclusive,
+            exclusiveOwnerUid: payload.exclusiveOwnerUid,
+            updatedAt: Date.now(),
+          },
+          ...prev.filter((item) => item.id !== created.id),
+        ]);
+        loadHymn(
+          {
+            ...state.hymn,
+            id: created.id,
+            title,
+            isExclusive: payload.isExclusive,
+            exclusiveOwnerUid: payload.exclusiveOwnerUid,
+          },
+          { ignoreDraft: true, mode: "edit" },
+        );
+        navigateHymn(created.id, { replace: true });
+        showNotice(
+          offline ? offlineSaveNotice("save") : "تم حفظ ترنيمة جديدة.",
+          "success",
+        );
+        if (afterSave) await afterSave();
+        return true;
+      } catch (error) {
+        setSaveError(error?.message || "save failed");
+        showNotice(`تعذر الحفظ على السيرفر: ${error.message}`, "error");
+        return false;
+      } finally {
+        setSavingHymn(false);
+      }
+    },
+    [
+      canSaveFirebase,
+      currentUser?.uid,
+      isSuperAdmin,
+      loadHymn,
+      markHymnSaved,
+      navigateHymn,
+      selectedHymnId,
+      setHymns,
+      showNotice,
+      state.hymn,
+    ],
+  );
+
+  const finalizeSelectHymn = useCallback(
     async (hymnDoc, { fromRoute = false } = {}) => {
       const remoteDoc =
         hymnDoc?.id && db && hasFirebaseConfig
@@ -368,12 +626,13 @@ function AppShell() {
       if (!fromRoute) {
         navigateHymn(sourceDoc.id);
       }
+      const canonicalDoc = decodeStoredHymn(sourceDoc);
       loadHymn(
         {
-          id: sourceDoc.id,
-          title: sourceDoc.title || "",
-          key: sourceDoc.key || "",
-          sections: decodeSectionsFromFirestore(sourceDoc.sections || []),
+          id: canonicalDoc.id || sourceDoc.id,
+          title: canonicalDoc.title || "",
+          key: canonicalDoc.key || "",
+          sections: canonicalDoc.sections || [],
           isExclusive,
           exclusiveOwnerUid,
         },
@@ -386,6 +645,39 @@ function AppShell() {
       return true;
     },
     [currentUser, isAdmin, loadHymn, navigateHymn, showNotice],
+  );
+
+  const onSelectHymn = useCallback(
+    async (hymnDoc, { fromRoute = false } = {}) => {
+      if (isDirty && !fromRoute && hymnDoc?.id !== selectedHymnId) {
+        runGuardedTransition({
+          title: "تغييرات غير محفوظة",
+          message: "لديك تغييرات غير محفوظة. هل تريد حفظها قبل تبديل الترنيمة؟",
+          onSave: async () => {
+            await onSaveHymnToFirebase({
+              afterSave: async () => {
+                await finalizeSelectHymn(hymnDoc, { fromRoute });
+              },
+            });
+          },
+          onDiscard: async () => {
+            discardDraft();
+            await finalizeSelectHymn(hymnDoc, { fromRoute });
+          },
+          onCancel: () => undefined,
+        });
+        return false;
+      }
+      return finalizeSelectHymn(hymnDoc, { fromRoute });
+    },
+    [
+      discardDraft,
+      finalizeSelectHymn,
+      isDirty,
+      onSaveHymnToFirebase,
+      runGuardedTransition,
+      selectedHymnId,
+    ],
   );
 
   useEffect(() => {
@@ -417,11 +709,12 @@ function AppShell() {
     const hymnDoc = hymns.find((item) => item.id === id);
     if (!hymnDoc) return;
     if (selectedHymnId !== id) setSelectedHymnId(id);
+    const canonicalDoc = decodeStoredHymn(hymnDoc);
     syncLastSavedIfEmpty({
-      id: hymnDoc.id,
-      title: hymnDoc.title || "",
-      key: hymnDoc.key || "",
-      sections: decodeSectionsFromFirestore(hymnDoc.sections || []),
+      id: canonicalDoc.id || hymnDoc.id,
+      title: canonicalDoc.title || "",
+      key: canonicalDoc.key || "",
+      sections: canonicalDoc.sections || [],
       isExclusive:
         Boolean(hymnDoc.isExclusive) || Boolean(hymnDoc.exclusiveOwnerUid),
       exclusiveOwnerUid: String(hymnDoc.exclusiveOwnerUid || ""),
@@ -440,14 +733,14 @@ function AppShell() {
   ]);
 
   useEffect(() => {
-    if (!isAdmin || !isDirty) return undefined;
+    if (!isAdmin || !shouldBlockBeforeUnload(saveState)) return undefined;
     const onBeforeUnload = (event) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [isAdmin, isDirty]);
+  }, [isAdmin, saveState]);
 
   useEffect(() => {
     if (!isAdmin) return undefined;
@@ -476,113 +769,33 @@ function AppShell() {
 
   const onNewNote = () => {
     if (!isAdmin) return;
+    if (isDirty) {
+      runGuardedTransition({
+        title: "تغييرات غير محفوظة",
+        message:
+          "لديك تغييرات غير محفوظة. هل تريد حفظها قبل إنشاء ترنيمة جديدة؟",
+        onSave: async () => {
+          await onSaveHymnToFirebase({
+            afterSave: () => {
+              setSelectedHymnId("");
+              navigateHymn("");
+              createNewHymn();
+            },
+          });
+        },
+        onDiscard: () => {
+          discardDraft();
+          setSelectedHymnId("");
+          navigateHymn("");
+          createNewHymn();
+        },
+        onCancel: () => undefined,
+      });
+      return;
+    }
     setSelectedHymnId("");
     navigateHymn("");
     createNewHymn();
-  };
-
-  const onSaveHymnToFirebase = async () => {
-    if (!canSaveFirebase) {
-      showNotice("ليس لديك صلاحية حفظ الترانيم على السيرفر.", "error");
-      return;
-    }
-    if (!db || !hasFirebaseConfig) return;
-    const title = String(state.hymn.title || "").trim();
-    if (!title) {
-      showNotice("اكتب عنوان الترانيمة قبل الحفظ.", "error");
-      return;
-    }
-
-    const payload = {
-      title,
-      key: state.hymn.key || "",
-      sections: sanitizeHymnDataForFirestore(
-        encodeSectionsForFirestore(state.hymn.sections || []),
-      ),
-      isExclusive: isSuperAdmin ? Boolean(state.hymn.isExclusive) : false,
-      exclusiveOwnerUid:
-        isSuperAdmin && state.hymn.isExclusive
-          ? String(currentUser?.uid || "")
-          : "",
-      updatedAt: serverTimestamp(),
-    };
-
-    try {
-      setSavingHymn(true);
-      const offline = isBrowserOffline();
-
-      if (selectedHymnId) {
-        await setDoc(doc(db, "hymns", selectedHymnId), payload, {
-          merge: true,
-        });
-        setHymns((prev) =>
-          prev.map((item) =>
-            item.id === selectedHymnId
-              ? {
-                  ...item,
-                  title,
-                  key: payload.key,
-                  sections: payload.sections,
-                  isExclusive: payload.isExclusive,
-                  exclusiveOwnerUid: payload.exclusiveOwnerUid,
-                  updatedAt: Date.now(),
-                }
-              : item,
-          ),
-        );
-        markHymnSaved({
-          ...state.hymn,
-          id: selectedHymnId,
-          title,
-          key: payload.key,
-          isExclusive: payload.isExclusive,
-          exclusiveOwnerUid: payload.exclusiveOwnerUid,
-        });
-        navigateHymn(selectedHymnId, { replace: true });
-        showNotice(
-          offline ? offlineSaveNotice("save") : "تم تحديث الترنيمة.",
-          "success",
-        );
-        return;
-      }
-
-      const created = await addDoc(collection(db, "hymns"), {
-        ...payload,
-        createdAt: Timestamp.now(),
-      });
-      setSelectedHymnId(created.id);
-      setHymns((prev) => [
-        {
-          id: created.id,
-          title,
-          key: payload.key,
-          sections: payload.sections,
-          isExclusive: payload.isExclusive,
-          exclusiveOwnerUid: payload.exclusiveOwnerUid,
-          updatedAt: Date.now(),
-        },
-        ...prev.filter((item) => item.id !== created.id),
-      ]);
-      loadHymn(
-        {
-          ...state.hymn,
-          id: created.id,
-          title,
-          isExclusive: payload.isExclusive,
-          exclusiveOwnerUid: payload.exclusiveOwnerUid,
-        },
-        { ignoreDraft: true, mode: "edit" },
-      );
-      navigateHymn(created.id, { replace: true });
-      showNotice(
-        offline ? offlineSaveNotice("save") : "تم حفظ ترنيمة جديدة.",
-        "success",
-      );
-    } catch (error) {
-      showNotice(`فشل الحفظ: ${error.message}`, "error");
-    } finally {
-      setSavingHymn(false);
-    }
   };
 
   const onDeleteHymnFromFirebase = async () => {
@@ -591,72 +804,131 @@ function AppShell() {
       return;
     }
     if (!db || !hasFirebaseConfig || !selectedHymnId) return;
-    const confirmed = window.confirm("هل تريد حذف هذه الترانيمة نهائيًا؟");
-    if (!confirmed) return;
 
-    try {
-      setDeletingHymn(true);
-      const offline = isBrowserOffline();
-      await deleteDoc(doc(db, "hymns", selectedHymnId));
-      setHymns((prev) => prev.filter((item) => item.id !== selectedHymnId));
-      setSelectedHymnId("");
-      navigateHymn("");
-      createNewHymn();
-      showNotice(
-        offline ? offlineSaveNotice("delete") : "تم حذف الترانيمة.",
-        "success",
-      );
-    } catch (error) {
-      showNotice(`فشل الحذف: ${error.message}`, "error");
-    } finally {
-      setDeletingHymn(false);
-    }
-  };
+    const doDelete = async () => {
+      const confirmed = window.confirm("هل تريد حذف هذه الترانيمة نهائيًا؟");
+      if (!confirmed) return;
 
-  const onRefreshFromServer = useCallback(async () => {
-    if (!db || !hasFirebaseConfig) {
+      try {
+        setDeletingHymn(true);
+        const offline = isBrowserOffline();
+        await deleteDoc(doc(db, "hymns", selectedHymnId));
+        setHymns((prev) => prev.filter((item) => item.id !== selectedHymnId));
+        setSelectedHymnId("");
+        clearDraft(selectedHymnId);
+        navigateHymn("");
+        createNewHymn();
+        showNotice(
+          offline ? offlineSaveNotice("delete") : "تم حذف الترانيمة.",
+          "success",
+        );
+      } catch (error) {
+        showNotice(`فشل الحذف: ${error.message}`, "error");
+      } finally {
+        setDeletingHymn(false);
+      }
+    };
+
+    if (isDirty) {
+      runGuardedTransition({
+        title: "حذف ترنيمة",
+        message: "لديك تغييرات غير محفوظة. هل تريد حفظها قبل حذف الترانيمة؟",
+        onSave: async () => {
+          await onSaveHymnToFirebase({ afterSave: doDelete });
+        },
+        onDiscard: () => {
+          discardDraft();
+          doDelete();
+        },
+        onCancel: () => undefined,
+      });
       return;
     }
 
-    try {
-      setLoadingHymns(true);
-      const nextHymns = await refreshHymnsListFromServer();
-      setHymns(nextHymns);
-      setHymnsFromCache(false);
-      setPendingFirestoreWrites(false);
+    await doDelete();
+  };
 
-      if (selectedHymnId) {
-        const remoteDoc = await fetchHymnDocFromServer(selectedHymnId);
-        if (remoteDoc) {
-          const sourceDoc = remoteDoc;
-          loadHymn(
-            {
-              id: sourceDoc.id,
-              title: sourceDoc.title || "",
-              key: sourceDoc.key || "",
-              sections: decodeSectionsFromFirestore(sourceDoc.sections || []),
-              isExclusive:
-                Boolean(sourceDoc.isExclusive) ||
-                Boolean(sourceDoc.exclusiveOwnerUid),
-              exclusiveOwnerUid: String(sourceDoc.exclusiveOwnerUid || ""),
-            },
-            {
-              ignoreDraft: true,
-              useDraft: false,
-              mode: isAdmin ? "edit" : "view",
-            },
-          );
-        }
+  const onRefreshFromServer = useCallback(
+    async ({ force = false } = {}) => {
+      if (!db || !hasFirebaseConfig) {
+        return;
       }
 
-      showNotice("تم تحديث البيانات من السيرفر بنجاح.", "success");
-    } catch (error) {
-      console.warn("[refreshFromServer]", error);
-      showNotice(`فشل التحديث من السيرفر: ${error.message}`, "error");
-    } finally {
-      setLoadingHymns(false);
+      try {
+        setLoadingHymns(true);
+        const nextHymns = await refreshHymnsListFromServer();
+        setHymns(nextHymns);
+        setHymnsFromCache(false);
+        setPendingFirestoreWrites(false);
+
+        if (selectedHymnId) {
+          const remoteDoc = await fetchHymnDocFromServer(selectedHymnId);
+          if (remoteDoc) {
+            const sourceDoc = remoteDoc;
+            const canonicalRemote = decodeStoredHymn(sourceDoc);
+            loadHymn(
+              {
+                id: canonicalRemote.id || sourceDoc.id,
+                title: canonicalRemote.title || "",
+                key: canonicalRemote.key || "",
+                sections: canonicalRemote.sections || [],
+                isExclusive:
+                  Boolean(sourceDoc.isExclusive) ||
+                  Boolean(sourceDoc.exclusiveOwnerUid),
+                exclusiveOwnerUid: String(sourceDoc.exclusiveOwnerUid || ""),
+              },
+              {
+                ignoreDraft: true,
+                useDraft: false,
+                mode: isAdmin ? "edit" : "view",
+              },
+            );
+          }
+        }
+
+        if (force && isDirty) {
+          clearDraft(state.hymn.id);
+        }
+
+        showNotice("تم تحديث البيانات من السيرفر بنجاح.", "success");
+      } catch (error) {
+        console.warn("[refreshFromServer]", error);
+        showNotice(`فشل التحديث من السيرفر: ${error.message}`, "error");
+      } finally {
+        setLoadingHymns(false);
+      }
+    },
+    [isAdmin, isDirty, loadHymn, selectedHymnId, showNotice, state.hymn?.id],
+  );
+
+  const onTriggerRefresh = useCallback(() => {
+    if (isDirty) {
+      runGuardedTransition({
+        title: "تحديث من السيرفر",
+        message:
+          "لديك تغييرات غير محفوظة. تحديث النسخة من السيرفر سيؤدي إلى تجاهل هذه التغييرات.",
+        onSave: async () => {
+          await onSaveHymnToFirebase({
+            afterSave: () => onRefreshFromServer({ force: true }),
+          });
+        },
+        onDiscard: () => {
+          discardDraft();
+          onRefreshFromServer({ force: true });
+        },
+        onCancel: () => undefined,
+      });
+      return;
     }
-  }, [isAdmin, loadHymn, selectedHymnId, showNotice]);
+
+    onRefreshFromServer({ force: true });
+  }, [
+    discardDraft,
+    isDirty,
+    onRefreshFromServer,
+    onSaveHymnToFirebase,
+    runGuardedTransition,
+  ]);
 
   const onExport = async () => {
     if (!viewRef.current) return;
@@ -710,13 +982,17 @@ function AppShell() {
 
   const onDiscardDraftClick = () => {
     if (!isDirty) return;
-    const confirmed = window.confirm(
-      "تجاهل المسودة واسترجاع آخر نسخة من السيرفر؟",
-    );
+    const confirmed = window.confirm("تجاهل المسودة واسترجاع آخر نسخة محفوظة؟");
     if (!confirmed) return;
     discardDraft();
     showNotice("تم استرجاع آخر نسخة محفوظة.", "success");
   };
+
+  const onRetrySave = useCallback(() => {
+    if (!saveError) return;
+    setSaveError(null);
+    onSaveHymnToFirebase();
+  }, [onSaveHymnToFirebase, saveError]);
 
   const onSaveProjectFile = () => {
     try {
@@ -736,16 +1012,41 @@ function AppShell() {
       return;
     }
 
-    try {
-      const content = await readTextFile(file);
-      const project = parseProjectFileContent(content);
-      importProject(project);
-      showNotice("تم استيراد المشروع بنجاح.", "success");
-    } catch (error) {
-      showNotice(`فشل استيراد الملف: ${error.message}`, "error");
-    } finally {
-      event.target.value = "";
+    const doImport = async () => {
+      try {
+        const content = await readTextFile(file);
+        const project = parseProjectFileContent(content);
+        importProject(project);
+        showNotice("تم استيراد المشروع بنجاح.", "success");
+      } catch (error) {
+        showNotice(`فشل استيراد الملف: ${error.message}`, "error");
+      } finally {
+        event.target.value = "";
+      }
+    };
+
+    if (isDirty) {
+      runGuardedTransition({
+        title: "استيراد ملف مشروع",
+        message:
+          "لديك تغييرات غير محفوظة. هل تريد حفظها قبل استبدال المشروع الحالي؟",
+        onSave: async () => {
+          await onSaveHymnToFirebase({
+            afterSave: doImport,
+          });
+        },
+        onDiscard: async () => {
+          discardDraft();
+          await doImport();
+        },
+        onCancel: () => {
+          event.target.value = "";
+        },
+      });
+      return;
     }
+
+    await doImport();
   };
 
   const onResetProject = () => {
@@ -783,6 +1084,216 @@ function AppShell() {
       showNotice(`فشل تسجيل الخروج: ${error.message}`, "error");
     }
   };
+
+  const persistSharedSetlist = useCallback(
+    async (setlist) => {
+      if (
+        !db ||
+        !hasFirebaseConfig ||
+        !currentUser ||
+        !canManageSharedSetlists
+      ) {
+        return null;
+      }
+
+      const normalized = normalizeSharedSetlist({
+        ...setlist,
+        ownerUid: setlist?.ownerUid || currentUser.uid,
+        createdBy: setlist?.createdBy || currentUser.uid,
+        updatedBy: currentUser.uid,
+        updatedAt: new Date().toISOString(),
+        createdAt: setlist?.createdAt || new Date().toISOString(),
+      });
+
+      const serialized = encodeSetlistForFirestore(normalized);
+      const payload = {
+        schemaVersion: serialized.schemaVersion,
+        name: serialized.name,
+        hymnIds: serialized.hymnIds,
+        ownerUid: serialized.ownerUid,
+        createdBy: serialized.createdBy,
+        updatedBy: serialized.updatedBy,
+        createdAt: setlist?.createdAt
+          ? serialized.createdAt
+          : serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (!normalized.id) {
+        const created = await addDoc(collection(db, "setlists"), payload);
+        return {
+          ...normalized,
+          id: created.id,
+        };
+      }
+
+      await setDoc(doc(db, "setlists", normalized.id), payload, {
+        merge: true,
+      });
+      return normalized;
+    },
+    [canManageSharedSetlists, currentUser],
+  );
+
+  const onSaveSharedSetlist = useCallback(
+    async (setlist) => {
+      if (!setlist) return null;
+      const next = await persistSharedSetlist(setlist);
+      if (!next) return null;
+
+      setSharedSetlists((prev) => {
+        const existed = prev.some((item) => item.id === next.id);
+        if (!existed) {
+          return [next, ...prev];
+        }
+        return prev.map((item) => (item.id === next.id ? next : item));
+      });
+      if (next.id) {
+        setSelectedSharedSetlistId(next.id);
+      }
+      return next;
+    },
+    [persistSharedSetlist],
+  );
+
+  const onCreateSharedSetlist = useCallback(async () => {
+    if (!canManageSharedSetlists) {
+      showNotice("ليس لديك صلاحية إنشاء قوائم الخدمة المشتركة.", "error");
+      return;
+    }
+
+    const nextName = `قائمة خدمة ${sharedSetlists.length + 1}`;
+    const created = await onSaveSharedSetlist(
+      normalizeSharedSetlist({
+        id: "",
+        name: nextName,
+        hymnIds: [],
+        ownerUid: currentUser?.uid || "",
+        createdBy: currentUser?.uid || "",
+        updatedBy: currentUser?.uid || "",
+      }),
+    );
+
+    if (created?.id) {
+      showNotice("تم إنشاء قائمة الخدمة المشتركة.", "success");
+    }
+  }, [
+    canManageSharedSetlists,
+    currentUser?.uid,
+    onSaveSharedSetlist,
+    sharedSetlists.length,
+    showNotice,
+  ]);
+
+  const onDeleteSharedSetlist = useCallback(
+    async (setlistId) => {
+      if (!db || !hasFirebaseConfig || !setlistId) return;
+      if (!canManageSharedSetlists) {
+        showNotice("ليس لديك صلاحية حذف قوائم الخدمة المشتركة.", "error");
+        return;
+      }
+
+      const confirmed = window.confirm("هل تريد حذف هذه القائمة المشتركة؟");
+      if (!confirmed) return;
+
+      try {
+        await deleteDoc(doc(db, "setlists", setlistId));
+        setSharedSetlists((prev) =>
+          prev.filter((item) => item.id !== setlistId),
+        );
+        if (selectedSharedSetlistId === setlistId) {
+          setSelectedSharedSetlistId("");
+        }
+        showNotice("تم حذف قائمة الخدمة المشتركة.", "success");
+      } catch (error) {
+        showNotice(`فشل حذف قائمة الخدمة: ${error.message}`, "error");
+      }
+    },
+    [canManageSharedSetlists, selectedSharedSetlistId, showNotice],
+  );
+
+  const onAddCurrentToSharedSetlist = useCallback(
+    async (setlistId, hymnId) => {
+      if (!setlistId || !hymnId || !currentUser) return;
+      const target = sharedSetlists.find((item) => item.id === setlistId);
+      if (!target) return;
+      const nextHymnIds = target.hymnIds.includes(hymnId)
+        ? target.hymnIds
+        : [...target.hymnIds, hymnId];
+      const nextSetlist = normalizeSharedSetlist({
+        ...target,
+        hymnIds: nextHymnIds,
+      });
+      const saved = await onSaveSharedSetlist(nextSetlist);
+      if (saved) {
+        showNotice("تمت إضافة الترنيمة إلى قائمة الخدمة المشتركة.", "success");
+      }
+    },
+    [currentUser, onSaveSharedSetlist, sharedSetlists, showNotice],
+  );
+
+  const onRemoveSharedSetlistItem = useCallback(
+    async (setlistId, hymnId) => {
+      if (!setlistId || !hymnId) return;
+      const target = sharedSetlists.find((item) => item.id === setlistId);
+      if (!target) return;
+      const nextSetlist = normalizeSharedSetlist({
+        ...target,
+        hymnIds: target.hymnIds.filter((item) => item !== hymnId),
+      });
+      const saved = await onSaveSharedSetlist(nextSetlist);
+      if (saved) {
+        showNotice("تم حذف الترنيمة من القائمة المشتركة.", "success");
+      }
+    },
+    [onSaveSharedSetlist, sharedSetlists, showNotice],
+  );
+
+  const onMoveSharedSetlistItem = useCallback(
+    async (setlistId, fromIndex, direction) => {
+      if (!setlistId) return;
+      const target = sharedSetlists.find((item) => item.id === setlistId);
+      if (!target) return;
+      const nextHymnIds = reorderSetlistHymns(
+        target.hymnIds,
+        fromIndex,
+        fromIndex + direction,
+      );
+      const nextSetlist = normalizeSharedSetlist({
+        ...target,
+        hymnIds: nextHymnIds,
+      });
+      const saved = await onSaveSharedSetlist(nextSetlist);
+      if (saved) {
+        showNotice("تم تحديث ترتيب قائمة الخدمة المشتركة.", "success");
+      }
+    },
+    [onSaveSharedSetlist, sharedSetlists, showNotice],
+  );
+
+  const onRenameSharedSetlist = useCallback(
+    async (setlistId) => {
+      if (!setlistId) return;
+      const target = sharedSetlists.find((item) => item.id === setlistId);
+      if (!target) return;
+      const nextName = window.prompt(
+        "اسم قائمة الخدمة",
+        target.name || "قائمة الخدمة",
+      );
+      if (nextName === null) return;
+      const trimmed = String(nextName).trim();
+      if (!trimmed) return;
+      const nextSetlist = normalizeSharedSetlist({
+        ...target,
+        name: trimmed,
+      });
+      const saved = await onSaveSharedSetlist(nextSetlist);
+      if (saved) {
+        showNotice("تم تحديث اسم قائمة الخدمة المشتركة.", "success");
+      }
+    },
+    [onSaveSharedSetlist, sharedSetlists, showNotice],
+  );
 
   const onSaveTeamMembers = async (payload) => {
     if (
@@ -870,6 +1381,22 @@ function AppShell() {
         </div>
 
         <div className="row wrap">
+          <div
+            className={`saveStatus saveStatus--${saveState.status}`}
+            role="status"
+          >
+            <span className="saveStatusDot" aria-hidden="true" />
+            <span>{saveState.label}</span>
+            {saveState.retryable ? (
+              <button
+                type="button"
+                className="btn btnSmall"
+                onClick={onRetrySave}
+              >
+                إعادة المحاولة
+              </button>
+            ) : null}
+          </div>
           {isAdmin ? (
             <button
               className={`btn ${state.mode === "edit" ? "primary" : ""}`}
@@ -894,7 +1421,7 @@ function AppShell() {
               </button>
             </>
           ) : null}
-          <button className="btn" onClick={onRefreshFromServer}>
+          <button className="btn" onClick={onTriggerRefresh}>
             تحديث / مزامنة
           </button>
           <button className="btn" onClick={onExport} disabled={loadingExport}>
@@ -1114,6 +1641,18 @@ function AppShell() {
             currentId={selectedHymnId}
             currentTitle={state.hymn.title}
             canAdd={Boolean(selectedHymnId)}
+            canManageSharedSetlists={canManageSharedSetlists}
+            sharedSetlists={sharedSetlists}
+            selectedSharedSetlistId={selectedSharedSetlistId}
+            onSelectSharedSetlist={setSelectedSharedSetlistId}
+            onCreateSharedSetlist={onCreateSharedSetlist}
+            onDeleteSharedSetlist={onDeleteSharedSetlist}
+            onRenameSharedSetlist={onRenameSharedSetlist}
+            onAddCurrentToSharedSetlist={onAddCurrentToSharedSetlist}
+            onMoveSharedSetlistItem={onMoveSharedSetlistItem}
+            onRemoveSharedSetlistItem={onRemoveSharedSetlistItem}
+            sharedSetlistItems={selectedSharedSetlistItems}
+            sharedSetlistsLoading={sharedSetlistsLoading}
             onOpen={onOpenSetlistHymn}
           />
         </aside>
@@ -1150,6 +1689,38 @@ function AppShell() {
       >
         {isDark ? "☀" : "✦"}
       </button>
+
+      {pendingUnsafeTransition ? (
+        <div className="modalOverlay" role="dialog" aria-modal="true">
+          <div className="card confirmModal">
+            <h3>{pendingUnsafeTransition.title}</h3>
+            <p>{pendingUnsafeTransition.message}</p>
+            <div className="row wrap confirmActions">
+              <button
+                type="button"
+                className="btn primary"
+                onClick={pendingUnsafeTransition.onSave}
+              >
+                حفظ والتبديل
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={pendingUnsafeTransition.onDiscard}
+              >
+                تجاهل التعديلات
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={pendingUnsafeTransition.onCancel}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {notice ? (
         <div className={`toastNotice ${notice.type}`}>{notice.message}</div>
