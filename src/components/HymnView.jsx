@@ -334,10 +334,24 @@ const HymnView = forwardRef(function HymnView(
     setSelectedChordId(null);
   }, [hymn.id]);
 
+  const dismissChordOnEmptySpace = (event) => {
+    if (!selectedChordId || outputOptions || isExporting) return;
+    if (!(event.target instanceof Element)) return;
+    if (
+      event.target.closest(
+        'button, a[href], input, select, textarea, summary, [role="button"], [role="link"], [role="dialog"], [role="listbox"], [role="option"], [contenteditable="true"], .musicianControls',
+      )
+    ) {
+      return;
+    }
+    setSelectedChordId(null);
+  };
+
   return (
     <section
       ref={ref}
       className={`card hymnSheet hymn-viewer-container ${outputOptions ? `outputHymnSheet outputHymnSheet--${outputOptions.profile}` : ""}`}
+      onClick={dismissChordOnEmptySpace}
       dir="rtl"
       style={{ direction: "rtl", textAlign: isExporting ? "right" : undefined }}
     >

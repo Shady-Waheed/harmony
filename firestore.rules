@@ -2,29 +2,13 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function isSignedIn() {
       return request.auth != null;
     }
 
     function teamDoc() {
       return get(/databases/$(database)/documents/settings/team);
-    }
-
-    function teamMembers() {
-      return exists(/databases/$(database)/documents/settings/team)
-        ? teamDoc().data.members
-        : [];
-    }
-
-    function emailMatchesTeamMember(email) {
-      return teamMembers().filter((member) => member.email == email).size() > 0;
-    }
-
-    function teamMemberHasFlag(flagName) {
-      return isSignedIn() &&
-        emailMatchesTeamMember(request.auth.token.email) &&
-        teamMembers()
-          .filter((member) => member.email == request.auth.token.email)[0][flagName] == true;
     }
 
     function isHardcodedAdmin() {
@@ -48,24 +32,16 @@ service cloud.firestore {
         ] ||
         request.auth.uid in [
           "DELETE_UID_1"
-        ] ||
-        teamMemberHasFlag("canDeleteHymn")
+        ]
       );
     }
 
     function canModifyHymns() {
-      return isSignedIn() && (
-        isHardcodedAdmin() ||
-        teamMemberHasFlag("canEdit") ||
-        teamMemberHasFlag("canSaveFirebase")
-      );
+      return isSignedIn() && isHardcodedAdmin();
     }
 
     function canManageTeam() {
-      return isSignedIn() && (
-        isHardcodedAdmin() ||
-        teamMemberHasFlag("canManageDashboard")
-      );
+      return isSignedIn() && isHardcodedAdmin();
     }
 
     function exclusiveReadAllowed() {
@@ -83,33 +59,45 @@ service cloud.firestore {
     }
 
     match /hymns/{hymnId} {
+
       allow read: if resource == null || exclusiveReadAllowed();
 
-      allow create: if isSignedIn() && canModifyHymns() &&
+      allow create: if isSignedIn() &&
+        canModifyHymns() &&
         request.resource.data.title is string &&
         request.resource.data.key is string &&
         request.resource.data.sections is list &&
-        (!request.resource.data.isExclusive || request.resource.data.exclusiveOwnerUid == request.auth.uid);
+        (
+          !request.resource.data.isExclusive ||
+          request.resource.data.exclusiveOwnerUid == request.auth.uid
+        );
 
-      allow update: if isSignedIn() && canModifyHymns() &&
+      allow update: if isSignedIn() &&
+        canModifyHymns() &&
         request.resource.data.title is string &&
         request.resource.data.key is string &&
         request.resource.data.sections is list &&
-        (!request.resource.data.isExclusive || request.resource.data.exclusiveOwnerUid == request.auth.uid);
+        (
+          !request.resource.data.isExclusive ||
+          request.resource.data.exclusiveOwnerUid == request.auth.uid
+        );
 
       allow delete: if canDeleteHymns();
     }
 
     match /setlists/{setlistId} {
+
       allow read: if isSignedIn();
 
-      allow create: if isSignedIn() && canModifyHymns() &&
+      allow create: if isSignedIn() &&
+        canModifyHymns() &&
         request.resource.data.ownerUid == request.auth.uid &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.updatedBy == request.auth.uid &&
         isValidSharedSetlist();
 
-      allow update: if isSignedIn() && canModifyHymns() &&
+      allow update: if isSignedIn() &&
+        canModifyHymns() &&
         resource.data.ownerUid == request.auth.uid &&
         request.resource.data.ownerUid == resource.data.ownerUid &&
         request.resource.data.createdBy == resource.data.createdBy &&
@@ -117,13 +105,18 @@ service cloud.firestore {
         isValidSharedSetlist();
 
       allow delete: if isSignedIn() && (
-        resource.data.ownerUid == request.auth.uid || canDeleteHymns()
+        resource.data.ownerUid == request.auth.uid ||
+        canDeleteHymns()
       );
     }
 
     match /settings/{docId} {
+
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && canManageTeam();
+
+      allow create, update: if isSignedIn() &&
+        canManageTeam();
+
       allow delete: if false;
     }
   }
