@@ -14,6 +14,7 @@ import {
   normalizeCanonicalHymn,
 } from "../utils/hymnFirestore";
 import { clearDraft, getDraft, writeDraft } from "../utils/hymnDrafts";
+import { recordRecentHymn } from "../utils/hymnLibrary";
 
 const STORAGE_KEY = "harmony-notes-hymn-v2";
 const HISTORY_LIMIT = 50;
@@ -64,6 +65,7 @@ function withHistoryFields(project) {
     undoStack: [],
     redoStack: [],
     lastSavedHymn: project.lastSavedHymn || null,
+    transposeOffset: Number(project.transposeOffset) || 0,
   };
 }
 
@@ -75,6 +77,7 @@ function normalizeProject(project) {
     mode: project?.mode === "view" ? "view" : "edit",
     theme: project?.theme === "light" ? "light" : "dark",
     lastSavedHymn: null,
+    transposeOffset: 0,
   });
 }
 
@@ -86,6 +89,7 @@ function createFreshState(theme = "dark") {
     mode: "edit",
     theme: theme === "light" ? "light" : "dark",
     lastSavedHymn: cloneHymn(hymn),
+    transposeOffset: 0,
   });
 }
 
@@ -126,7 +130,7 @@ function loadInitial() {
   }
 }
 
-function transposeHymnShape(hymn, steps) {
+export function transposeHymnShape(hymn, steps) {
   if (!steps) return hymn;
 
   return {
@@ -239,6 +243,7 @@ export function HymnProvider({ children }) {
 
     const loadHymn = (hymn, options = {}) => {
       const normalized = normalizeHymn(hymn);
+      if (normalized.id) recordRecentHymn(String(normalized.id));
       const forceFreshServerData = Boolean(
         options.ignoreDraft || options.useDraft === false,
       );
@@ -269,6 +274,7 @@ export function HymnProvider({ children }) {
         lastSavedHymn: cloneHymn(working),
         undoStack: [],
         redoStack: [],
+        transposeOffset: 0,
         mode: options.mode || prev.mode,
       }));
     };
@@ -283,6 +289,7 @@ export function HymnProvider({ children }) {
         lastSavedHymn: cloneHymn(empty),
         undoStack: [],
         redoStack: [],
+        transposeOffset: 0,
         mode: "edit",
       }));
     };
@@ -396,7 +403,14 @@ export function HymnProvider({ children }) {
 
     const transposeHymn = (steps) => {
       if (!steps) return;
-      setState((prev) => applyHymn(prev, transposeHymnShape(prev.hymn, steps)));
+      setState((prev) => ({
+        ...prev,
+        transposeOffset: (Number(prev.transposeOffset) || 0) + Number(steps),
+      }));
+    };
+
+    const resetTranspose = () => {
+      setState((prev) => ({ ...prev, transposeOffset: 0 }));
     };
 
     const undo = () => {
@@ -520,6 +534,7 @@ export function HymnProvider({ children }) {
       syncLastSavedIfEmpty,
       saveDraftNow,
       discardDraft,
+      resetTranspose,
     };
   }, [setPersistFullHymn]);
 

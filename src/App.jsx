@@ -45,7 +45,11 @@ import {
   offlineSaveNotice,
 } from "./hooks/useOfflineSync";
 import { hymnShareUrl, useHymnRoute } from "./hooks/useHymnRoute";
-import { hymnMatchesQuery } from "./utils/hymnSearch";
+import {
+  buildHymnSearchIndex,
+  filterHymnSearchIndex,
+  getHymnKeyOptions,
+} from "./utils/hymnSearch";
 import SetlistPanel from "./components/SetlistPanel";
 import {
   decodeStoredHymn,
@@ -69,6 +73,14 @@ import {
   shouldBlockBeforeUnload,
   shouldPromptBeforeDiscard,
 } from "./utils/saveState";
+import {
+  HYMN_LIBRARY_EVENT,
+  isFavorite,
+  readFavoriteIds,
+  readRecentHymnIds,
+  resolveHymnsByIds,
+  toggleFavorite,
+} from "./utils/hymnLibrary";
 
 async function fetchHymnDocFromServer(hymnId) {
   if (!db || !hasFirebaseConfig || !hymnId) {
@@ -144,12 +156,17 @@ function AppShell() {
   const [hymns, setHymns] = useState([]);
   const [loadingHymns, setLoadingHymns] = useState(true);
   const [selectedHymnId, setSelectedHymnId] = useState("");
+  const [favoriteIds, setFavoriteIds] = useState(readFavoriteIds);
+  const [recentHymnIds, setRecentHymnIds] = useState(readRecentHymnIds);
   const [savingHymn, setSavingHymn] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [deletingHymn, setDeletingHymn] = useState(false);
   const [notice, setNotice] = useState(null);
   const [pendingUnsafeTransition, setPendingUnsafeTransition] = useState(null);
   const [hymnSearchQuery, setHymnSearchQuery] = useState("");
+  const [hymnKeyFilter, setHymnKeyFilter] = useState("");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [recentOnly, setRecentOnly] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const viewRef = useRef(null);
@@ -221,11 +238,74 @@ function AppShell() {
     [hymns, currentUser],
   );
 
+  const hymnSearchIndex = useMemo(
+    () => buildHymnSearchIndex(visibleHymns),
+    [visibleHymns],
+  );
+  const hymnKeyOptions = useMemo(
+    () => getHymnKeyOptions(hymnSearchIndex),
+    [hymnSearchIndex],
+  );
   const filteredHymns = useMemo(
     () =>
-      visibleHymns.filter((item) => hymnMatchesQuery(item, hymnSearchQuery)),
-    [visibleHymns, hymnSearchQuery],
+      filterHymnSearchIndex(hymnSearchIndex, {
+        query: hymnSearchQuery,
+        key: hymnKeyFilter,
+        favoritesOnly,
+        favoriteIds,
+        recentOnly,
+        recentIds: recentHymnIds,
+      }),
+    [
+      favoriteIds,
+      favoritesOnly,
+      hymnKeyFilter,
+      hymnSearchIndex,
+      hymnSearchQuery,
+      recentHymnIds,
+      recentOnly,
+    ],
   );
+  const visibleHymnsById = useMemo(
+    () => new Map(visibleHymns.map((item) => [item.id, item])),
+    [visibleHymns],
+  );
+  const favoriteHymns = useMemo(
+    () => resolveHymnsByIds(favoriteIds, visibleHymns),
+    [favoriteIds, visibleHymns],
+  );
+  const recentHymns = useMemo(
+    () => resolveHymnsByIds(recentHymnIds, visibleHymns),
+    [recentHymnIds, visibleHymns],
+  );
+  const selectedHymnIsAccessible = visibleHymnsById.has(selectedHymnId);
+  const selectedHymnIsFavorite = isFavorite(selectedHymnId, favoriteIds);
+
+  useEffect(() => {
+    const onLibraryChange = (event) => {
+      if (event.detail?.kind === "favorites") {
+        setFavoriteIds(event.detail.hymnIds || readFavoriteIds());
+      }
+      if (event.detail?.kind === "recent") {
+        setRecentHymnIds(event.detail.hymnIds || readRecentHymnIds());
+      }
+    };
+    const onStorage = (event) => {
+      if (!event.key || event.key.includes("favorites")) {
+        setFavoriteIds(readFavoriteIds());
+      }
+      if (!event.key || event.key.includes("recent")) {
+        setRecentHymnIds(readRecentHymnIds());
+      }
+    };
+
+    window.addEventListener(HYMN_LIBRARY_EVENT, onLibraryChange);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(HYMN_LIBRARY_EVENT, onLibraryChange);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   const teamMembersForDashboard = useMemo(
     () => teamData?.members || [],
@@ -1635,6 +1715,86 @@ function AppShell() {
                 ? "مستخدم مسجل (قراءة فقط)"
                 : "وضع القراءة فقط"}
           </p>
+          <section className="hymnLibrary" aria-label="My library">
+            <div className="row between sidebarHeader">
+              <h3>مكتبتي</h3>
+              {selectedHymnIsAccessible ? (
+                <button
+                  type="button"
+                  className={`btn favoriteToggle ${selectedHymnIsFavorite ? "isFavorite" : ""}`}
+                  aria-pressed={selectedHymnIsFavorite}
+                  aria-label={
+                    selectedHymnIsFavorite
+                      ? "إزالة من المفضلة"
+                      : "إضافة إلى المفضلة"
+                  }
+                  title={
+                    selectedHymnIsFavorite
+                      ? "إزالة من المفضلة"
+                      : "إضافة إلى المفضلة"
+                  }
+                  onClick={() =>
+                    setFavoriteIds(toggleFavorite(selectedHymnId, favoriteIds))
+                  }
+                >
+                  <span aria-hidden="true">
+                    {selectedHymnIsFavorite ? "★" : "☆"}
+                  </span>
+                  <span>
+                    {selectedHymnIsFavorite ? "مفضلة" : "أضف للمفضلة"}
+                  </span>
+                </button>
+              ) : null}
+            </div>
+            <details className="libraryGroup">
+              <summary>
+                <span>المفضلة</span>
+                <small>{favoriteHymns.length}</small>
+              </summary>
+              {favoriteHymns.length ? (
+                <ul className="hymnList libraryHymnList">
+                  {favoriteHymns.map((hymnItem) => (
+                    <li key={hymnItem.id}>
+                      <button
+                        type="button"
+                        className={`hymnListItem ${selectedHymnId === hymnItem.id ? "active" : ""}`}
+                        onClick={() => onSelectHymn(hymnItem)}
+                      >
+                        <span>{hymnItem.title || "ترنيمة بدون عنوان"}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="sidebarHint">لا توجد ترانيم مفضلة متاحة.</p>
+              )}
+            </details>
+            <details className="libraryGroup" open>
+              <summary>
+                <span>استُخدمت مؤخرًا</span>
+                <small>{recentHymns.length}</small>
+              </summary>
+              {recentHymns.length ? (
+                <ul className="hymnList libraryHymnList">
+                  {recentHymns.map((hymnItem, index) => (
+                    <li key={hymnItem.id}>
+                      <button
+                        type="button"
+                        className={`hymnListItem ${selectedHymnId === hymnItem.id ? "active" : ""}`}
+                        onClick={() => onSelectHymn(hymnItem)}
+                      >
+                        <span>
+                          {index + 1}. {hymnItem.title || "ترنيمة بدون عنوان"}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="sidebarHint">ستظهر هنا الترانيم التي تفتحها.</p>
+              )}
+            </details>
+          </section>
           <div className="row between sidebarHeader">
             <h3>الترانيم المحفوظة</h3>
             {isAdmin ? (
@@ -1654,17 +1814,53 @@ function AppShell() {
                 id="hymn-search"
                 type="search"
                 className="input hymnSearchInput"
-                placeholder="بحث بالعنوان أو الكلمات…"
+                placeholder="العنوان أو الكلمات أو المقام أو الكورد…"
                 value={hymnSearchQuery}
                 onChange={(e) => setHymnSearchQuery(e.target.value)}
                 disabled={loadingHymns}
                 autoComplete="off"
                 spellCheck={false}
-                aria-label="بحث بالعنوان أو الكلمات"
+                aria-label="البحث في العنوان والكلمات والمقام والكورد"
               />
+              <div className="hymnSearchFilters" aria-label="مرشحات الترانيم">
+                <select
+                  className="input hymnKeyFilter"
+                  value={hymnKeyFilter}
+                  onChange={(event) => setHymnKeyFilter(event.target.value)}
+                  disabled={loadingHymns}
+                  aria-label="تصفية حسب المقام المحفوظ"
+                >
+                  <option value="">كل المقامات</option>
+                  {hymnKeyOptions.map((key) => (
+                    <option key={key} value={key}>
+                      {key}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className={`btn hymnFilterToggle ${favoritesOnly ? "active" : ""}`}
+                  aria-pressed={favoritesOnly}
+                  onClick={() => setFavoritesOnly((active) => !active)}
+                >
+                  المفضلة
+                </button>
+                <button
+                  type="button"
+                  className={`btn hymnFilterToggle ${recentOnly ? "active" : ""}`}
+                  aria-pressed={recentOnly}
+                  onClick={() => setRecentOnly((active) => !active)}
+                >
+                  الأخيرة
+                </button>
+              </div>
               {!loadingHymns && hymns.length > 0 ? (
                 <p className="hymnSearchMeta" aria-live="polite">
-                  {filteredHymns.length === visibleHymns.length
+                  {filteredHymns.length === visibleHymns.length &&
+                  !hymnSearchQuery.trim() &&
+                  !hymnKeyFilter &&
+                  !favoritesOnly &&
+                  !recentOnly
                     ? `${visibleHymns.length} ترنيمة`
                     : `${filteredHymns.length} من ${visibleHymns.length}`}
                 </p>
@@ -1772,23 +1968,36 @@ function AppShell() {
           {hasFirebaseConfig &&
           !loadingHymns &&
           hymns.length > 0 &&
-          filteredHymns.length === 0 ? (
+          filteredHymns.length === 0 &&
+          (hymnSearchQuery.trim() ||
+            hymnKeyFilter ||
+            favoritesOnly ||
+            recentOnly) ? (
             <p className="sidebarHint">
-              لا توجد ترانيم تطابق «{hymnSearchQuery.trim() || "…"}». جرّب حروف
-              أقل أو امسح البحث.
+              لا توجد ترانيم تطابق البحث والمرشحات الحالية.
             </p>
           ) : null}
 
           {hasFirebaseConfig && !loadingHymns && filteredHymns.length > 0 ? (
-            <ul className="hymnList">
+            <ul className="hymnList hymnSearchResultList">
               {filteredHymns.map((hymnItem) => (
                 <li key={hymnItem.id}>
                   <button
+                    type="button"
                     className={`hymnListItem ${selectedHymnId === hymnItem.id ? "active" : ""}`}
                     onClick={() => onSelectHymn(hymnItem)}
+                    aria-label={`${hymnItem.title || "ترنيمة بدون عنوان"}, ${hymnItem.key || "مقام غير محدد"}${isFavorite(hymnItem.id, favoriteIds) ? ", مفضلة" : ""}`}
                   >
-                    <span>{hymnItem.title || "ترنيمة بدون عنوان"}</span>
-                    {hymnItem.isExclusive ? <small> (حصرية)</small> : null}
+                    <span className="hymnSearchResultTitle">
+                      {hymnItem.title || "ترنيمة بدون عنوان"}
+                      {hymnItem.isExclusive ? <small> (حصرية)</small> : null}
+                    </span>
+                    <span className="hymnSearchResultMeta" dir="ltr">
+                      {isFavorite(hymnItem.id, favoriteIds) ? (
+                        <span aria-hidden="true">★</span>
+                      ) : null}
+                      {hymnItem.key || "—"}
+                    </span>
                   </button>
                 </li>
               ))}

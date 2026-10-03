@@ -1,5 +1,5 @@
-import { forwardRef } from "react";
-import { useHymnStore } from "../store/hymnStore.jsx";
+import { forwardRef, useMemo, useState } from "react";
+import { transposeHymnShape, useHymnStore } from "../store/hymnStore.jsx";
 import { buildDisplayCells, stretchArabicWord } from "../utils/lineChords";
 import {
   formatChordLabel,
@@ -7,6 +7,94 @@ import {
   getChordOrderedNoteNames,
   getChordVoicingKeyIndexes,
 } from "../utils/chords";
+import {
+  getChordPianoInfo,
+  getDisplayedKey,
+  getTransposeLabel,
+} from "../utils/pianoChords";
+
+function TransposeControls({ hymnKey, transposeOffset, onTranspose, onReset }) {
+  const keyLabel = getDisplayedKey(hymnKey || "", transposeOffset || 0);
+  const hasTranspose = Number(transposeOffset || 0) !== 0;
+
+  return (
+    <div className="musicianControls" aria-label="Music controls">
+      <div className="transposeControlGroup">
+        <button
+          type="button"
+          className="btn compactTransposeBtn"
+          onClick={() => onTranspose?.(-1)}
+          aria-label="Transpose down semitone"
+          title="Transpose down"
+        >
+          −
+        </button>
+        <span className="transposeReadout" aria-live="polite">
+          {getTransposeLabel(transposeOffset || 0)}
+        </span>
+        <button
+          type="button"
+          className="btn compactTransposeBtn"
+          onClick={() => onTranspose?.(1)}
+          aria-label="Transpose up semitone"
+          title="Transpose up"
+        >
+          +
+        </button>
+        {hasTranspose ? (
+          <button
+            type="button"
+            className="btn compactTransposeBtn reset"
+            onClick={onReset}
+            aria-label="Reset transpose"
+          >
+            Reset
+          </button>
+        ) : null}
+      </div>
+      <div className="sheetKeyPill singerKeyPill">
+        <small>Key</small>
+        <strong>{keyLabel || "—"}</strong>
+      </div>
+    </div>
+  );
+}
+
+function ChordDetailCard({ entry }) {
+  const info = getChordPianoInfo(entry?.chord, entry?.inversion);
+  if (!info.notes?.length) return null;
+
+  return (
+    <div className="chordDetailPanel" role="dialog" aria-label="Chord details">
+      <div className="chordDetailHeader">
+        <span className="chordDetailName">{info.label || entry?.chord}</span>
+        {info.inversion ? (
+          <span className="chordDetailTag">{info.inversion}</span>
+        ) : null}
+      </div>
+      <div className="chordDetailGrid">
+        <div>
+          <span className="chordDetailLabel">Root</span>
+          <strong>{info.root || "—"}</strong>
+        </div>
+        <div>
+          <span className="chordDetailLabel">Quality</span>
+          <strong>{info.quality || "—"}</strong>
+        </div>
+        {info.bass ? (
+          <div>
+            <span className="chordDetailLabel">Bass</span>
+            <strong>{info.bass}</strong>
+          </div>
+        ) : null}
+      </div>
+      <div className="chordDetailNotesWrap">
+        <span className="chordDetailLabel">Notes</span>
+        <strong>{info.notes.join(" - ")}</strong>
+      </div>
+    </div>
+  );
+}
 
 const WHITE_KEY_STEPS = [
   { rel: 0, note: "C" },
@@ -155,6 +243,7 @@ function chordEntriesFromLetter(letter = {}) {
 
 function ChordLabels({ entries = [], isExporting = false }) {
   const visibleEntries = entries.filter((entry) => Boolean(entry.chord));
+  const [activeChordKey, setActiveChordKey] = useState("");
 
   return (
     <span
@@ -167,42 +256,62 @@ function ChordLabels({ entries = [], isExporting = false }) {
         alignItems: "baseline",
       }}
     >
-      {visibleEntries.map((entry, index) => (
-        <span className="lyricWordChord" key={`${entry.chord}-${index}`}>
-          <span
-            className="chord hasPreview"
-            tabIndex={0}
-            style={
-              isExporting
-                ? {
-                    background: "transparent",
-                    backgroundColor: "transparent",
-                    border: "none",
-                    borderColor: "transparent",
-                    color: "#c0392b",
-                    boxShadow: "none",
-                    padding: "0",
-                    fontWeight: "bold",
-                  }
-                : undefined
-            }
-          >
-            {formatChordLabel(entry.chord, entry.inversion)}
-            <ChordPianoPreview
-              chord={entry.chord}
-              inversion={entry.inversion}
-            />
+      {visibleEntries.map((entry, index) => {
+        const entryKey = `${entry.chord}-${index}`;
+        const isActive = activeChordKey === entryKey && !isExporting;
+
+        return (
+          <span className="lyricWordChord" key={entryKey}>
+            <button
+              type="button"
+              className={`chord hasPreview ${isActive ? "isActive" : ""}`}
+              style={
+                isExporting
+                  ? {
+                      background: "transparent",
+                      backgroundColor: "transparent",
+                      border: "none",
+                      borderColor: "transparent",
+                      color: "#c0392b",
+                      boxShadow: "none",
+                      padding: "0",
+                      fontWeight: "bold",
+                    }
+                  : undefined
+              }
+              onClick={() =>
+                setActiveChordKey((current) =>
+                  current === entryKey ? "" : entryKey,
+                )
+              }
+              aria-expanded={isActive}
+              aria-label={`Chord ${formatChordLabel(entry.chord, entry.inversion)}`}
+            >
+              {formatChordLabel(entry.chord, entry.inversion)}
+              {!isExporting ? (
+                <ChordPianoPreview
+                  chord={entry.chord}
+                  inversion={entry.inversion}
+                />
+              ) : null}
+            </button>
+            {isActive ? <ChordDetailCard entry={entry} /> : null}
           </span>
-        </span>
-      ))}
+        );
+      })}
     </span>
   );
 }
 
 const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
-  const { state } = useHymnStore();
-  const { hymn } = state;
-  const hasSections = (hymn.sections || []).some(
+  const { state, transposeHymn, resetTranspose } = useHymnStore();
+  const { hymn, transposeOffset } = state;
+  const displayedHymn = useMemo(
+    () => transposeHymnShape(hymn, transposeOffset || 0),
+    [hymn, transposeOffset],
+  );
+  const displayedKey = getDisplayedKey(hymn.key || "", transposeOffset || 0);
+  const hasSections = (displayedHymn.sections || []).some(
     (section) => (section.lines || []).length > 0,
   );
 
@@ -226,14 +335,18 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
           <p className="sheetKicker">Harmony Notes</p>
           <h1>{hymn.title || "ترنيمة بدون عنوان"}</h1>
           <div className="sheetMeta">
-            <span className="sheetKeyPill">
-              <small>Key</small>
-              <strong>{hymn.key || "—"}</strong>
-            </span>
             <span className="sheetMetaHint">
-              مرّر على الكورد لمعاينة البيانو
+              {Number(transposeOffset || 0) !== 0
+                ? `Current key: ${displayedKey || "—"} • Saved key: ${hymn.key || "—"}`
+                : `Current key: ${displayedKey || "—"}`}
             </span>
           </div>
+          <TransposeControls
+            hymnKey={hymn.key}
+            transposeOffset={transposeOffset || 0}
+            onTranspose={transposeHymn}
+            onReset={resetTranspose}
+          />
         </header>
 
         {!hasSections ? (
@@ -242,7 +355,7 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
           </p>
         ) : null}
 
-        {(hymn.sections || []).map((section, sectionIndex) => (
+        {(displayedHymn.sections || []).map((section, sectionIndex) => (
           <article key={section.id} className="sheetSection">
             <div className="sheetSectionHead">
               <span className="sheetSectionIndex">
@@ -285,10 +398,12 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                             const fromLetters = (cell.letters || []).flatMap(
                               (letter) => chordEntriesFromLetter(letter),
                             );
-                            if (fromLetters.length) return fromLetters.toReversed();
-                            return (Array.isArray(cell.chords)
-                              ? cell.chords
-                              : [cell.chord]
+                            if (fromLetters.length)
+                              return fromLetters.toReversed();
+                            return (
+                              Array.isArray(cell.chords)
+                                ? cell.chords
+                                : [cell.chord]
                             )
                               .filter(Boolean)
                               .map((chord, chordIndex) => ({

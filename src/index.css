@@ -151,6 +151,61 @@ body {
   cursor: not-allowed;
 }
 
+.hymnSearchFilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.1rem 0 0.35rem;
+}
+
+.hymnKeyFilter {
+  flex: 1 1 110px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.hymnFilterToggle {
+  flex: 1 1 auto;
+  min-height: 36px;
+  padding: 0.32rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+.hymnFilterToggle.active {
+  border-color: color-mix(in srgb, var(--primary) 68%, var(--border));
+  background: color-mix(in srgb, var(--primary) 20%, var(--surface));
+  color: var(--text);
+}
+
+.hymnSearchResultList .hymnListItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  min-height: 44px;
+}
+
+.hymnSearchResultTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.hymnSearchResultMeta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .hymnSearchMeta {
   margin: 0;
   font-size: 0.78rem;
@@ -271,6 +326,78 @@ body {
   margin-top: 0.9rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
+}
+
+.hymnLibrary {
+  margin: 0.65rem 0 0.9rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.hymnLibrary > .sidebarHeader {
+  margin-bottom: 0.35rem;
+}
+
+.favoriteToggle {
+  min-height: 38px;
+  padding: 0.35rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.favoriteToggle > span:first-child {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.favoriteToggle.isFavorite {
+  color: #9b6813;
+  border-color: color-mix(in srgb, #e6ae43 55%, var(--border));
+  background: color-mix(in srgb, #e6ae43 12%, var(--surface));
+}
+
+.libraryGroup {
+  margin-top: 0.25rem;
+}
+
+.libraryGroup > summary {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.libraryGroup > summary:hover {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+}
+
+.libraryGroup > summary small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  direction: ltr;
+}
+
+.libraryHymnList {
+  max-height: 22vh;
+  margin-top: 0.2rem;
+}
+
+.libraryHymnList .hymnListItem {
+  min-height: 42px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
 }
 
 .setlistList {
@@ -1128,6 +1255,136 @@ body {
   font-family: var(--font-chord);
   font-size: 1.05rem;
   font-weight: 800;
+}
+
+.musicianControls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.7rem;
+}
+
+.transposeControlGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--sheet-rule);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sheet-pill) 84%, transparent);
+}
+
+.compactTransposeBtn {
+  min-width: 2.3rem !important;
+  min-height: 2.1rem !important;
+  padding: 0.35rem 0.5rem !important;
+  font-size: 1.15rem !important;
+  line-height: 1;
+}
+
+.compactTransposeBtn.reset {
+  min-width: auto !important;
+  padding-inline: 0.7rem !important;
+  font-size: 0.7rem !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.transposeReadout {
+  min-width: 2.2rem;
+  text-align: center;
+  font-family: var(--font-chord);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--chord);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.singerKeyPill {
+  min-height: 2.25rem;
+}
+
+.chordDetailPanel {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.5rem);
+  z-index: 30;
+  width: min(260px, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 0.7rem 0.75rem 0.68rem;
+  color: var(--text);
+}
+
+.lyricWordChord {
+  position: relative;
+}
+
+.chordDetailHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.chordDetailName {
+  font-weight: 800;
+  color: var(--chord);
+  font-family: var(--font-chord);
+}
+
+.chordDetailTag {
+  padding: 0.14rem 0.38rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 18%, var(--panel));
+  color: var(--primary);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.chordDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.7rem;
+  margin-bottom: 0.45rem;
+}
+
+.chordDetailGrid > div,
+.chordDetailNotesWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.chordDetailLabel {
+  font-size: 0.63rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chordDetailNotesWrap {
+  padding-top: 0.15rem;
+}
+
+.chordDetailNotesWrap strong {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.hymnSheet .chord {
+  cursor: pointer;
+}
+
+.hymnSheet .chord.isActive {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 62%, transparent) !important;
 }
 
 .sheetMetaHint {
