@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminDashboard from "./components/AdminDashboard";
 import HymnEditor from "./components/HymnEditor";
 import HymnView from "./components/HymnView";
+import ServiceMode from "./components/ServiceMode";
 import { HymnProvider, useHymnStore } from "./store/hymnStore.jsx";
 import { exportNodeToPng } from "./utils/exportImage";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
@@ -56,6 +57,13 @@ import {
   normalizeSharedSetlist,
   reorderSetlistHymns,
 } from "./utils/setlistFirestore";
+import {
+  findNextServiceIndex,
+  loadServiceModeFromStorage,
+  normalizeServiceSetlist,
+  resolveServiceIndex,
+  saveServiceModeToStorage,
+} from "./utils/serviceMode";
 import {
   resolveSaveState,
   shouldBlockBeforeUnload,
@@ -159,6 +167,9 @@ function AppShell() {
   const [sharedSetlists, setSharedSetlists] = useState([]);
   const [sharedSetlistsLoading, setSharedSetlistsLoading] = useState(false);
   const [selectedSharedSetlistId, setSelectedSharedSetlistId] = useState("");
+  const [serviceMode, setServiceMode] = useState(() =>
+    loadServiceModeFromStorage(),
+  );
 
   const {
     status: syncStatus,
@@ -244,6 +255,22 @@ function AppShell() {
       })
       .filter((item) => item.id);
   }, [hymns, selectedSharedSetlist]);
+
+  const canAccessHymnById = useCallback(
+    (hymnId) => {
+      if (!hymnId) return false;
+      const hymnDoc = hymns.find((item) => item.id === hymnId);
+      if (!hymnDoc) return false;
+
+      const exclusiveOwnerUid = String(hymnDoc.exclusiveOwnerUid || "");
+      const isExclusive =
+        Boolean(hymnDoc.isExclusive) || exclusiveOwnerUid.length > 0;
+      if (!isExclusive) return true;
+      if (!currentUser) return false;
+      return exclusiveOwnerUid === String(currentUser.uid || "");
+    },
+    [currentUser, hymns],
+  );
 
   const showNotice = useCallback((message, type = "info") => {
     setNotice({ message, type });
@@ -438,6 +465,16 @@ function AppShell() {
       setShowAdminDashboard(false);
     }
   }, [currentUser, teamData]);
+
+  useEffect(() => {
+    if (serviceMode) {
+      setMode("view");
+      saveServiceModeToStorage(serviceMode);
+      return;
+    }
+
+    saveServiceModeToStorage(null);
+  }, [serviceMode, setMode]);
 
   useEffect(() => {
     if (!isAdmin && state.mode !== "view") {
@@ -975,6 +1012,113 @@ function AppShell() {
     onSelectHymn(hymnDoc);
   };
 
+  const onStartServiceMode = useCallback(
+    ({
+      setlistId = "",
+      title = "قائمة الخدمة",
+      hymnIds = [],
+      source = "local",
+    }) => {
+      const nextSetlist = normalizeServiceSetlist({
+        setlistId,
+        title,
+        source,
+        hymnIds,
+        currentIndex: 0,
+      });
+
+      if (!nextSetlist.hymnIds.length) {
+        showNotice(
+          "لا توجد ترانيم في هذه القائمة للعرض في وضع الخدمة.",
+          "error",
+        );
+        return;
+      }
+
+      const activeIndex = findNextServiceIndex(
+        nextSetlist.hymnIds,
+        0,
+        1,
+        (hymnId) => canAccessHymnById(hymnId),
+      );
+      setServiceMode({ ...nextSetlist, currentIndex: activeIndex });
+    },
+    [canAccessHymnById, showNotice],
+  );
+
+  const onExitServiceMode = useCallback(() => {
+    setServiceMode(null);
+  }, []);
+
+  const onMoveServiceMode = useCallback(
+    (direction) => {
+      if (!serviceMode) return;
+      const nextIndex = findNextServiceIndex(
+        serviceMode.hymnIds,
+        serviceMode.currentIndex,
+        direction,
+        (hymnId) => canAccessHymnById(hymnId),
+      );
+      setServiceMode((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentIndex: nextIndex,
+        };
+      });
+    },
+    [canAccessHymnById, serviceMode],
+  );
+
+  const onSelectServiceIndex = useCallback(
+    (index) => {
+      if (!serviceMode) return;
+      const safeIndex = resolveServiceIndex(serviceMode.hymnIds, index);
+      setServiceMode((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentIndex: safeIndex,
+        };
+      });
+    },
+    [serviceMode],
+  );
+
+  useEffect(() => {
+    if (!serviceMode) return;
+
+    const activeIndex = resolveServiceIndex(
+      serviceMode.hymnIds,
+      serviceMode.currentIndex,
+    );
+    const currentHymnId = serviceMode.hymnIds[activeIndex];
+    if (!currentHymnId || !canAccessHymnById(currentHymnId)) {
+      return;
+    }
+
+    const hymnDoc = hymns.find((item) => item.id === currentHymnId);
+    if (!hymnDoc) return;
+
+    const canonicalDoc = decodeStoredHymn(hymnDoc);
+    loadHymn(
+      {
+        id: canonicalDoc.id || hymnDoc.id,
+        title: canonicalDoc.title || "",
+        key: canonicalDoc.key || "",
+        sections: canonicalDoc.sections || [],
+        isExclusive:
+          Boolean(hymnDoc.isExclusive) || Boolean(hymnDoc.exclusiveOwnerUid),
+        exclusiveOwnerUid: String(hymnDoc.exclusiveOwnerUid || ""),
+      },
+      {
+        ignoreDraft: true,
+        useDraft: false,
+        mode: "view",
+      },
+    );
+  }, [canAccessHymnById, hymns, loadHymn, serviceMode]);
+
   const onSaveDraftClick = () => {
     saveDraftNow();
     showNotice("تم حفظ المسودة على هذا الجهاز.", "success");
@@ -1330,6 +1474,20 @@ function AppShell() {
     }
   };
 
+  if (serviceMode) {
+    return (
+      <ServiceMode
+        serviceMode={serviceMode}
+        hymns={hymns}
+        currentUser={currentUser}
+        onExit={onExitServiceMode}
+        onMove={onMoveServiceMode}
+        onSelectIndex={onSelectServiceIndex}
+        canReadHymn={canAccessHymnById}
+      />
+    );
+  }
+
   if (showAdminDashboard && canManageTeam) {
     return (
       <div className={`app ${state.theme}`} dir="rtl" lang="ar">
@@ -1651,6 +1809,7 @@ function AppShell() {
             onAddCurrentToSharedSetlist={onAddCurrentToSharedSetlist}
             onMoveSharedSetlistItem={onMoveSharedSetlistItem}
             onRemoveSharedSetlistItem={onRemoveSharedSetlistItem}
+            onStartServiceMode={onStartServiceMode}
             sharedSetlistItems={selectedSharedSetlistItems}
             sharedSetlistsLoading={sharedSetlistsLoading}
             onOpen={onOpenSetlistHymn}

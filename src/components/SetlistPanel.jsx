@@ -16,6 +16,7 @@ export default function SetlistPanel({
   onAddCurrentToSharedSetlist,
   onMoveSharedSetlistItem,
   onRemoveSharedSetlistItem,
+  onStartServiceMode,
   sharedSetlistItems = [],
   sharedSetlistsLoading = false,
 }) {
@@ -74,49 +75,67 @@ export default function SetlistPanel({
       {items.length === 0 ? (
         <p className="sidebarHint">لا توجد ترانيم في قائمة الخدمة بعد.</p>
       ) : (
-        <ul className="hymnList setlistList">
-          {items.map((item, index) => (
-            <li key={item.id} className="setlistRow">
-              <button
-                type="button"
-                className={`hymnListItem ${currentId === item.id ? "active" : ""}`}
-                onClick={() => onOpen(item.id)}
-              >
-                <span>
-                  {index + 1}. {item.title}
-                </span>
-              </button>
-              <div className="setlistRowActions">
+        <>
+          <div className="row wrap sidebarActions">
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() =>
+                onStartServiceMode?.({
+                  setlistId: "local",
+                  title: "قائمة الخدمة المحلية",
+                  hymnIds: items.map((item) => item.id),
+                  source: "local",
+                })
+              }
+            >
+              بدء وضع الخدمة
+            </button>
+          </div>
+          <ul className="hymnList setlistList">
+            {items.map((item, index) => (
+              <li key={item.id} className="setlistRow">
                 <button
                   type="button"
-                  className="btn setlistIconBtn"
-                  onClick={() => moveItem(index, -1)}
-                  disabled={index === 0}
-                  aria-label="تحريك لأعلى"
+                  className={`hymnListItem ${currentId === item.id ? "active" : ""}`}
+                  onClick={() => onOpen(item.id)}
                 >
-                  ↑
+                  <span>
+                    {index + 1}. {item.title}
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  className="btn setlistIconBtn"
-                  onClick={() => moveItem(index, 1)}
-                  disabled={index === items.length - 1}
-                  aria-label="تحريك لأسفل"
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  className="btn danger setlistIconBtn"
-                  onClick={() => removeItem(item.id)}
-                  aria-label="حذف من السيت ليست"
-                >
-                  ×
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+                <div className="setlistRowActions">
+                  <button
+                    type="button"
+                    className="btn setlistIconBtn"
+                    onClick={() => moveItem(index, -1)}
+                    disabled={index === 0}
+                    aria-label="تحريك لأعلى"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="btn setlistIconBtn"
+                    onClick={() => moveItem(index, 1)}
+                    disabled={index === items.length - 1}
+                    aria-label="تحريك لأسفل"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="btn danger setlistIconBtn"
+                    onClick={() => removeItem(item.id)}
+                    aria-label="حذف من السيت ليست"
+                  >
+                    ×
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {(canManageSharedSetlists || sharedSetlists.length > 0) && (
@@ -166,6 +185,22 @@ export default function SetlistPanel({
                   disabled={!canManageSharedSetlists || !currentId}
                 >
                   إضافة الحالية
+                </button>
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() =>
+                    onStartServiceMode?.({
+                      setlistId: selectedSharedSetlistId,
+                      title:
+                        activeSharedSetlist?.name || "قائمة الخدمة المشتركة",
+                      hymnIds: sharedSetlistItems.map((item) => item.id),
+                      source: "shared",
+                    })
+                  }
+                  disabled={sharedSetlistItems.length === 0}
+                >
+                  بدء وضع الخدمة
                 </button>
                 <button
                   type="button"
