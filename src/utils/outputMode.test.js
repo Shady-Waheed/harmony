@@ -44,7 +44,11 @@ describe("output presentation settings", () => {
     expect(print).toHaveBeenCalledOnce();
     expect(requestBrowserPrint({})).toBe(false);
     expect(
-      requestBrowserPrint({ print: () => { throw new Error("blocked"); } }),
+      requestBrowserPrint({
+        print: () => {
+          throw new Error("blocked");
+        },
+      }),
     ).toBe(false);
   });
 });

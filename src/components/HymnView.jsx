@@ -241,7 +241,11 @@ function chordEntriesFromLetter(letter = {}) {
     .filter((entry) => Boolean(entry.chord));
 }
 
-function ChordLabels({ entries = [], isExporting = false, interactive = true }) {
+function ChordLabels({
+  entries = [],
+  isExporting = false,
+  interactive = true,
+}) {
   const visibleEntries = entries.filter((entry) => Boolean(entry.chord));
   const [activeChordKey, setActiveChordKey] = useState("");
 

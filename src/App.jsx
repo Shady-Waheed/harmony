@@ -1565,6 +1565,7 @@ function AppShell() {
         serviceMode={serviceMode}
         hymns={hymns}
         currentUser={currentUser}
+        theme={state.theme}
         onExit={onExitServiceMode}
         onMove={onMoveServiceMode}
         onSelectIndex={onSelectServiceIndex}

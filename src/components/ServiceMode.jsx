@@ -6,6 +6,7 @@ export default function ServiceMode({
   serviceMode,
   hymns = [],
   currentUser,
+  theme = "dark",
   onExit,
   onSelectIndex,
   onMove,
@@ -49,7 +50,7 @@ export default function ServiceMode({
 
   if (!normalizedMode || !normalizedMode.hymnIds.length) {
     return (
-      <div className="app dark" dir="rtl" lang="ar">
+      <div className={`app ${theme}`} dir="rtl" lang="ar">
         <header className="topBar">
           <div>
             <h1>Harmony Notes</h1>
@@ -74,7 +75,7 @@ export default function ServiceMode({
   const canReadCurrent = Boolean(currentHymnId && canReadHymn?.(currentHymnId));
 
   return (
-    <div className="app dark" dir="rtl" lang="ar">
+    <div className={`app ${theme}`} dir="rtl" lang="ar">
       <header className="topBar">
         <div>
           <h1>Harmony Notes</h1>

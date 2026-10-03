@@ -8,8 +8,25 @@
   --muted: #9ca9c8;
   --border: rgba(168, 184, 234, 0.22);
   --primary: #4f7cff;
+  --primary-button: #2f55b6;
+  --primary-button-text: #ffffff;
   --primary-soft: rgba(79, 124, 255, 0.18);
   --danger: #ff6f8f;
+  --danger-ink: #ff9dae;
+  --danger-soft: rgba(255, 111, 143, 0.12);
+  --success: #8ef0c4;
+  --success-soft: rgba(61, 220, 151, 0.12);
+  --warning: #ffe08a;
+  --warning-soft: rgba(245, 197, 66, 0.12);
+  --info: #b8cff5;
+  --info-soft: rgba(107, 140, 206, 0.14);
+  --saving: #c0d0ff;
+  --saving-soft: rgba(99, 125, 255, 0.12);
+  --favorite-ink: #f3c96b;
+  --favorite-soft: rgba(230, 174, 67, 0.14);
+  --favorite-border: rgba(230, 174, 67, 0.55);
+  --overlay: rgba(4, 8, 18, 0.62);
+  --focus-ring: color-mix(in srgb, var(--primary) 72%, transparent);
   --section: #5a97ff;
   --chord: #e8b86d;
   --lyric: #f3eee6;
@@ -24,12 +41,14 @@
     ui-monospace, "Cascadia Code", "IBM Plex Mono", "SFMono-Regular", Menlo,
     Consolas, monospace;
   --shadow: 0 14px 32px rgba(5, 8, 20, 0.35);
+  --shadow-sm: 0 10px 24px rgba(0, 0, 0, 0.22);
   --font-ui:
     "Tajawal", "Cairo", "Noto Kufi Arabic", "Noto Sans Arabic", Inter,
     system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 .app.light {
+  color-scheme: light;
   --bg: #eef3ff;
   --bg-soft: #d8e4ff;
   --panel: rgba(255, 255, 255, 0.95);
@@ -39,19 +58,37 @@
   --muted: #4f5f85;
   --border: rgba(78, 98, 145, 0.28);
   --primary: #2f5bea;
+  --primary-button: #284bb8;
+  --primary-button-text: #ffffff;
   --primary-soft: rgba(47, 91, 234, 0.16);
   --danger: #d64568;
+  --danger-ink: #a61f45;
+  --danger-soft: rgba(166, 31, 69, 0.1);
+  --success: #176548;
+  --success-soft: rgba(23, 101, 72, 0.1);
+  --warning: #795400;
+  --warning-soft: rgba(181, 126, 0, 0.12);
+  --info: #28517e;
+  --info-soft: rgba(40, 81, 126, 0.1);
+  --saving: #394f9e;
+  --saving-soft: rgba(57, 79, 158, 0.1);
+  --favorite-ink: #805400;
+  --favorite-soft: rgba(181, 126, 0, 0.12);
+  --favorite-border: rgba(128, 84, 0, 0.38);
+  --overlay: rgba(16, 26, 52, 0.48);
+  --focus-ring: color-mix(in srgb, var(--primary) 72%, transparent);
   --section: #2b63ea;
   --chord: #9a3412;
   --lyric: #1c1917;
   --input-bg: #ffffff;
   --btn-bg: #ffffff;
-  --sheet-bg: #f4eee3;
+  --sheet-bg: #f8fafc;
   --sheet-text: #1c1917;
   --sheet-ink: #57534e;
-  --sheet-rule: rgba(120, 53, 15, 0.16);
-  --sheet-pill: #fffaf3;
+  --sheet-rule: rgba(78, 98, 145, 0.2);
+  --sheet-pill: #eef3f8;
   --shadow: 0 12px 28px rgba(61, 88, 158, 0.14);
+  --shadow-sm: 0 8px 18px rgba(61, 88, 158, 0.16);
 }
 
 * {
@@ -61,14 +98,16 @@
 body {
   margin: 0;
   font-family: var(--font-ui);
-  color: #edf2ff;
-  background: #0b1020;
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: dark;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .app {
+  color-scheme: dark;
   min-height: 100vh;
   padding: 1rem;
   direction: rtl;
@@ -135,7 +174,7 @@ body {
 }
 
 .hymnSearchInput:disabled {
-  opacity: 0.65;
+  opacity: 1;
   cursor: not-allowed;
 }
 
@@ -206,9 +245,9 @@ body {
   padding: 0.35rem 0.55rem;
   font-size: 0.75rem;
   line-height: 1.35;
-  background: color-mix(in srgb, #f5c542 14%, transparent);
-  border: 1px solid color-mix(in srgb, #f5c542 45%, var(--border));
-  color: #ffe08a;
+  background: var(--warning-soft);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border));
+  color: var(--warning);
 }
 
 .saveStatus {
@@ -232,39 +271,35 @@ body {
   height: 0.7rem;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 12%, transparent);
 }
 
 .saveStatus--saved {
-  color: #8ef0c4;
-  background: rgba(61, 220, 151, 0.12);
+  color: var(--success);
+  background: var(--success-soft);
 }
 
 .saveStatus--dirty,
 .saveStatus--offline {
-  color: #ffe08a;
-  background: rgba(245, 197, 66, 0.12);
+  color: var(--warning);
+  background: var(--warning-soft);
 }
 
 .saveStatus--saving,
 .saveStatus--pending-sync {
-  color: #c0d0ff;
-  background: rgba(99, 125, 255, 0.12);
+  color: var(--saving);
+  background: var(--saving-soft);
 }
 
 .saveStatus--error {
-  color: #ff9dae;
-  background: rgba(255, 111, 143, 0.12);
+  color: var(--danger-ink);
+  background: var(--danger-soft);
 }
 
 .btnSmall {
   min-height: 28px;
   padding: 0.28rem 0.6rem;
   font-size: 0.76rem;
-}
-
-.app.light .draftBadge {
-  color: #8a6a00;
 }
 
 .draftActions {
@@ -277,7 +312,7 @@ body {
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(4, 8, 18, 0.62);
+  background: var(--overlay);
   z-index: 1000;
 }
 
@@ -341,9 +376,9 @@ body {
 }
 
 .favoriteToggle.isFavorite {
-  color: #9b6813;
-  border-color: color-mix(in srgb, #e6ae43 55%, var(--border));
-  background: color-mix(in srgb, #e6ae43 12%, var(--surface));
+  color: var(--favorite-ink);
+  border-color: var(--favorite-border);
+  background: var(--favorite-soft);
 }
 
 .libraryGroup {
@@ -424,29 +459,29 @@ body {
 }
 
 .syncBadge--live {
-  background: color-mix(in srgb, #3ddc97 14%, transparent);
-  border: 1px solid color-mix(in srgb, #3ddc97 40%, var(--border));
-  color: #8ef0c4;
+  background: var(--success-soft);
+  border: 1px solid color-mix(in srgb, var(--success) 40%, var(--border));
+  color: var(--success);
 }
 
 .syncBadge--syncing {
-  background: color-mix(in srgb, #f5c542 14%, transparent);
-  border: 1px solid color-mix(in srgb, #f5c542 45%, var(--border));
-  color: #ffe08a;
+  background: var(--warning-soft);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border));
+  color: var(--warning);
 }
 
 .syncBadge--offline,
 .syncBadge--cached,
 .syncBadge--pending-offline {
-  background: color-mix(in srgb, #6b8cce 14%, transparent);
-  border: 1px solid color-mix(in srgb, #6b8cce 45%, var(--border));
-  color: #b8cff5;
+  background: var(--info-soft);
+  border: 1px solid color-mix(in srgb, var(--info) 45%, var(--border));
+  color: var(--info);
 }
 
 .syncBadge--pending-upload {
-  background: color-mix(in srgb, #f5c542 14%, transparent);
-  border: 1px solid color-mix(in srgb, #f5c542 45%, var(--border));
-  color: #ffe08a;
+  background: var(--warning-soft);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border));
+  color: var(--warning);
 }
 
 .roleBadge {
@@ -459,13 +494,13 @@ body {
 }
 
 .roleBadge.admin {
-  border-color: color-mix(in srgb, #3ddc97 55%, var(--border));
-  color: #7ef4bf;
+  border-color: color-mix(in srgb, var(--success) 55%, var(--border));
+  color: var(--success);
 }
 
 .roleBadge.viewer {
   border-color: color-mix(in srgb, var(--danger) 62%, var(--border));
-  color: color-mix(in srgb, var(--danger) 82%, #fff 18%);
+  color: var(--danger-ink);
 }
 
 .sidebarHint {
@@ -552,6 +587,41 @@ body {
   letter-spacing: 0;
 }
 
+.app input::placeholder,
+.app textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.app input[type="checkbox"],
+.app input[type="radio"],
+.app input[type="range"] {
+  accent-color: var(--primary);
+}
+
+.btn:focus-visible,
+.input:focus-visible,
+.textarea:focus-visible,
+.app select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  color: var(--muted);
+  background: var(--surface-strong);
+  border-color: var(--border);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.input:disabled,
+.textarea:disabled,
+.app select:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 .modernInput:focus,
 .input:focus {
   outline: none;
@@ -620,17 +690,17 @@ body {
 .btn.primary {
   background: linear-gradient(
     140deg,
-    color-mix(in srgb, var(--primary) 84%, #fff 16%),
-    var(--primary)
+    color-mix(in srgb, var(--primary-button) 90%, #fff 10%),
+    var(--primary-button)
   );
-  border-color: color-mix(in srgb, var(--primary) 75%, #fff 25%);
-  color: #fff;
+  border-color: var(--primary-button);
+  color: var(--primary-button-text);
 }
 
 .btn.danger {
   border-color: color-mix(in srgb, var(--danger) 65%, var(--border));
-  color: color-mix(in srgb, var(--danger) 82%, #fff 18%);
-  background: color-mix(in srgb, var(--danger) 12%, var(--btn-bg));
+  color: var(--danger-ink);
+  background: var(--danger-soft);
 }
 
 .floatingResetBtn {
@@ -640,14 +710,14 @@ body {
   z-index: 30;
   border: 1px solid color-mix(in srgb, var(--danger) 68%, var(--border));
   background: color-mix(in srgb, var(--danger) 16%, var(--btn-bg));
-  color: color-mix(in srgb, var(--danger) 85%, #fff 15%);
+  color: var(--danger-ink);
   border-radius: 999px;
   padding: 0.58rem 0.92rem;
   min-height: 42px;
   font-family: var(--font-ui);
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-sm);
   transition: transform 0.2s ease;
 }
 
@@ -669,7 +739,7 @@ body {
   align-items: center;
   justify-content: center;
   font-size: 1.15rem;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-sm);
   transition:
     transform 0.2s ease,
     border-color 0.2s ease,
@@ -709,11 +779,11 @@ body {
 }
 
 .toastNotice.success {
-  border-color: color-mix(in srgb, #3ddc97 55%, var(--border));
+  border-color: color-mix(in srgb, var(--success) 55%, var(--border));
 }
 
 .toastNotice.error {
-  border-color: color-mix(in srgb, var(--danger) 75%, var(--border));
+  border-color: color-mix(in srgb, var(--danger-ink) 75%, var(--border));
 }
 
 .btn.ghost {
@@ -1465,7 +1535,7 @@ body {
   transform: translate(-50%, -50%) rotate(-45deg);
   font-size: clamp(2.5rem, 4vw, 4.5rem);
   font-weight: 900;
-  color: rgba(0, 0, 0, 0.08);
+  color: color-mix(in srgb, var(--sheet-text) 8%, transparent);
   letter-spacing: 6px;
   white-space: nowrap;
   pointer-events: none;
@@ -2244,11 +2314,18 @@ body {
   display: none !important;
 }
 
-/* Keep the live hymn sheet visually consistent with the exported reference page. */
-.card.hymnSheet,
-.app.dark .card.hymnSheet {
-  background: #ffffff !important;
-  color: #111111 !important;
+/* Keep the live sheet tied to the active theme; export and output sheets own their palettes. */
+.card.hymnSheet:not(.exportSheet):not(.outputHymnSheet),
+.app.dark .card.hymnSheet:not(.exportSheet):not(.outputHymnSheet) {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 27px,
+      color-mix(in srgb, var(--sheet-rule) 30%, transparent) 28px
+    ),
+    var(--sheet-bg) !important;
+  color: var(--sheet-text) !important;
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -2266,18 +2343,18 @@ body {
   border-bottom: 0;
 }
 
-.hymnSheet .sheetHeader h1,
-.app.dark .hymnSheet .sheetHeader h1 {
-  color: #111111 !important;
+.hymnSheet:not(.exportSheet):not(.outputHymnSheet) .sheetHeader h1,
+.app.dark .hymnSheet:not(.exportSheet):not(.outputHymnSheet) .sheetHeader h1 {
+  color: var(--sheet-text) !important;
   font-size: 2.45rem;
 }
 
-.hymnSheet .sheetKeyPill {
+.hymnSheet:not(.exportSheet):not(.outputHymnSheet) .sheetKeyPill {
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent !important;
-  color: #111111 !important;
+  color: var(--chord) !important;
 }
 
 .hymnSheet .sheetKeyPill small {
@@ -2293,10 +2370,10 @@ body {
   display: none;
 }
 
-.hymnSheet .sheetSection h2,
-.app.dark .hymnSheet .sheetSection h2 {
+.hymnSheet:not(.exportSheet):not(.outputHymnSheet) .sheetSection h2,
+.app.dark .hymnSheet:not(.exportSheet):not(.outputHymnSheet) .sheetSection h2 {
   flex: 0 0 auto;
-  color: #4169b7 !important;
+  color: var(--section) !important;
   font-size: 1.5rem;
   text-align: right;
 }
@@ -2317,11 +2394,11 @@ body {
   gap: 0;
 }
 
-.hymnSheet .wordText,
-.hymnSheet .lyricWordText,
-.hymnSheet .lyric,
-.app.dark .hymnSheet .lyric {
-  color: #111111 !important;
+.hymnSheet:not(.exportSheet):not(.outputHymnSheet) .wordText,
+.hymnSheet:not(.exportSheet):not(.outputHymnSheet) .lyricWordText,
+.hymnSheet:not(.exportSheet):not(.outputHymnSheet) .lyric,
+.app.dark .hymnSheet:not(.exportSheet):not(.outputHymnSheet) .lyric {
+  color: var(--lyric) !important;
   font-size: 1.7rem !important;
   font-weight: 500;
 }
@@ -2334,7 +2411,7 @@ body {
   line-height: 1.25;
 }
 
-.hymnSheet .chord {
+.hymnSheet:not(.exportSheet):not(.outputHymnSheet) .chord {
   min-width: 0 !important;
   min-height: 0 !important;
   padding: 0 !important;
@@ -2342,7 +2419,7 @@ body {
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
-  color: #d74444 !important;
+  color: var(--chord) !important;
   font-size: 1.45rem !important;
 }
 
@@ -3114,7 +3191,7 @@ body {
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(5, 8, 18, 0.82);
+  background: var(--overlay);
 }
 
 .outputDialog {
@@ -3467,7 +3544,9 @@ body {
   }
 
   .outputHymnSheet,
-  .outputPreview--projection .outputHymnSheet {
+  .outputPreview--projection .outputHymnSheet,
+  .app.dark .outputPreview--projection .outputHymnSheet,
+  .app.light .outputPreview--projection .outputHymnSheet {
     width: 100% !important;
     max-width: none !important;
     min-height: 0 !important;
@@ -3484,12 +3563,25 @@ body {
   .outputPreview--projection .outputHymnSheet .sheetSection h2,
   .outputHymnSheet .lyricWordText,
   .outputPreview--projection .outputHymnSheet .lyricWordText,
-  .outputHymnSheet .outputSheetKey {
+  .outputHymnSheet .outputSheetKey,
+  .app.dark .outputPreview--projection .outputHymnSheet .sheetHeader h1,
+  .app.light .outputPreview--projection .outputHymnSheet .sheetHeader h1,
+  .app.dark .outputPreview--projection .outputHymnSheet .sheetSection h2,
+  .app.light .outputPreview--projection .outputHymnSheet .sheetSection h2,
+  .app.dark .outputPreview--projection .outputHymnSheet .lyricWordText,
+  .app.light .outputPreview--projection .outputHymnSheet .lyricWordText,
+  .app.dark .outputPreview--projection .outputSheetKey,
+  .app.light .outputPreview--projection .outputSheetKey {
     color: #000000 !important;
   }
 
   .outputHymnSheet .chord.outputChordLabel,
-  .outputPreview--projection .outputHymnSheet .chord.outputChordLabel {
+  .outputPreview--projection .outputHymnSheet .chord.outputChordLabel,
+  .app.dark .outputPreview--projection .outputHymnSheet .chord.outputChordLabel,
+  .app.light
+    .outputPreview--projection
+    .outputHymnSheet
+    .chord.outputChordLabel {
     color: #000000 !important;
   }
 
@@ -3501,6 +3593,11 @@ body {
   .outputPreview--projection .outputHymnSheet .sheetHeader,
   .outputPreview--projection .outputHymnSheet .sheetSection {
     margin-bottom: 1.3rem;
+  }
+
+  .app.dark .outputPreview--projection .outputHymnSheet .sheetHeader,
+  .app.light .outputPreview--projection .outputHymnSheet .sheetHeader {
+    border-color: #777777 !important;
   }
 
   .outputPreview--projection .outputHymnSheet .lyricWordText {
