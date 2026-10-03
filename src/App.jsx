@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminDashboard from "./components/AdminDashboard";
 import HymnEditor from "./components/HymnEditor";
 import HymnView from "./components/HymnView";
+import OutputMode from "./components/OutputMode";
 import ServiceMode from "./components/ServiceMode";
 import { HymnProvider, useHymnStore } from "./store/hymnStore.jsx";
 import { exportNodeToPng } from "./utils/exportImage";
@@ -140,7 +141,6 @@ function AppShell() {
     resetProject,
     loadHymn,
     createNewHymn,
-    transposeHymn,
     setPersistFullHymn,
     markHymnSaved,
     syncLastSavedIfEmpty,
@@ -153,6 +153,7 @@ function AppShell() {
   const { routeHymnId, navigateHymn } = useHymnRoute();
   const [loadingExport, setLoadingExport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [outputModeOpen, setOutputModeOpen] = useState(false);
   const [hymns, setHymns] = useState([]);
   const [loadingHymns, setLoadingHymns] = useState(true);
   const [selectedHymnId, setSelectedHymnId] = useState("");
@@ -356,6 +357,10 @@ function AppShell() {
     setNotice({ message, type });
     window.clearTimeout(noticeTimeoutRef.current);
     noticeTimeoutRef.current = window.setTimeout(() => setNotice(null), 2800);
+  }, []);
+
+  const closeOutputMode = useCallback(() => {
+    setOutputModeOpen(false);
   }, []);
 
   const hasLocalDraft = useMemo(() => {
@@ -1611,7 +1616,11 @@ function AppShell() {
   }
 
   return (
-    <div className={`app ${state.theme}`} dir="rtl" lang="ar">
+    <div
+      className={`app ${state.theme} ${outputModeOpen ? "outputModeActive" : ""}`}
+      dir="rtl"
+      lang="ar"
+    >
       <header className="topBar">
         <div>
           <h1>Harmony Notes</h1>
@@ -1664,6 +1673,14 @@ function AppShell() {
           </button>
           <button className="btn" onClick={onExport} disabled={loadingExport}>
             {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setOutputModeOpen(true)}
+            aria-haspopup="dialog"
+          >
+            إخراج
           </button>
           <button
             className="btn"
@@ -1932,25 +1949,6 @@ function AppShell() {
               </div>
             </div>
           ) : null}
-          <div className="row sidebarTransposeActions">
-            <button
-              className="btn"
-              onClick={() => transposeHymn(-1)}
-              title="Transpose -1 semitone"
-              aria-label="Transpose down"
-            >
-              -
-            </button>
-            <button
-              className="btn"
-              onClick={() => transposeHymn(1)}
-              title="Transpose +1 semitone"
-              aria-label="Transpose up"
-            >
-              +
-            </button>
-          </div>
-
           {!hasFirebaseConfig ? (
             <p className="sidebarHint">
               Firebase غير مهيأ. أضف متغيرات VITE_FIREBASE_* لعرض القائمة.
@@ -2057,6 +2055,8 @@ function AppShell() {
       >
         {isDark ? "☀" : "✦"}
       </button>
+
+      {outputModeOpen ? <OutputMode onClose={closeOutputMode} /> : null}
 
       {pendingUnsafeTransition ? (
         <div className="modalOverlay" role="dialog" aria-modal="true">

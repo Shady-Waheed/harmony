@@ -118,18 +118,6 @@ body {
   flex: 1 1 calc(50% - 0.25rem);
 }
 
-.sidebarTransposeActions {
-  margin-bottom: 0.7rem;
-}
-
-.sidebarTransposeActions .btn {
-  flex: 1 1 calc(50% - 0.25rem);
-  min-height: 36px;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
 .sidebarHeader h3 {
   margin: 0;
   font-size: 1rem;
@@ -2552,8 +2540,7 @@ body {
     font-size: clamp(1.02rem, 0.9rem + 1vw, 1.28rem);
   }
 
-  .sidebarActions .btn,
-  .sidebarTransposeActions .btn {
+  .sidebarActions .btn {
     flex: 1 1 calc(50% - 0.25rem);
     min-width: 0;
   }
@@ -2719,8 +2706,7 @@ body {
     height: 44px;
   }
 
-  .sidebarActions .btn,
-  .sidebarTransposeActions .btn {
+  .sidebarActions .btn {
     flex: 1 1 100%;
     width: 100%;
   }
@@ -2729,11 +2715,6 @@ body {
     display: grid;
     grid-template-columns: 1fr;
     width: 100%;
-  }
-
-  .sidebarTransposeActions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .chordPreviewPopup {
@@ -3122,6 +3103,289 @@ body {
   }
 }
 
+.outputModeActive {
+  overflow: hidden;
+}
+
+.outputOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(5, 8, 18, 0.82);
+}
+
+.outputDialog {
+  width: min(1280px, 100%);
+  height: min(940px, 100%);
+  max-height: calc(100dvh - 2rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.outputToolbar {
+  flex: 0 0 auto;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.outputToolbarHeading,
+.outputToolbarActions,
+.outputProfiles {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.outputToolbarHeading {
+  justify-content: space-between;
+  margin-bottom: 0.55rem;
+}
+
+.outputToolbarHeading h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.outputProfiles .btn[aria-pressed="true"] {
+  border-color: var(--primary);
+}
+
+.outputToolbarActions {
+  gap: 0.45rem 0.65rem;
+}
+
+.outputFontControl,
+.outputToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.outputFontControl input {
+  width: 100px;
+  accent-color: var(--primary);
+}
+
+.outputToggle input {
+  accent-color: var(--primary);
+}
+
+.outputStatus {
+  min-height: 1.1rem;
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.outputPreview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(0.6rem, 2vw, 1.35rem);
+  background: #e8e8e8;
+  color: #111111;
+  overscroll-behavior: contain;
+}
+
+.outputHymnSheet {
+  width: min(100%, 1040px);
+  min-height: 100%;
+  margin-inline: auto;
+  padding: clamp(1.1rem, 3vw, 2.2rem) !important;
+  background: #ffffff !important;
+  color: #111111 !important;
+}
+
+.outputHymnSheet .sheetHeader h1 {
+  display: block !important;
+  margin: 0;
+  color: #111111 !important;
+  font-size: clamp(1.6rem, 3vw, 2.45rem) !important;
+  line-height: 1.35;
+}
+
+.outputHymnSheet .sheetStaffMark,
+.outputHymnSheet .sheetKicker,
+.outputHymnSheet .sheetMetaHint,
+.outputHymnSheet .watermark-overlay {
+  display: none !important;
+}
+
+.outputSheetKey {
+  display: inline-flex;
+  margin-top: 0.65rem;
+  color: #111111;
+}
+
+.outputSheetKey small {
+  display: inline !important;
+  font-size: 0.7rem;
+}
+
+.outputHymnSheet .sheetSection {
+  break-inside: auto;
+  page-break-inside: auto;
+}
+
+.outputHymnSheet .sheetSectionHead {
+  break-after: avoid-page;
+  page-break-after: avoid;
+}
+
+.outputHymnSheet .sheetLine {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.outputHymnSheet .chord.outputChordLabel {
+  cursor: default;
+  color: #111111 !important;
+  font-size: 1.2em !important;
+  font-weight: 700 !important;
+}
+
+.outputPreview--print .outputHymnSheet .sheetHeader {
+  margin-bottom: 1.3rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid #777777;
+}
+
+.outputPreview--print .outputHymnSheet .sheetSection h2 {
+  color: #111111 !important;
+}
+
+.outputPreview--print .outputHymnSheet .sheetLine {
+  flex-wrap: wrap;
+}
+
+.outputPreview--print .outputHymnSheet .lyricWordText {
+  color: #111111 !important;
+  font-size: var(--output-lyric-size, 36px) !important;
+  line-height: 1.55;
+}
+
+.outputPreview--projection {
+  padding: clamp(0.5rem, 2vw, 2rem);
+  background: #080b12;
+  color: #f5f5f2;
+}
+
+.app.dark .outputPreview--projection .outputHymnSheet,
+.app.light .outputPreview--projection .outputHymnSheet {
+  width: 100%;
+  max-width: 1600px;
+  padding: clamp(1.25rem, 4vw, 4rem) !important;
+  background: #080b12 !important;
+  color: #f5f5f2 !important;
+}
+
+.outputPreview--projection .outputHymnSheet .sheetHeader {
+  margin-bottom: clamp(1.5rem, 4vh, 3rem);
+  padding-bottom: 1rem;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.app .outputPreview--projection .outputHymnSheet .sheetHeader h1,
+.outputPreview--projection .outputHymnSheet .sheetSection h2,
+.outputPreview--projection .outputHymnSheet .lyricWordText,
+.outputPreview--projection .outputSheetKey {
+  color: #f5f5f2 !important;
+}
+
+.outputPreview--projection .outputHymnSheet .sheetHeader h1 {
+  font-size: clamp(2rem, 5vw, 4.5rem) !important;
+}
+
+.outputPreview--projection .outputHymnSheet .sheetSection {
+  margin-bottom: clamp(2rem, 6vh, 4.5rem);
+}
+
+.outputPreview--projection .outputHymnSheet .sheetSection h2 {
+  font-size: clamp(1.4rem, 3vw, 2.5rem) !important;
+}
+
+.outputPreview--projection .outputHymnSheet .sheetLines {
+  gap: clamp(1.4rem, 4vh, 3rem);
+}
+
+.outputPreview--projection .outputHymnSheet .sheetLine {
+  flex-wrap: wrap;
+  column-gap: clamp(0.8rem, 2vw, 1.8rem);
+  row-gap: 1rem;
+}
+
+.outputPreview--projection .outputHymnSheet .lyricWordText {
+  font-size: max(var(--output-lyric-size, 36px), 2rem) !important;
+  line-height: 1.6;
+}
+
+.outputPreview--projection .outputHymnSheet .chord.outputChordLabel {
+  color: #ffd166 !important;
+  font-size: 1.35em !important;
+}
+
+.outputPreview--projection .outputSheetKey {
+  color: #ffd166 !important;
+  border-color: rgba(255, 209, 102, 0.55);
+}
+
+@media (max-width: 640px) {
+  .outputOverlay {
+    padding: 0;
+  }
+
+  .outputDialog {
+    width: 100%;
+    height: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .outputToolbar {
+    padding: 0.55rem;
+  }
+
+  .outputToolbarHeading {
+    align-items: flex-start;
+  }
+
+  .outputToolbarActions {
+    gap: 0.35rem;
+  }
+
+  .outputToolbarActions .btn {
+    min-height: 38px;
+    padding-inline: 0.55rem;
+    font-size: 0.78rem;
+  }
+
+  .outputFontControl {
+    flex: 1 1 150px;
+    justify-content: space-between;
+  }
+
+  .outputPreview {
+    padding: 0.45rem;
+  }
+
+  .outputHymnSheet .sheetLine {
+    flex-wrap: wrap;
+  }
+}
+
 @media print {
   body,
   .app {
@@ -3152,5 +3416,94 @@ body {
     box-shadow: none;
     padding: 0;
     backdrop-filter: none;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  .app.outputModeActive {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .app.outputModeActive > *:not(.outputOverlay) {
+    display: none !important;
+  }
+
+  .outputOverlay {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .outputDialog {
+    width: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .outputToolbar {
+    display: none !important;
+  }
+
+  .outputPreview,
+  .outputPreview--projection {
+    display: block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .outputHymnSheet,
+  .outputPreview--projection .outputHymnSheet {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+
+  .outputHymnSheet .sheetHeader h1,
+  .outputPreview--projection .outputHymnSheet .sheetHeader h1,
+  .outputHymnSheet .sheetSection h2,
+  .outputPreview--projection .outputHymnSheet .sheetSection h2,
+  .outputHymnSheet .lyricWordText,
+  .outputPreview--projection .outputHymnSheet .lyricWordText,
+  .outputHymnSheet .outputSheetKey {
+    color: #000000 !important;
+  }
+
+  .outputHymnSheet .chord.outputChordLabel,
+  .outputPreview--projection .outputHymnSheet .chord.outputChordLabel {
+    color: #000000 !important;
+  }
+
+  .outputHymnSheet .chordPreviewPopup,
+  .outputHymnSheet .watermark-overlay {
+    display: none !important;
+  }
+
+  .outputPreview--projection .outputHymnSheet .sheetHeader,
+  .outputPreview--projection .outputHymnSheet .sheetSection {
+    margin-bottom: 1.3rem;
+  }
+
+  .outputPreview--projection .outputHymnSheet .lyricWordText {
+    font-size: var(--output-lyric-size, 36px) !important;
   }
 }

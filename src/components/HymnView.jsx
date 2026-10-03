@@ -241,7 +241,7 @@ function chordEntriesFromLetter(letter = {}) {
     .filter((entry) => Boolean(entry.chord));
 }
 
-function ChordLabels({ entries = [], isExporting = false }) {
+function ChordLabels({ entries = [], isExporting = false, interactive = true }) {
   const visibleEntries = entries.filter((entry) => Boolean(entry.chord));
   const [activeChordKey, setActiveChordKey] = useState("");
 
@@ -259,6 +259,15 @@ function ChordLabels({ entries = [], isExporting = false }) {
       {visibleEntries.map((entry, index) => {
         const entryKey = `${entry.chord}-${index}`;
         const isActive = activeChordKey === entryKey && !isExporting;
+        const chordLabel = formatChordLabel(entry.chord, entry.inversion);
+
+        if (!interactive) {
+          return (
+            <span className="lyricWordChord" key={entryKey}>
+              <span className="chord outputChordLabel">{chordLabel}</span>
+            </span>
+          );
+        }
 
         return (
           <span className="lyricWordChord" key={entryKey}>
@@ -287,7 +296,7 @@ function ChordLabels({ entries = [], isExporting = false }) {
               aria-expanded={isActive}
               aria-label={`Chord ${formatChordLabel(entry.chord, entry.inversion)}`}
             >
-              {formatChordLabel(entry.chord, entry.inversion)}
+              {chordLabel}
               {!isExporting ? (
                 <ChordPianoPreview
                   chord={entry.chord}
@@ -303,7 +312,10 @@ function ChordLabels({ entries = [], isExporting = false }) {
   );
 }
 
-const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
+const HymnView = forwardRef(function HymnView(
+  { isExporting = false, outputOptions = null },
+  ref,
+) {
   const { state, transposeHymn, resetTranspose } = useHymnStore();
   const { hymn, transposeOffset } = state;
   const displayedHymn = useMemo(
@@ -318,7 +330,7 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
   return (
     <section
       ref={ref}
-      className="card hymnSheet hymn-viewer-container"
+      className={`card hymnSheet hymn-viewer-container ${outputOptions ? `outputHymnSheet outputHymnSheet--${outputOptions.profile}` : ""}`}
       dir="rtl"
       style={{ direction: "rtl", textAlign: isExporting ? "right" : undefined }}
     >
@@ -334,19 +346,30 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
           <SheetStaffMark />
           <p className="sheetKicker">Harmony Notes</p>
           <h1>{hymn.title || "ترنيمة بدون عنوان"}</h1>
-          <div className="sheetMeta">
-            <span className="sheetMetaHint">
-              {Number(transposeOffset || 0) !== 0
-                ? `Current key: ${displayedKey || "—"} • Saved key: ${hymn.key || "—"}`
-                : `Current key: ${displayedKey || "—"}`}
-            </span>
-          </div>
-          <TransposeControls
-            hymnKey={hymn.key}
-            transposeOffset={transposeOffset || 0}
-            onTranspose={transposeHymn}
-            onReset={resetTranspose}
-          />
+          {outputOptions ? (
+            outputOptions.showKey ? (
+              <div className="outputSheetKey sheetKeyPill">
+                <small>Key</small>
+                <strong>{displayedKey || "—"}</strong>
+              </div>
+            ) : null
+          ) : (
+            <>
+              <div className="sheetMeta">
+                <span className="sheetMetaHint">
+                  {Number(transposeOffset || 0) !== 0
+                    ? `Current key: ${displayedKey || "—"} • Saved key: ${hymn.key || "—"}`
+                    : `Current key: ${displayedKey || "—"}`}
+                </span>
+              </div>
+              <TransposeControls
+                hymnKey={hymn.key}
+                transposeOffset={transposeOffset || 0}
+                onTranspose={transposeHymn}
+                onReset={resetTranspose}
+              />
+            </>
+          )}
         </header>
 
         {!hasSections ? (
@@ -414,7 +437,11 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                               }))
                               .toReversed();
                           })();
-                      const visibleChordCount = wordChordEntries.length;
+                      const outputChordEntries =
+                        outputOptions && !outputOptions.showChords
+                          ? []
+                          : wordChordEntries;
+                      const visibleChordCount = outputChordEntries.length;
                       const hasChord = visibleChordCount > 0;
                       return (
                         <div
@@ -431,8 +458,9 @@ const HymnView = forwardRef(function HymnView({ isExporting = false }, ref) {
                             }}
                           >
                             <ChordLabels
-                              entries={wordChordEntries}
+                              entries={outputChordEntries}
                               isExporting={isExporting}
+                              interactive={!outputOptions}
                             />
                             <span className="lyricWordText">
                               {cell.type === "word"
