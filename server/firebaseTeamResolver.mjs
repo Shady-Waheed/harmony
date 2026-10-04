@@ -125,9 +125,9 @@ export function isServerAuthorizedTeamManager({
   const memberRow = members[uid];
   return Boolean(
     memberRow &&
-      typeof memberRow === "object" &&
-      !Array.isArray(memberRow) &&
-      memberRow.canManageDashboard === true,
+    typeof memberRow === "object" &&
+    !Array.isArray(memberRow) &&
+    memberRow.canManageDashboard === true,
   );
 }
 
