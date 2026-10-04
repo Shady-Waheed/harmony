@@ -22,6 +22,7 @@ import {
   setDoc,
   Timestamp,
   waitForPendingWrites,
+  where,
 } from "firebase/firestore";
 import { auth, db, googleProvider, hasFirebaseConfig } from "./firebase";
 import {
@@ -82,6 +83,31 @@ import {
   resolveHymnsByIds,
   toggleFavorite,
 } from "./utils/hymnLibrary";
+import {
+  getHymnLoadState,
+  getHymnReadPlan,
+  mergeHymnQueryResults,
+} from "./utils/hymnRead";
+
+function buildHymnQueries(userUid) {
+  const hymnsCollection = collection(db, "hymns");
+  return getHymnReadPlan(userUid).map((plan) =>
+    query(
+      hymnsCollection,
+      ...plan.filters.map((filter) =>
+        where(filter.field, filter.operator, filter.value),
+      ),
+      orderBy(plan.orderBy.field, plan.orderBy.direction),
+    ),
+  );
+}
+
+function mapHymnSnapshot(snapshot) {
+  return snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+  }));
+}
 
 async function fetchHymnDocFromServer(hymnId) {
   if (!db || !hasFirebaseConfig || !hymnId) {
@@ -95,7 +121,12 @@ async function fetchHymnDocFromServer(hymnId) {
     }
     return { id: snapshot.id, ...snapshot.data() };
   } catch (error) {
-    console.warn("[fetchHymnDocFromServer] server failed:", error);
+    if (import.meta.env.DEV) {
+      console.warn(
+        "[fetchHymnDocFromServer] server failed:",
+        error?.code || error?.message || error,
+      );
+    }
     try {
       const snapshot = await getDocFromCache(doc(db, "hymns", hymnId));
       if (!snapshot.exists()) {
@@ -103,32 +134,31 @@ async function fetchHymnDocFromServer(hymnId) {
       }
       return { id: snapshot.id, ...snapshot.data() };
     } catch (cacheError) {
-      console.warn(
-        "[fetchHymnDocFromServer] cache fallback failed:",
-        cacheError,
-      );
+      if (import.meta.env.DEV) {
+        console.warn(
+          "[fetchHymnDocFromServer] cache fallback failed:",
+          cacheError?.code || cacheError?.message || cacheError,
+        );
+      }
       return null;
     }
   }
 }
 
-async function refreshHymnsListFromServer() {
+async function refreshHymnsListFromServer(userUid) {
   if (!db || !hasFirebaseConfig) {
     return [];
   }
 
-  const hymnsQuery = query(
-    collection(db, "hymns"),
-    orderBy("createdAt", "desc"),
+  const queries = buildHymnQueries(userUid);
+  const snapshots = await Promise.all(
+    queries.map((hymnsQuery) => getDocsFromServer(hymnsQuery)),
   );
-
-  const snapshot = await getDocsFromServer(hymnsQuery);
-  const nextHymns = snapshot.docs.map((docSnap) => ({
-    id: docSnap.id,
-    ...docSnap.data(),
-  }));
-
-  return nextHymns;
+  const [publicSnapshot, ownedSnapshot] = snapshots;
+  return mergeHymnQueryResults(
+    mapHymnSnapshot(publicSnapshot),
+    ownedSnapshot ? mapHymnSnapshot(ownedSnapshot) : [],
+  );
 }
 
 function AppShell() {
@@ -156,6 +186,8 @@ function AppShell() {
   const [outputModeOpen, setOutputModeOpen] = useState(false);
   const [hymns, setHymns] = useState([]);
   const [loadingHymns, setLoadingHymns] = useState(true);
+  const [hymnsError, setHymnsError] = useState(null);
+  const [hymnListenerRetry, setHymnListenerRetry] = useState(0);
   const [selectedHymnId, setSelectedHymnId] = useState("");
   const [favoriteIds, setFavoriteIds] = useState(readFavoriteIds);
   const [recentHymnIds, setRecentHymnIds] = useState(readRecentHymnIds);
@@ -173,6 +205,8 @@ function AppShell() {
   const viewRef = useRef(null);
   const projectFileInputRef = useRef(null);
   const noticeTimeoutRef = useRef(null);
+  const currentUserUidRef = useRef("");
+  currentUserUidRef.current = String(currentUser?.uid || "");
 
   const [teamData, setTeamData] = useState(null);
   const [hymnsFromCache, setHymnsFromCache] = useState(false);
@@ -267,6 +301,11 @@ function AppShell() {
       recentOnly,
     ],
   );
+  const hymnLoadState = getHymnLoadState({
+    loading: authLoading || loadingHymns,
+    error: hymnsError,
+    hymns,
+  });
   const visibleHymnsById = useMemo(
     () => new Map(visibleHymns.map((item) => [item.id, item])),
     [visibleHymns],
@@ -447,39 +486,86 @@ function AppShell() {
   }, []);
 
   useEffect(() => {
-    if (!db || !hasFirebaseConfig || authLoading) {
-      if (!authLoading) {
-        setLoadingHymns(false);
-      }
-      return;
+    if (authLoading) return undefined;
+    if (!db || !hasFirebaseConfig) {
+      setHymns([]);
+      setHymnsError(null);
+      setLoadingHymns(false);
+      return undefined;
     }
 
     setLoadingHymns(true);
-    const hymnsQuery = query(
-      collection(db, "hymns"),
-      orderBy("createdAt", "desc"),
-    );
-    const unsubscribe = onSnapshot(
-      hymnsQuery,
-      { includeMetadataChanges: true, source: "server" },
-      (snapshot) => {
-        const nextHymns = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-        setHymns(nextHymns);
-        setHymnsFromCache(snapshot.metadata.fromCache);
-        setPendingFirestoreWrites(snapshot.metadata.hasPendingWrites);
-        setLoadingHymns(false);
-      },
-      (err) => {
-        console.warn("[hymns snapshot]", err?.code || err?.message || err);
-        setLoadingHymns(false);
-      },
-    );
+    setHymns([]);
+    setHymnsError(null);
+    setHymnsFromCache(false);
+    setPendingFirestoreWrites(false);
 
-    return () => unsubscribe();
-  }, [authLoading, currentUser]);
+    const userUid = String(currentUser?.uid || "");
+    const queries = buildHymnQueries(userUid || null);
+    const queryResults = { public: [], ownedExclusive: [] };
+    const queryMetadata = { public: null, ownedExclusive: null };
+    const receivedInitialSnapshot = {
+      public: false,
+      ownedExclusive: queries.length === 1,
+    };
+    let active = true;
+
+    const publishResults = () => {
+      if (!active) return;
+      setHymns(
+        mergeHymnQueryResults(queryResults.public, queryResults.ownedExclusive),
+      );
+      setHymnsFromCache(
+        Boolean(
+          queryMetadata.public?.fromCache ||
+          queryMetadata.ownedExclusive?.fromCache,
+        ),
+      );
+      setPendingFirestoreWrites(
+        Boolean(
+          queryMetadata.public?.hasPendingWrites ||
+          queryMetadata.ownedExclusive?.hasPendingWrites,
+        ),
+      );
+      if (
+        receivedInitialSnapshot.public &&
+        receivedInitialSnapshot.ownedExclusive
+      ) {
+        setLoadingHymns(false);
+      }
+    };
+
+    const unsubscribes = queries.map((hymnsQuery, index) => {
+      const source = index === 0 ? "public" : "ownedExclusive";
+      return onSnapshot(
+        hymnsQuery,
+        { includeMetadataChanges: true, source: "server" },
+        (snapshot) => {
+          if (!active) return;
+          queryResults[source] = mapHymnSnapshot(snapshot);
+          queryMetadata[source] = snapshot.metadata;
+          receivedInitialSnapshot[source] = true;
+          publishResults();
+        },
+        (error) => {
+          if (!active) return;
+          setHymnsError(error?.code || "read-failed");
+          setLoadingHymns(false);
+          if (import.meta.env.DEV) {
+            console.warn(
+              `[hymns ${source} snapshot]`,
+              error?.code || error?.message || error,
+            );
+          }
+        },
+      );
+    });
+
+    return () => {
+      active = false;
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [authLoading, currentUser, hymnListenerRetry]);
 
   useEffect(() => {
     if (!db || !hasFirebaseConfig || authLoading || !currentUser) {
@@ -976,15 +1062,19 @@ function AppShell() {
         return;
       }
 
+      const requestUid = String(currentUser?.uid || "");
       try {
         setLoadingHymns(true);
-        const nextHymns = await refreshHymnsListFromServer();
+        setHymnsError(null);
+        const nextHymns = await refreshHymnsListFromServer(requestUid);
+        if (currentUserUidRef.current !== requestUid) return;
         setHymns(nextHymns);
         setHymnsFromCache(false);
         setPendingFirestoreWrites(false);
 
         if (selectedHymnId) {
           const remoteDoc = await fetchHymnDocFromServer(selectedHymnId);
+          if (currentUserUidRef.current !== requestUid) return;
           if (remoteDoc) {
             const sourceDoc = remoteDoc;
             const canonicalRemote = decodeStoredHymn(sourceDoc);
@@ -1014,13 +1104,30 @@ function AppShell() {
 
         showNotice("تم تحديث البيانات من السيرفر بنجاح.", "success");
       } catch (error) {
-        console.warn("[refreshFromServer]", error);
-        showNotice(`فشل التحديث من السيرفر: ${error.message}`, "error");
+        if (currentUserUidRef.current !== requestUid) return;
+        setHymnsError(error?.code || "read-failed");
+        if (import.meta.env.DEV) {
+          console.warn(
+            "[refreshFromServer]",
+            error?.code || error?.message || error,
+          );
+        }
+        showNotice("تعذر تحميل الترانيم من الخادم.", "error");
       } finally {
-        setLoadingHymns(false);
+        if (currentUserUidRef.current === requestUid) {
+          setLoadingHymns(false);
+        }
       }
     },
-    [isAdmin, isDirty, loadHymn, selectedHymnId, showNotice, state.hymn?.id],
+    [
+      currentUser?.uid,
+      isAdmin,
+      isDirty,
+      loadHymn,
+      selectedHymnId,
+      showNotice,
+      state.hymn?.id,
+    ],
   );
 
   const onTriggerRefresh = useCallback(() => {
@@ -1872,7 +1979,7 @@ function AppShell() {
                   الأخيرة
                 </button>
               </div>
-              {!loadingHymns && hymns.length > 0 ? (
+              {!loadingHymns && !hymnsError && hymns.length > 0 ? (
                 <p className="hymnSearchMeta" aria-live="polite">
                   {filteredHymns.length === visibleHymns.length &&
                   !hymnSearchQuery.trim() &&
@@ -1956,16 +2063,32 @@ function AppShell() {
             </p>
           ) : null}
 
-          {hasFirebaseConfig && loadingHymns ? (
+          {hasFirebaseConfig && hymnLoadState === "loading" ? (
             <p className="sidebarHint">جاري تحميل الترانيم...</p>
           ) : null}
 
-          {hasFirebaseConfig && !loadingHymns && hymns.length === 0 ? (
+          {hasFirebaseConfig && hymnLoadState === "error" ? (
+            <div className="sidebarHint" role="alert">
+              <p>
+                تعذر تحميل الترانيم حاليًا. تحقق من الاتصال أو صلاحيات الوصول ثم
+                حاول مرة أخرى.
+              </p>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setHymnListenerRetry((retry) => retry + 1)}
+              >
+                إعادة المحاولة
+              </button>
+            </div>
+          ) : null}
+
+          {hasFirebaseConfig && hymnLoadState === "empty" ? (
             <p className="sidebarHint">لا توجد ترانيم محفوظة حاليًا.</p>
           ) : null}
 
           {hasFirebaseConfig &&
-          !loadingHymns &&
+          hymnLoadState === "success" &&
           hymns.length > 0 &&
           filteredHymns.length === 0 &&
           (hymnSearchQuery.trim() ||
@@ -1977,7 +2100,9 @@ function AppShell() {
             </p>
           ) : null}
 
-          {hasFirebaseConfig && !loadingHymns && filteredHymns.length > 0 ? (
+          {hasFirebaseConfig &&
+          hymnLoadState === "success" &&
+          filteredHymns.length > 0 ? (
             <ul className="hymnList hymnSearchResultList">
               {filteredHymns.map((hymnItem) => (
                 <li key={hymnItem.id}>

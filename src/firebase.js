@@ -7,6 +7,7 @@ import {
   setPersistence,
   browserLocalPersistence,
 } from "firebase/auth";
+import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD40x6ixdgcqjW8ibHCKl6_DZRAlxCMLUI",
@@ -55,6 +56,7 @@ export const db = app
   : null;
 
 export const auth = app ? getAuth(app) : null;
+export const functions = app ? getFunctions(app) : null;
 if (auth && typeof window !== "undefined") {
   setPersistence(auth, browserLocalPersistence).catch((err) => {
     console.warn("[auth] local persistence:", err?.code || err?.message || err);

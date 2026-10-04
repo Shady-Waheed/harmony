@@ -1,0 +1,5 @@
+# One email per line.
+# This file is an example only.
+
+user@example.com
+another@example.com
