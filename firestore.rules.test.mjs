@@ -99,7 +99,7 @@ async function seedSetlist(id, data) {
 }
 
 describeRules("Firestore Rules: UID-keyed team authorization", () => {
-  it("allows public hymn reads and denies exclusive reads to non-owners", async () => {
+  it("limits exclusive reads to the owner and bootstrap Admin while preserving public reads", async () => {
     const admin = bootstrapAdminDb();
     await assertSucceeds(
       admin.collection("settings").doc("team").set({
@@ -128,8 +128,12 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
     );
 
     const anon = testEnv.unauthenticatedContext().firestore();
+    const reader = authedDb("reader-uid");
+    const bootstrapAdmin = bootstrapAdminDb();
 
     await assertSucceeds(anon.collection("hymns").doc("public-hymn").get());
+    await assertSucceeds(reader.collection("hymns").doc("public-hymn").get());
+    await assertSucceeds(bootstrapAdmin.collection("hymns").doc("public-hymn").get());
 
     await assertSucceeds(
       editor.collection("hymns").doc("exclusive-hymn").set({
@@ -145,6 +149,33 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
     );
 
     await assertFails(anon.collection("hymns").doc("exclusive-hymn").get());
+    await assertFails(reader.collection("hymns").doc("exclusive-hymn").get());
+    await assertSucceeds(editor.collection("hymns").doc("exclusive-hymn").get());
+    await assertSucceeds(
+      bootstrapAdmin.collection("hymns").doc("exclusive-hymn").get(),
+    );
+    await assertSucceeds(bootstrapAdmin.collection("hymns").get());
+
+    await assertFails(
+      reader.collection("hymns").doc("read-is-not-write").set({
+        title: "No write",
+        key: "E",
+        sections: [],
+        ownerUid: "reader-uid",
+        createdBy: "reader-uid",
+        updatedBy: "reader-uid",
+        isExclusive: false,
+        exclusiveOwnerUid: "",
+      }),
+    );
+    await assertFails(
+      reader.collection("hymns").doc("exclusive-hymn").update({
+        updatedBy: "reader-uid",
+      }),
+    );
+    await assertFails(
+      reader.collection("hymns").doc("exclusive-hymn").delete(),
+    );
   });
 
   it("denies hymn creation for canEdit-only members", async () => {

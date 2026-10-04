@@ -33,6 +33,16 @@ describe("hymn read query plan", () => {
     expect(getHymnReadPlan("user-B")[1].filters[1].value).toBe("user-B");
   });
 
+  it("uses an unfiltered collection query for bootstrap Admins", () => {
+    expect(getHymnReadPlan("ADMIN_UID_1", true)).toEqual([
+      {
+        source: "all",
+        filters: [],
+        orderBy: { field: "createdAt", direction: "desc" },
+      },
+    ]);
+  });
+
   it("starts the owner query after an anonymous-to-authenticated transition", () => {
     const anonymousPlan = getHymnReadPlan(null);
     const authenticatedPlan = getHymnReadPlan("user-A");
@@ -47,7 +57,7 @@ describe("hymn read query plan", () => {
 });
 
 describe("hymn read result merge", () => {
-  it("deduplicates by document ID and keeps the owner-query result on collision", () => {
+  it("deduplicates by document ID and keeps the later query result on collision", () => {
     const merged = mergeHymnQueryResults(
       [{ id: "same", title: "public copy", createdAt: timestamp(1) }],
       [{ id: "same", title: "owner copy", createdAt: timestamp(2) }],
@@ -58,7 +68,7 @@ describe("hymn read result merge", () => {
     expect(merged[0].createdAt.toMillis()).toBe(2);
   });
 
-  it("sorts merged public and owner hymns by createdAt descending", () => {
+  it("sorts hymns from all queries by createdAt descending", () => {
     const merged = mergeHymnQueryResults(
       [
         { id: "public-old", createdAt: timestamp(100) },

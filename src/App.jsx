@@ -28,6 +28,7 @@ import { auth, db, googleProvider, hasFirebaseConfig } from "./firebase";
 import {
   canAccessTeamDashboard,
   canManageSetlists,
+  isSuperAdminUser,
   resolvePermissions,
   SETTINGS_TEAM_DOC,
 } from "./utils/permissions";
@@ -90,17 +91,18 @@ import {
   mergeHymnQueryResults,
 } from "./utils/hymnRead";
 
-function buildHymnQueries(userUid) {
+function buildHymnQueries(userUid, isBootstrapAdmin) {
   const hymnsCollection = collection(db, "hymns");
-  return getHymnReadPlan(userUid).map((plan) =>
-    query(
+  return getHymnReadPlan(userUid, isBootstrapAdmin).map((plan) => ({
+    source: plan.source,
+    query: query(
       hymnsCollection,
       ...plan.filters.map((filter) =>
         where(filter.field, filter.operator, filter.value),
       ),
       orderBy(plan.orderBy.field, plan.orderBy.direction),
     ),
-  );
+  }));
 }
 
 function mapHymnSnapshot(snapshot) {
@@ -146,20 +148,16 @@ async function fetchHymnDocFromServer(hymnId) {
   }
 }
 
-async function refreshHymnsListFromServer(userUid) {
+async function refreshHymnsListFromServer(userUid, isBootstrapAdmin) {
   if (!db || !hasFirebaseConfig) {
     return [];
   }
 
-  const queries = buildHymnQueries(userUid);
+  const queries = buildHymnQueries(userUid, isBootstrapAdmin);
   const snapshots = await Promise.all(
-    queries.map((hymnsQuery) => getDocsFromServer(hymnsQuery)),
+    queries.map(({ query: hymnsQuery }) => getDocsFromServer(hymnsQuery)),
   );
-  const [publicSnapshot, ownedSnapshot] = snapshots;
-  return mergeHymnQueryResults(
-    mapHymnSnapshot(publicSnapshot),
-    ownedSnapshot ? mapHymnSnapshot(ownedSnapshot) : [],
-  );
+  return mergeHymnQueryResults(...snapshots.map(mapHymnSnapshot));
 }
 
 function AppShell() {
@@ -268,6 +266,7 @@ function AppShell() {
         const isExclusive =
           Boolean(item.isExclusive) || exclusiveOwnerUid.length > 0;
         if (!isExclusive) return true;
+        if (isSuperAdminUser(currentUser)) return true;
         if (!currentUser) return false;
         return exclusiveOwnerUid === String(currentUser.uid || "");
       }),
@@ -506,42 +505,38 @@ function AppShell() {
     setPendingFirestoreWrites(false);
 
     const userUid = String(currentUser?.uid || "");
-    const queries = buildHymnQueries(userUid || null);
-    const queryResults = { public: [], ownedExclusive: [] };
-    const queryMetadata = { public: null, ownedExclusive: null };
-    const receivedInitialSnapshot = {
-      public: false,
-      ownedExclusive: queries.length === 1,
-    };
+    const queries = buildHymnQueries(
+      userUid || null,
+      isSuperAdminUser(currentUser),
+    );
+    const queryResults = Object.fromEntries(
+      queries.map(({ source }) => [source, []]),
+    );
+    const queryMetadata = Object.fromEntries(
+      queries.map(({ source }) => [source, null]),
+    );
+    const receivedInitialSnapshot = Object.fromEntries(
+      queries.map(({ source }) => [source, false]),
+    );
     let active = true;
 
     const publishResults = () => {
       if (!active) return;
-      setHymns(
-        mergeHymnQueryResults(queryResults.public, queryResults.ownedExclusive),
-      );
+      setHymns(mergeHymnQueryResults(...Object.values(queryResults)));
       setHymnsFromCache(
-        Boolean(
-          queryMetadata.public?.fromCache ||
-          queryMetadata.ownedExclusive?.fromCache,
-        ),
+        Object.values(queryMetadata).some((metadata) => metadata?.fromCache),
       );
       setPendingFirestoreWrites(
-        Boolean(
-          queryMetadata.public?.hasPendingWrites ||
-          queryMetadata.ownedExclusive?.hasPendingWrites,
+        Object.values(queryMetadata).some(
+          (metadata) => metadata?.hasPendingWrites,
         ),
       );
-      if (
-        receivedInitialSnapshot.public &&
-        receivedInitialSnapshot.ownedExclusive
-      ) {
+      if (Object.values(receivedInitialSnapshot).every(Boolean)) {
         setLoadingHymns(false);
       }
     };
 
-    const unsubscribes = queries.map((hymnsQuery, index) => {
-      const source = index === 0 ? "public" : "ownedExclusive";
+    const unsubscribes = queries.map(({ source, query: hymnsQuery }) => {
       return onSnapshot(
         hymnsQuery,
         { includeMetadataChanges: true, source: "server" },
@@ -1090,10 +1085,14 @@ function AppShell() {
       }
 
       const requestUid = String(currentUser?.uid || "");
+      const requestIsBootstrapAdmin = isSuperAdmin;
       try {
         setLoadingHymns(true);
         setHymnsError(null);
-        const nextHymns = await refreshHymnsListFromServer(requestUid);
+        const nextHymns = await refreshHymnsListFromServer(
+          requestUid,
+          requestIsBootstrapAdmin,
+        );
         if (currentUserUidRef.current !== requestUid) return;
         setHymns(nextHymns);
         setHymnsFromCache(false);
@@ -1150,6 +1149,7 @@ function AppShell() {
       currentUser?.uid,
       isAdmin,
       isDirty,
+      isSuperAdmin,
       loadHymn,
       selectedHymnId,
       showNotice,

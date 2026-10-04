@@ -1,4 +1,14 @@
-export function getHymnReadPlan(userUid) {
+export function getHymnReadPlan(userUid, isBootstrapAdmin = false) {
+  if (isBootstrapAdmin) {
+    return [
+      {
+        source: "all",
+        filters: [],
+        orderBy: { field: "createdAt", direction: "desc" },
+      },
+    ];
+  }
+
   const plan = [
     {
       source: "public",
@@ -31,13 +41,12 @@ function createdAtMillis(value) {
   return 0;
 }
 
-export function mergeHymnQueryResults(publicHymns = [], ownedHymns = []) {
+export function mergeHymnQueryResults(...hymnGroups) {
   const byId = new Map();
-  for (const hymn of publicHymns) {
-    if (hymn?.id) byId.set(String(hymn.id), hymn);
-  }
-  for (const hymn of ownedHymns) {
-    if (hymn?.id) byId.set(String(hymn.id), hymn);
+  for (const hymns of hymnGroups) {
+    for (const hymn of hymns || []) {
+      if (hymn?.id) byId.set(String(hymn.id), hymn);
+    }
   }
 
   return [...byId.values()].sort((left, right) => {

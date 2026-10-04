@@ -64,9 +64,10 @@ service cloud.firestore {
     }
 
     function exclusiveReadAllowed() {
-      return resource.data.isExclusive == false ||
-        (isSignedIn() &&
-          resource.data.isExclusive == true &&
+      return isBootstrapAdmin() ||
+        resource.data.isExclusive == false ||
+        (resource.data.isExclusive == true &&
+          isSignedIn() &&
           resource.data.exclusiveOwnerUid == request.auth.uid);
     }
 
