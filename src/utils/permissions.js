@@ -43,47 +43,43 @@ function envEmailListMatchesUser(envRawList, user) {
   return keys.some((k) => allowed.includes(k));
 }
 
-function coerceMembersList(teamData) {
+const BOOTSTRAP_ADMIN_UIDS = new Set(["ADMIN_UID_1", "ADMIN_UID_2"]);
+
+function isBootstrapAdminUser(user) {
+  return Boolean(user?.uid && BOOTSTRAP_ADMIN_UIDS.has(String(user.uid)));
+}
+
+export function coerceMembersMap(teamData = {}) {
   const rawMembers = teamData?.members;
-  if (Array.isArray(rawMembers)) return rawMembers;
-  if (rawMembers && typeof rawMembers === "object")
-    return Object.values(rawMembers);
-  return [];
+  if (
+    rawMembers &&
+    typeof rawMembers === "object" &&
+    !Array.isArray(rawMembers)
+  ) {
+    return Object.entries(rawMembers).reduce((map, [uid, row]) => {
+      if (row && typeof row === "object" && uid) {
+        map[String(uid)] = row;
+      }
+      return map;
+    }, {});
+  }
+  return {};
 }
 
 function findMemberRow(user, teamData) {
-  const keys = userEmailKeys(user);
-  const members = coerceMembersList(teamData);
-  if (!members.length || !keys.length) return null;
-  return (
-    members.find((m) => {
-      const emailKey = normalizeGoogleEmail(
-        String(m?.email || "").toLowerCase(),
-      );
-      return (
-        keys.includes(emailKey) ||
-        (user?.uid && String(m?.uid || "") === String(user.uid))
-      );
-    }) || null
-  );
+  if (!user) return null;
+
+  const uid = String(user.uid || "");
+  const memberMap = coerceMembersMap(teamData);
+  const row = uid ? memberMap[uid] : null;
+  return row && typeof row === "object" ? row : null;
 }
 
 /**
  * مشرف رئيسي صريح (صلاحيات كاملة + تجاوز مستند الفريق). يعمل فقط لو عرّفت VITE_SUPER_ADMIN_*.
  */
 export function isSuperAdminUser(user) {
-  if (!user) return false;
-  const emails = parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).map((e) =>
-    normalizeGoogleEmail(e.toLowerCase()),
-  );
-  const uids = parseList(import.meta.env.VITE_SUPER_ADMIN_UIDS);
-  if (emails.length === 0 && uids.length === 0) {
-    return false;
-  }
-  const uid = String(user.uid || "");
-  return (
-    userEmailKeys(user).some((k) => emails.includes(k)) || uids.includes(uid)
-  );
+  return isBootstrapAdminUser(user);
 }
 
 export function hasEnvSuperAdminConfig() {
@@ -100,23 +96,17 @@ export function hasEnvSuperAdminConfig() {
  */
 export function canAccessTeamDashboard(user, teamData = {}) {
   if (!user) return false;
-
-  if (teamData.ignoreEnvAdminList) {
-    if (isSuperAdminUser(user)) return true;
-    const row = findMemberRow(user, teamData);
-    return Boolean(row?.canManageDashboard);
-  }
-
-  const emails = parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).map((e) =>
-    normalizeGoogleEmail(e.toLowerCase()),
-  );
-  const uids = parseList(import.meta.env.VITE_SUPER_ADMIN_UIDS);
-  if (emails.length === 0 && uids.length === 0) {
-    return isAdminUserEnv(user);
-  }
-  const uid = String(user.uid || "");
   return (
-    userEmailKeys(user).some((k) => emails.includes(k)) || uids.includes(uid)
+    isBootstrapAdminUser(user) ||
+    findMemberRow(user, teamData)?.canManageDashboard === true
+  );
+}
+
+export function canManageSetlists(user, teamData = {}) {
+  if (!user) return false;
+  return (
+    isBootstrapAdminUser(user) ||
+    findMemberRow(user, teamData)?.canManageSetlists === true
   );
 }
 
@@ -128,50 +118,9 @@ function isAdminUserEnv(user) {
   return envEmailListMatchesUser(import.meta.env.VITE_ADMIN_EMAILS, user);
 }
 
-function canDeleteHymnsEnv(user) {
-  if (!user) return false;
-  const allowedUids = parseList(import.meta.env.VITE_DELETE_UIDS);
-  const uid = String(user.uid || "");
-
-  if (
-    !parseList(import.meta.env.VITE_DELETE_EMAILS).length &&
-    allowedUids.length === 0
-  ) {
-    return isAdminUserEnv(user);
-  }
-
-  if (allowedUids.includes(uid)) return true;
-  return envEmailListMatchesUser(import.meta.env.VITE_DELETE_EMAILS, user);
-}
-
-function canSaveHymnsToFirebaseEnv(user) {
-  if (!user) return false;
-  const allowedUids = parseList(import.meta.env.VITE_SAVE_UIDS);
-  const uid = String(user.uid || "");
-
-  if (
-    !parseList(import.meta.env.VITE_SAVE_EMAILS).length &&
-    allowedUids.length === 0
-  ) {
-    return isAdminUserEnv(user);
-  }
-
-  if (allowedUids.includes(uid)) return true;
-  return envEmailListMatchesUser(import.meta.env.VITE_SAVE_EMAILS, user);
-}
-
-function envFallbackPermissions(user) {
-  return {
-    isAdmin: isAdminUserEnv(user),
-    canSaveFirebase: canSaveHymnsToFirebaseEnv(user),
-    canDelete: canDeleteHymnsEnv(user),
-  };
-}
-
 /**
- * دمج: المشرف الرئيسي من env دائمًا كل الصلاحيات؛
- * لو ignoreEnvAdminList: الصلاحيات من صف members فقط (غير المذكور = قارئ)؛
- * غير ذلك: صف members يدمج مع env كما سبق.
+ * Rules-backed capabilities resolve from bootstrap UID or the UID-keyed team row.
+ * Environment admin lists remain editor UI hints only.
  */
 export function resolvePermissions(user, teamData) {
   if (!user) {
@@ -179,6 +128,7 @@ export function resolvePermissions(user, teamData) {
       isAdmin: false,
       canSaveFirebase: false,
       canDelete: false,
+      canManageSetlists: false,
       isSuperAdmin: false,
     };
   }
@@ -188,42 +138,20 @@ export function resolvePermissions(user, teamData) {
       isAdmin: true,
       canSaveFirebase: true,
       canDelete: true,
+      canManageSetlists: true,
       isSuperAdmin: true,
     };
   }
 
   const ignore = Boolean(teamData?.ignoreEnvAdminList);
   const row = findMemberRow(user, teamData);
-
-  if (row) {
-    if (ignore) {
-      return {
-        isAdmin: Boolean(row.canEdit),
-        canSaveFirebase: Boolean(row.canSaveFirebase),
-        canDelete: Boolean(row.canDeleteHymn),
-        isSuperAdmin: false,
-      };
-    }
-    const env = envFallbackPermissions(user);
-    return {
-      isAdmin: Boolean(row.canEdit) || env.isAdmin,
-      canSaveFirebase: Boolean(row.canSaveFirebase) || env.canSaveFirebase,
-      canDelete: Boolean(row.canDeleteHymn) || env.canDelete,
-      isSuperAdmin: false,
-    };
-  }
-
-  if (ignore) {
-    return {
-      isAdmin: false,
-      canSaveFirebase: false,
-      canDelete: false,
-      isSuperAdmin: false,
-    };
-  }
+  const envEditor = !ignore && isAdminUserEnv(user);
 
   return {
-    ...envFallbackPermissions(user),
+    isAdmin: row?.canEdit === true || envEditor,
+    canSaveFirebase: row?.canSaveFirebase === true,
+    canDelete: row?.canDeleteHymn === true,
+    canManageSetlists: canManageSetlists(user, teamData),
     isSuperAdmin: false,
   };
 }
@@ -238,9 +166,10 @@ export function normalizeMemberRow(row) {
     uid: String(row?.uid || ""),
     email,
     displayName: String(row?.displayName || ""),
-    canEdit: Boolean(row?.canEdit),
-    canSaveFirebase: Boolean(row?.canSaveFirebase),
-    canDeleteHymn: Boolean(row?.canDeleteHymn),
-    canManageDashboard: Boolean(row?.canManageDashboard),
+    canEdit: row?.canEdit === true,
+    canSaveFirebase: row?.canSaveFirebase === true,
+    canDeleteHymn: row?.canDeleteHymn === true,
+    canManageDashboard: row?.canManageDashboard === true,
+    canManageSetlists: row?.canManageSetlists === true,
   };
 }

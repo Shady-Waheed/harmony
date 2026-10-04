@@ -5,6 +5,7 @@ import {
   createResolvedMemberPreview,
   isServerAuthorizedTeamManager,
   normalizeEmailForComparison,
+  parseBootstrapAdminUids,
   resolveAuthUserByEmail,
 } from "./firebaseTeamResolver.mjs";
 
@@ -31,8 +32,7 @@ describe("trusted server-side UID resolution", () => {
       ],
       requestUser: { uid: "not-admin", email: "guest@example.com" },
       teamData: { members: {} },
-      adminEmails: ["admin@example.com"],
-      adminUids: ["admin-uid"],
+      bootstrapAdminUids: ["admin-uid"],
     });
 
     expect(result.authorized).toBe(false);
@@ -52,12 +52,11 @@ describe("trusted server-side UID resolution", () => {
       ],
       requestUser: {
         uid: "admin-uid",
-        email: "admin@example.com",
+        email: "changed@example.net",
         providerData: [],
       },
       teamData: { members: {} },
-      adminEmails: ["admin@example.com"],
-      adminUids: ["admin-uid"],
+      bootstrapAdminUids: ["admin-uid"],
     });
 
     expect(result.authorized).toBe(true);
@@ -114,6 +113,160 @@ describe("trusted server-side UID resolution", () => {
     expect(result.authUser.disabled).toBe(true);
   });
 
+  it("parses bootstrap UID configuration safely", () => {
+    expect(parseBootstrapAdminUids(" uid-1, ,uid-2,uid-1 ,, ")).toEqual([
+      "uid-1",
+      "uid-2",
+    ]);
+    expect(parseBootstrapAdminUids(" ,  ")).toEqual([]);
+  });
+
+  it("authorizes an exact bootstrap UID", () => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: { uid: "bootstrap-uid" },
+        teamData: {},
+        bootstrapAdminUids: ["bootstrap-uid"],
+      }),
+    ).toBe(true);
+  });
+
+  it("denies a non-bootstrap UID regardless of matching email", () => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: {
+          uid: "different-uid",
+          email: "admin@example.com",
+          providerData: [{ email: "bootstrap@example.com" }],
+        },
+        teamData: { members: {} },
+        bootstrapAdminUids: ["bootstrap-uid"],
+      }),
+    ).toBe(false);
+  });
+
+  it("authorizes a bootstrap UID when its email changes", () => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: { uid: "bootstrap-uid", email: "changed@example.com" },
+        teamData: {},
+        bootstrapAdminUids: ["bootstrap-uid"],
+      }),
+    ).toBe(true);
+  });
+
+  it("authorizes a team manager by UID and literal boolean true", () => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: { uid: "manager-uid" },
+        teamData: {
+          members: {
+            "manager-uid": { canManageDashboard: true },
+          },
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["false", false],
+    ["string true", "true"],
+    ["number one", 1],
+    ["yes string", "yes"],
+    ["missing flag", undefined],
+  ])("denies a team row with %s canManageDashboard", (_label, flag) => {
+    const member = { uid: "manager-uid" };
+    if (flag !== undefined) member.canManageDashboard = flag;
+
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: { uid: "manager-uid" },
+        teamData: { members: { "manager-uid": member } },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not authorize legacy email-keyed rows", () => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: { uid: "manager-uid", email: "manager@example.com" },
+        teamData: {
+          members: {
+            "manager@example.com": {
+              email: "manager@example.com",
+              canManageDashboard: true,
+            },
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not authorize a different UID with the manager email", () => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: { uid: "caller-uid", email: "manager@example.com" },
+        teamData: {
+          members: {
+            "manager-uid": {
+              uid: "manager-uid",
+              email: "manager@example.com",
+              canManageDashboard: true,
+            },
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("authorizes a bootstrap UID without any team document", () => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: { uid: "bootstrap-uid" },
+        teamData: null,
+        bootstrapAdminUids: ["bootstrap-uid"],
+      }),
+    ).toBe(true);
+  });
+
+  it("authorizes a team manager without bootstrap membership", () => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: { uid: "team-manager" },
+        teamData: {
+          members: { "team-manager": { canManageDashboard: true } },
+        },
+        bootstrapAdminUids: ["bootstrap-uid"],
+      }),
+    ).toBe(true);
+  });
+
+  it("denies a caller who is neither bootstrap nor a team manager", () => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser: { uid: "ordinary-user" },
+        teamData: { members: {} },
+        bootstrapAdminUids: ["bootstrap-uid"],
+      }),
+    ).toBe(false);
+  });
+
+  it.each([
+    ["missing auth", null],
+    ["missing UID", {}],
+    ["empty UID", { uid: "" }],
+    ["whitespace UID", { uid: "   " }],
+    ["non-string UID", { uid: 123 }],
+  ])("denies %s", (_label, requestUser) => {
+    expect(
+      isServerAuthorizedTeamManager({
+        requestUser,
+        teamData: { members: {} },
+        bootstrapAdminUids: ["123"],
+      }),
+    ).toBe(false);
+  });
+
   it("does not trust client-supplied admin flags", () => {
     const authorized = isServerAuthorizedTeamManager({
       requestUser: {
@@ -122,8 +275,6 @@ describe("trusted server-side UID resolution", () => {
         providerData: [],
       },
       teamData: { members: {} },
-      adminEmails: ["admin@example.com"],
-      adminUids: [],
     });
 
     expect(authorized).toBe(false);
@@ -137,8 +288,6 @@ describe("trusted server-side UID resolution", () => {
         providerData: [],
       },
       teamData: { members: { "member-uid": { canManageDashboard: true } } },
-      adminEmails: [],
-      adminUids: [],
     });
 
     expect(authorized).toBe(true);
@@ -153,6 +302,7 @@ describe("trusted server-side UID resolution", () => {
         canSaveFirebase: false,
         canDeleteHymn: true,
         canManageDashboard: false,
+        canManageSetlists: true,
       },
     });
 
@@ -160,6 +310,28 @@ describe("trusted server-side UID resolution", () => {
     expect(item.uid).toBe("uid-123");
     expect(item.canEdit).toBe(true);
     expect(item.canDeleteHymn).toBe(true);
+    expect(item.canManageSetlists).toBe(true);
+  });
+
+  it("does not coerce malformed permission values to true", () => {
+    const item = buildUidBackedMemberEntry({
+      uid: "uid-123",
+      permissions: {
+        canEdit: "true",
+        canSaveFirebase: 1,
+        canDeleteHymn: "yes",
+        canManageDashboard: "true",
+        canManageSetlists: 1,
+      },
+    });
+
+    expect(item).toMatchObject({
+      canEdit: false,
+      canSaveFirebase: false,
+      canDeleteHymn: false,
+      canManageDashboard: false,
+      canManageSetlists: false,
+    });
   });
 
   it("builds a UID-backed team document preserving existing members", () => {

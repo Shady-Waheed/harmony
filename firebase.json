@@ -2,5 +2,17 @@
   "functions": {
     "source": "functions",
     "ignore": ["node_modules", ".git", "npm-debug.log"]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    }
   }
 }

@@ -87,49 +87,48 @@ export function resolveAuthUserByEmail(teamEmail, authUsers) {
   };
 }
 
+export function parseBootstrapAdminUids(rawValue) {
+  return [
+    ...new Set(
+      String(rawValue ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
 export function isServerAuthorizedTeamManager({
   requestUser,
   teamData,
-  adminEmails = [],
-  adminUids = [],
+  bootstrapAdminUids = [],
 }) {
-  if (!requestUser || !requestUser.uid) {
+  const uid = requestUser?.uid;
+  if (typeof uid !== "string" || uid.trim().length === 0) {
     return false;
   }
 
-  const uid = String(requestUser.uid);
-  if (adminUids.some((allowed) => String(allowed) === uid)) {
+  const configuredUids = Array.isArray(bootstrapAdminUids)
+    ? bootstrapAdminUids
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    : [];
+  if (configuredUids.includes(uid)) {
     return true;
   }
 
-  const candidateEmails = [
-    requestUser.email,
-    ...(requestUser.providerData || []).map((p) => p?.email),
-  ]
-    .map((part) => normalizeEmailForComparison(part))
-    .filter(Boolean);
-
-  const normalizedAdminEmails = adminEmails
-    .map((email) => normalizeEmailForComparison(email))
-    .filter(Boolean);
-
-  if (candidateEmails.some((email) => normalizedAdminEmails.includes(email))) {
-    return true;
+  const members = teamData?.members;
+  if (!members || typeof members !== "object" || Array.isArray(members)) {
+    return false;
   }
 
-  if (
-    teamData &&
-    teamData.members &&
-    typeof teamData.members === "object" &&
-    !Array.isArray(teamData.members)
-  ) {
-    const memberRow = teamData.members[uid];
-    if (memberRow && Boolean(memberRow.canManageDashboard)) {
-      return true;
-    }
-  }
-
-  return false;
+  const memberRow = members[uid];
+  return Boolean(
+    memberRow &&
+      typeof memberRow === "object" &&
+      !Array.isArray(memberRow) &&
+      memberRow.canManageDashboard === true,
+  );
 }
 
 export function createResolvedMemberPreview({
@@ -137,15 +136,13 @@ export function createResolvedMemberPreview({
   authUsers,
   requestUser,
   teamData,
-  adminEmails = [],
-  adminUids = [],
+  bootstrapAdminUids = [],
 }) {
   if (
     !isServerAuthorizedTeamManager({
       requestUser,
       teamData,
-      adminEmails,
-      adminUids,
+      bootstrapAdminUids,
     })
   ) {
     return {
@@ -172,10 +169,11 @@ export function buildUidBackedMemberEntry({
     email: typeof email === "string" ? email.trim() : "",
     uid: uid || "",
     displayName: displayName || "",
-    canEdit: Boolean(permissions?.canEdit),
-    canSaveFirebase: Boolean(permissions?.canSaveFirebase),
-    canDeleteHymn: Boolean(permissions?.canDeleteHymn),
-    canManageDashboard: Boolean(permissions?.canManageDashboard),
+    canEdit: permissions?.canEdit === true,
+    canSaveFirebase: permissions?.canSaveFirebase === true,
+    canDeleteHymn: permissions?.canDeleteHymn === true,
+    canManageDashboard: permissions?.canManageDashboard === true,
+    canManageSetlists: permissions?.canManageSetlists === true,
   };
 
   return next;

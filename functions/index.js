@@ -1,63 +1,37 @@
 import admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { normalizeEmailForComparison } from "../server/firebaseTeamResolver.mjs";
+import {
+  isServerAuthorizedTeamManager,
+  normalizeEmailForComparison,
+  parseBootstrapAdminUids,
+} from "../server/firebaseTeamResolver.mjs";
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-function normalizeServerAdminList(rawValue) {
-  return String(rawValue || "")
-    .split(",")
-    .map((value) => normalizeEmailForComparison(value))
-    .filter(Boolean);
-}
-
 async function getAuthorizedTeamManagerState(context) {
-  if (!context?.auth?.uid) {
+  const uid = context?.auth?.uid;
+  if (typeof uid !== "string" || uid.trim().length === 0) {
     throw new HttpsError("unauthenticated", "Authentication is required.");
   }
 
-  const uid = String(context.auth.uid);
+  const bootstrapAdminUids = parseBootstrapAdminUids(
+    globalThis.process?.env?.ADMIN_UIDS,
+  );
   const firestore = admin.firestore();
   const teamDocSnap = await firestore.doc("settings/team").get();
   const teamData = teamDocSnap.exists
     ? teamDocSnap.data() || { members: {} }
     : { members: {} };
-  const memberMap =
-    teamData.members &&
-    typeof teamData.members === "object" &&
-    !Array.isArray(teamData.members)
-      ? teamData.members
-      : {};
 
-  const memberRow = memberMap[uid] || null;
-  if (memberRow && Boolean(memberRow.canManageDashboard)) {
-    return { uid, teamData };
-  }
-
-  const serverAdminUids = String(globalThis.process?.env?.ADMIN_UIDS || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-  if (serverAdminUids.includes(uid)) {
-    return { uid, teamData };
-  }
-
-  const user = await admin.auth().getUser(uid);
-  const candidateEmails = [
-    user.email,
-    ...(user.providerData || []).map((provider) => provider?.email),
-  ]
-    .map((value) => normalizeEmailForComparison(value))
-    .filter(Boolean);
-
-  const serverAdminEmails = normalizeServerAdminList(
-    globalThis.process?.env?.ADMIN_EMAILS || "",
-  );
-
-  if (candidateEmails.some((email) => serverAdminEmails.includes(email))) {
+  if (
+    isServerAuthorizedTeamManager({
+      requestUser: { uid },
+      teamData,
+      bootstrapAdminUids,
+    })
+  ) {
     return { uid, teamData };
   }
 
@@ -68,7 +42,10 @@ async function getAuthorizedTeamManagerState(context) {
 }
 
 export const resolveTeamMemberByEmail = onCall(async (request) => {
-  if (!request?.auth) {
+  if (
+    typeof request?.auth?.uid !== "string" ||
+    request.auth.uid.trim().length === 0
+  ) {
     throw new HttpsError("unauthenticated", "Authentication is required.");
   }
 

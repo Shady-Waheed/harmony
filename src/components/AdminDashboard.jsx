@@ -48,6 +48,7 @@ export default function AdminDashboard({
     canSaveFirebase: true,
     canDeleteHymn: false,
     canManageDashboard: false,
+    canManageSetlists: false,
   });
 
   useEffect(() => {
@@ -232,6 +233,7 @@ export default function AdminDashboard({
                 <th>حفظ سيرفر</th>
                 <th>حذف</th>
                 <th>لوحة المشرفين</th>
+                <th>قوائم الخدمة</th>
                 <th />
               </tr>
             </thead>
@@ -278,6 +280,14 @@ export default function AdminDashboard({
                         checked={m.canManageDashboard}
                         onChange={(v) =>
                           updateRow(m.email, { canManageDashboard: v })
+                        }
+                      />
+                    </td>
+                    <td>
+                      <Toggle
+                        checked={m.canManageSetlists}
+                        onChange={(v) =>
+                          updateRow(m.email, { canManageSetlists: v })
                         }
                       />
                     </td>
@@ -364,6 +374,13 @@ export default function AdminDashboard({
               checked={newFlags.canManageDashboard}
               onChange={(v) =>
                 setNewFlags((p) => ({ ...p, canManageDashboard: v }))
+              }
+            />
+            <Toggle
+              label="قوائم"
+              checked={newFlags.canManageSetlists}
+              onChange={(v) =>
+                setNewFlags((p) => ({ ...p, canManageSetlists: v }))
               }
             />
             <button

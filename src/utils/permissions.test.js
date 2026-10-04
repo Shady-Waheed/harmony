@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   canAccessTeamDashboard,
+  canManageSetlists,
   isSuperAdminUser,
   resolvePermissions,
 } from "./permissions.js";
@@ -25,37 +26,42 @@ describe("role matrix and permission resolution", () => {
     expect(resolvePermissions(null, {}).isAdmin).toBe(false);
     expect(resolvePermissions(null, {}).canSaveFirebase).toBe(false);
     expect(resolvePermissions(null, {}).canDelete).toBe(false);
+    expect(resolvePermissions(null, {}).canManageSetlists).toBe(false);
   });
 
-  it("grants env-based super-admin privileges to the configured account", () => {
+  it("grants Rules-backed capabilities to bootstrap UIDs", () => {
     const user = {
-      uid: "super-uid-1",
-      email: "admin@example.com",
+      uid: "ADMIN_UID_1",
+      email: "bootstrap@example.com",
       providerData: [],
     };
 
     expect(isSuperAdminUser(user)).toBe(true);
+    expect(canAccessTeamDashboard(user, {})).toBe(true);
+    expect(canManageSetlists(user, {})).toBe(true);
     expect(resolvePermissions(user, {}).isAdmin).toBe(true);
     expect(resolvePermissions(user, {}).canSaveFirebase).toBe(true);
     expect(resolvePermissions(user, {}).canDelete).toBe(true);
   });
 
-  it("merges env-admin and team-row permissions without creating a new security layer", () => {
+  it("resolves distinct permissions only from the UID-keyed team row", () => {
     const user = {
       uid: "member-uid",
       email: "member@example.com",
       providerData: [],
     };
     const teamData = {
-      members: [
-        {
+      members: {
+        "member-uid": {
+          uid: "member-uid",
           email: "member@example.com",
           canEdit: true,
           canSaveFirebase: true,
           canDeleteHymn: false,
           canManageDashboard: false,
+          canManageSetlists: true,
         },
-      ],
+      },
       ignoreEnvAdminList: false,
     };
 
@@ -63,29 +69,83 @@ describe("role matrix and permission resolution", () => {
     expect(perms.isAdmin).toBe(true);
     expect(perms.canSaveFirebase).toBe(true);
     expect(perms.canDelete).toBe(false);
+    expect(perms.canManageSetlists).toBe(true);
   });
 
-  it("allows team dashboard access only when the team row grants it", () => {
-    vi.stubEnv("VITE_SUPER_ADMIN_EMAILS", "");
-    vi.stubEnv("VITE_SUPER_ADMIN_UIDS", "");
-    vi.stubEnv("VITE_ADMIN_EMAILS", "");
-    vi.stubEnv("VITE_ADMIN_UIDS", "");
-
+  it("does not authorize stale email rows or legacy member arrays", () => {
     const user = {
-      uid: "dashboard-uid",
-      email: "dashboard@example.com",
+      uid: "current-uid",
+      email: "member@example.com",
       providerData: [],
     };
-    const teamData = {
-      ignoreEnvAdminList: true,
+    const emailKeyed = {
+      members: {
+        "old-uid": {
+          uid: "old-uid",
+          email: "member@example.com",
+          canSaveFirebase: true,
+          canManageDashboard: true,
+          canManageSetlists: true,
+        },
+      },
+    };
+    const legacyArray = {
       members: [
         {
-          email: "dashboard@example.com",
+          uid: "current-uid",
+          email: "member@example.com",
+          canSaveFirebase: true,
           canManageDashboard: true,
+          canManageSetlists: true,
         },
       ],
     };
 
-    expect(canAccessTeamDashboard(user, teamData)).toBe(true);
+    for (const teamData of [emailKeyed, legacyArray]) {
+      expect(resolvePermissions(user, teamData).canSaveFirebase).toBe(false);
+      expect(resolvePermissions(user, teamData).canManageSetlists).toBe(false);
+      expect(canAccessTeamDashboard(user, teamData)).toBe(false);
+      expect(canManageSetlists(user, teamData)).toBe(false);
+    }
+  });
+
+  it("does not let unrelated permissions grant shared setlist management", () => {
+    const user = { uid: "separate-role-user", email: "role@example.com" };
+    const unrelatedFlags = {
+      members: {
+        "separate-role-user": {
+          canEdit: true,
+          canSaveFirebase: true,
+          canDeleteHymn: true,
+          canManageDashboard: true,
+        },
+      },
+    };
+    const explicitSetlistFlag = {
+      members: {
+        "separate-role-user": { canManageSetlists: true },
+      },
+    };
+
+    expect(canManageSetlists(user, unrelatedFlags)).toBe(false);
+    expect(resolvePermissions(user, unrelatedFlags).canManageSetlists).toBe(
+      false,
+    );
+    expect(canManageSetlists(user, explicitSetlistFlag)).toBe(true);
+  });
+
+  it("keeps VITE admin lists UI-only and does not grant Rules capabilities", () => {
+    const user = {
+      uid: "env-editor-uid",
+      email: "manager@example.com",
+      providerData: [],
+    };
+    const permissions = resolvePermissions(user, {});
+
+    expect(permissions.isAdmin).toBe(true);
+    expect(permissions.canSaveFirebase).toBe(false);
+    expect(permissions.canDelete).toBe(false);
+    expect(permissions.canManageSetlists).toBe(false);
+    expect(canAccessTeamDashboard(user, {})).toBe(false);
   });
 });

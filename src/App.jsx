@@ -27,6 +27,7 @@ import {
 import { auth, db, googleProvider, hasFirebaseConfig } from "./firebase";
 import {
   canAccessTeamDashboard,
+  canManageSetlists,
   resolvePermissions,
   SETTINGS_TEAM_DOC,
 } from "./utils/permissions";
@@ -347,14 +348,18 @@ function AppShell() {
     };
   }, []);
 
-  const teamMembersForDashboard = useMemo(
-    () => teamData?.members || [],
-    [teamData],
-  );
+  const teamMembersForDashboard = useMemo(() => {
+    const rawMembers = teamData?.members;
+    if (Array.isArray(rawMembers)) return rawMembers;
+    if (rawMembers && typeof rawMembers === "object") {
+      return Object.values(rawMembers);
+    }
+    return [];
+  }, [teamData]);
   const canManageSharedSetlists = Boolean(
     currentUser &&
     hasFirebaseConfig &&
-    (canSaveFirebase || isAdmin || canDelete),
+    canManageSetlists(currentUser, teamData || {}),
   );
   const selectedSharedSetlist = useMemo(
     () =>
@@ -614,7 +619,14 @@ function AppShell() {
       teamRef,
       { includeMetadataChanges: true, source: "server" },
       (snapshot) => {
-        setTeamData(snapshot.exists() ? snapshot.data() : { members: [] });
+        const nextTeamData = snapshot.exists() ? snapshot.data() || {} : {};
+        setTeamData({
+          ...nextTeamData,
+          members:
+            nextTeamData.members && typeof nextTeamData.members === "object"
+              ? nextTeamData.members
+              : {},
+        });
         setTeamFromCache(snapshot.metadata.fromCache);
         if (snapshot.metadata.hasPendingWrites) {
           setPendingFirestoreWrites(true);
@@ -701,16 +713,30 @@ function AppShell() {
       }
 
       const canonicalPayload = encodeHymnForFirestore(state.hymn);
+      const existingHymn = selectedHymnId
+        ? hymns.find((item) => item.id === selectedHymnId)
+        : null;
+      const isExclusive = isSuperAdmin
+        ? Boolean(state.hymn.isExclusive)
+        : Boolean(existingHymn?.isExclusive || existingHymn?.exclusiveOwnerUid);
       const payload = {
         title: canonicalPayload.title || title,
         key: canonicalPayload.key || state.hymn.key || "",
         sections: canonicalPayload.sections || [],
         schemaVersion: canonicalPayload.schemaVersion || 2,
-        isExclusive: isSuperAdmin ? Boolean(state.hymn.isExclusive) : false,
-        exclusiveOwnerUid:
-          isSuperAdmin && state.hymn.isExclusive
+        isExclusive,
+        exclusiveOwnerUid: isSuperAdmin
+          ? isExclusive
             ? String(currentUser?.uid || "")
-            : "",
+            : ""
+          : String(existingHymn?.exclusiveOwnerUid || ""),
+        ...(!selectedHymnId
+          ? {
+              ownerUid: String(currentUser?.uid || ""),
+              createdBy: String(currentUser?.uid || ""),
+            }
+          : {}),
+        updatedBy: String(currentUser?.uid || ""),
         updatedAt: serverTimestamp(),
       };
 
@@ -804,6 +830,7 @@ function AppShell() {
       loadHymn,
       markHymnSaved,
       navigateHymn,
+      hymns,
       selectedHymnId,
       setHymns,
       showNotice,
@@ -1639,17 +1666,23 @@ function AppShell() {
     ) {
       return;
     }
-    const members = Array.isArray(payload) ? payload : payload.members;
+    const rawMembers = Array.isArray(payload) ? payload : payload.members || [];
     const ignoreEnvAdminList = Array.isArray(payload)
       ? false
       : Boolean(payload.ignoreEnvAdminList);
+    const membersMap = Object.fromEntries(
+      rawMembers
+        .filter((member) => member && typeof member === "object")
+        .map((member) => [String(member.uid || member.email || ""), member])
+        .filter(([key]) => key),
+    );
     try {
       setSavingTeam(true);
       const offline = isBrowserOffline();
       await setDoc(
         doc(db, SETTINGS_TEAM_DOC.collection, SETTINGS_TEAM_DOC.id),
         {
-          members,
+          members: membersMap,
           ignoreEnvAdminList,
           updatedAt: serverTimestamp(),
         },

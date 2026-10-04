@@ -11,111 +11,168 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/settings/team);
     }
 
-    function isHardcodedAdmin() {
+    function teamMembersMap() {
+      return teamDoc().data != null && teamDoc().data.members is map ? teamDoc().data.members : {};
+    }
+
+    function hasTeamPermission(flagName) {
+      return isSignedIn() &&
+        teamMembersMap() is map &&
+        request.auth.uid in teamMembersMap().keys() &&
+        teamMembersMap()[request.auth.uid] is map &&
+        teamMembersMap()[request.auth.uid][flagName] is bool &&
+        teamMembersMap()[request.auth.uid][flagName] == true;
+    }
+
+    function isBootstrapAdmin() {
+      return isSignedIn() && request.auth.uid in [
+        "ADMIN_UID_1",
+        "ADMIN_UID_2"
+      ];
+    }
+
+    function canManageDashboard() {
       return isSignedIn() && (
-        request.auth.token.email in [
-          "shekohitler@gmail.com",
-          "Martin.magdy109@gmail.com",
-          "shadywaheed10101@gmail.com"
-        ] ||
-        request.auth.uid in [
-          "ADMIN_UID_1",
-          "ADMIN_UID_2"
-        ]
+        isBootstrapAdmin() ||
+        hasTeamPermission("canManageDashboard")
+      );
+    }
+
+    function canManageSetlists() {
+      return isSignedIn() && (
+        isBootstrapAdmin() ||
+        hasTeamPermission("canManageSetlists")
+      );
+    }
+
+    function canSaveHymnContent() {
+      return isSignedIn() && (
+        isBootstrapAdmin() ||
+        hasTeamPermission("canSaveFirebase")
       );
     }
 
     function canDeleteHymns() {
       return isSignedIn() && (
-        request.auth.token.email in [
-          "shekohitler@gmail.com"
-        ] ||
-        request.auth.uid in [
-          "DELETE_UID_1"
-        ]
+        isBootstrapAdmin() ||
+        hasTeamPermission("canDeleteHymn")
       );
     }
 
-    function canModifyHymns() {
-      return isSignedIn() && isHardcodedAdmin();
-    }
-
     function canManageTeam() {
-      return isSignedIn() && isHardcodedAdmin();
+      return canManageDashboard();
     }
 
     function exclusiveReadAllowed() {
-      return !resource.data.isExclusive ||
-        resource.data.exclusiveOwnerUid == request.auth.uid;
+      return resource.data.isExclusive == false ||
+        (isSignedIn() &&
+          resource.data.isExclusive == true &&
+          resource.data.exclusiveOwnerUid == request.auth.uid);
     }
 
-    function isValidSharedSetlist() {
-      return request.resource.data.schemaVersion == 1 &&
-        request.resource.data.name is string &&
-        request.resource.data.hymnIds is list &&
-        request.resource.data.ownerUid is string &&
-        request.resource.data.createdBy is string &&
-        request.resource.data.updatedBy is string;
+    function exclusiveMetadataUnchanged() {
+      return request.resource.data.isExclusive == resource.data.isExclusive &&
+        request.resource.data.exclusiveOwnerUid == resource.data.exclusiveOwnerUid;
+    }
+
+    function canChangeExclusiveMetadata() {
+      return isBootstrapAdmin() ||
+        (resource.data.isExclusive == true &&
+          resource.data.exclusiveOwnerUid == request.auth.uid) ||
+        (resource.data.isExclusive == false &&
+          resource.data.ownerUid == request.auth.uid);
+    }
+
+    function hasValidExclusiveMetadata() {
+      return request.resource.data.isExclusive is bool &&
+        request.resource.data.exclusiveOwnerUid is string &&
+        (
+          (request.resource.data.isExclusive == false &&
+            request.resource.data.exclusiveOwnerUid == "") ||
+          (request.resource.data.isExclusive == true &&
+            request.resource.data.exclusiveOwnerUid.size() > 0)
+        );
+    }
+
+    function isValidTeamDocument() {
+      return request.resource.data.members is map &&
+        request.resource.data.ignoreEnvAdminList is bool;
     }
 
     match /hymns/{hymnId} {
-
       allow read: if resource == null || exclusiveReadAllowed();
 
       allow create: if isSignedIn() &&
-        canModifyHymns() &&
+        canSaveHymnContent() &&
         request.resource.data.title is string &&
         request.resource.data.key is string &&
         request.resource.data.sections is list &&
-        (
-          !request.resource.data.isExclusive ||
-          request.resource.data.exclusiveOwnerUid == request.auth.uid
-        );
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.updatedBy == request.auth.uid &&
+        hasValidExclusiveMetadata() &&
+        (!request.resource.data.isExclusive ||
+          request.resource.data.exclusiveOwnerUid == request.auth.uid);
 
       allow update: if isSignedIn() &&
-        canModifyHymns() &&
+        canSaveHymnContent() &&
         request.resource.data.title is string &&
         request.resource.data.key is string &&
         request.resource.data.sections is list &&
+        request.resource.data.ownerUid == resource.data.ownerUid &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.updatedBy == request.auth.uid &&
+        hasValidExclusiveMetadata() &&
         (
-          !request.resource.data.isExclusive ||
-          request.resource.data.exclusiveOwnerUid == request.auth.uid
+          exclusiveMetadataUnchanged() ||
+          canChangeExclusiveMetadata()
         );
 
       allow delete: if canDeleteHymns();
     }
 
     match /setlists/{setlistId} {
-
       allow read: if isSignedIn();
 
       allow create: if isSignedIn() &&
-        canModifyHymns() &&
+        canManageSetlists() &&
+        request.resource.data.schemaVersion == 1 &&
+        request.resource.data.name is string &&
+        request.resource.data.hymnIds is list &&
         request.resource.data.ownerUid == request.auth.uid &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.updatedBy == request.auth.uid &&
-        isValidSharedSetlist();
+        request.resource.data.ownerUid is string &&
+        request.resource.data.createdBy is string &&
+        request.resource.data.updatedBy is string;
 
       allow update: if isSignedIn() &&
-        canModifyHymns() &&
-        resource.data.ownerUid == request.auth.uid &&
+        (
+          resource.data.ownerUid == request.auth.uid ||
+          canManageSetlists()
+        ) &&
         request.resource.data.ownerUid == resource.data.ownerUid &&
         request.resource.data.createdBy == resource.data.createdBy &&
         request.resource.data.updatedBy == request.auth.uid &&
-        isValidSharedSetlist();
+        request.resource.data.schemaVersion == 1 &&
+        request.resource.data.name is string &&
+        request.resource.data.hymnIds is list &&
+        request.resource.data.ownerUid is string &&
+        request.resource.data.createdBy is string &&
+        request.resource.data.updatedBy is string;
 
       allow delete: if isSignedIn() && (
         resource.data.ownerUid == request.auth.uid ||
-        canDeleteHymns()
+        canManageSetlists()
       );
     }
 
     match /settings/{docId} {
+      allow read: if isSignedIn() && docId == "team";
 
-      allow read: if isSignedIn();
-
-      allow create, update: if isSignedIn() &&
-        canManageTeam();
+      allow create, update: if isSignedIn() && docId == "team" &&
+        canManageTeam() &&
+        isValidTeamDocument();
 
       allow delete: if false;
     }
