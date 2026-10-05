@@ -43,7 +43,10 @@ function envEmailListMatchesUser(envRawList, user) {
   return keys.some((k) => allowed.includes(k));
 }
 
-const BOOTSTRAP_ADMIN_UIDS = new Set(["ADMIN_UID_1", "ADMIN_UID_2"]);
+const BOOTSTRAP_ADMIN_UIDS = new Set([
+  "15dQtzmhFmTep92fBEg7jfkJ62I2",
+  "ADMIN_UID_2",
+]);
 
 function isBootstrapAdminUser(user) {
   return Boolean(user?.uid && BOOTSTRAP_ADMIN_UIDS.has(String(user.uid)));

@@ -45,7 +45,7 @@ function authedDb(uid, email = `${uid}@example.com`) {
 
 const bootstrapAdminDb = () =>
   testEnv
-    .authenticatedContext("ADMIN_UID_1", {
+    .authenticatedContext("15dQtzmhFmTep92fBEg7jfkJ62I2", {
       email: "bootstrap@example.com",
       email_verified: true,
     })
@@ -363,7 +363,7 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
 
   it("preserves bootstrap admin behavior without email-based auth checks", async () => {
     const bootstrapAdmin = testEnv
-      .authenticatedContext("ADMIN_UID_1", {
+      .authenticatedContext("15dQtzmhFmTep92fBEg7jfkJ62I2", {
         email: "bootstrap@example.com",
         email_verified: true,
       })
@@ -381,9 +381,9 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
         title: "Bootstrap admin",
         key: "F",
         sections: [],
-        ownerUid: "ADMIN_UID_1",
-        createdBy: "ADMIN_UID_1",
-        updatedBy: "ADMIN_UID_1",
+        ownerUid: "15dQtzmhFmTep92fBEg7jfkJ62I2",
+        createdBy: "15dQtzmhFmTep92fBEg7jfkJ62I2",
+        updatedBy: "15dQtzmhFmTep92fBEg7jfkJ62I2",
         isExclusive: false,
         exclusiveOwnerUid: "",
       }),

@@ -32,7 +32,7 @@ describe("role matrix and permission resolution", () => {
 
   it("grants Rules-backed capabilities to bootstrap UIDs", () => {
     const user = {
-      uid: "ADMIN_UID_1",
+      uid: "15dQtzmhFmTep92fBEg7jfkJ62I2",
       email: "bootstrap@example.com",
       providerData: [],
     };
@@ -46,7 +46,7 @@ describe("role matrix and permission resolution", () => {
   });
 
   it("recognizes both bootstrap Admin UIDs regardless of email", () => {
-    for (const uid of ["ADMIN_UID_1", "ADMIN_UID_2"]) {
+    for (const uid of ["15dQtzmhFmTep92fBEg7jfkJ62I2", "ADMIN_UID_2"]) {
       const user = { uid, email: "ordinary@example.com" };
       const permissions = resolvePermissions(user, {});
 

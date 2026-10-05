@@ -26,7 +26,7 @@ service cloud.firestore {
 
     function isBootstrapAdmin() {
       return isSignedIn() && request.auth.uid in [
-        "ADMIN_UID_1",
+        "15dQtzmhFmTep92fBEg7jfkJ62I2",
         "ADMIN_UID_2"
       ];
     }
