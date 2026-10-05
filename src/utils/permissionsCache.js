@@ -8,9 +8,6 @@ export function cacheUserPermissions(user, perms) {
       JSON.stringify({
         uid: user.uid,
         isAdmin: Boolean(perms?.isAdmin),
-        canSaveFirebase: Boolean(perms?.canSaveFirebase),
-        canDelete: Boolean(perms?.canDelete),
-        isSuperAdmin: Boolean(perms?.isSuperAdmin),
       }),
     )
   } catch {
@@ -31,7 +28,7 @@ export function loadCachedPermissions(user) {
   }
 }
 
-/** Offline fallback: keep last known admin capabilities for signed-in user. */
+/** Offline fallback: retain the editor UI role without caching Firestore access. */
 export function resolvePermissionsWithOfflineCache(user, teamData, resolvePermissions, online) {
   const live = resolvePermissions(user, teamData)
   if (online || !user) return live
@@ -40,9 +37,7 @@ export function resolvePermissionsWithOfflineCache(user, teamData, resolvePermis
   if (!cached) return live
 
   return {
+    ...live,
     isAdmin: live.isAdmin || cached.isAdmin,
-    canSaveFirebase: live.canSaveFirebase || cached.canSaveFirebase,
-    canDelete: live.canDelete || cached.canDelete,
-    isSuperAdmin: live.isSuperAdmin || cached.isSuperAdmin,
   }
 }

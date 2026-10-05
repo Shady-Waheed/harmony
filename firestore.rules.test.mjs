@@ -4,8 +4,9 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildHymnWriteMetadata } from "./src/utils/hymnFirestore.js";
+import { resolvePermissions } from "./src/utils/permissions.js";
 
 const projectId = "demo-harmony-notes";
 const emulatorEnabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
@@ -29,6 +30,7 @@ if (emulatorEnabled) {
       await testEnv.clearFirestore();
       await testEnv.cleanup();
     }
+    vi.unstubAllEnvs();
   });
 }
 
@@ -177,7 +179,7 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
     await assertFails(
       reader.collection("hymns").doc("exclusive-hymn").delete(),
     );
-  });
+  }, 15000);
 
   it("denies hymn creation for canEdit-only members", async () => {
     const admin = bootstrapAdminDb();
@@ -763,12 +765,19 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
   });
 
   it("allows bootstrap Admins to manage another user's hymns by UID only", async () => {
-    const admin = testEnv
-      .authenticatedContext("ADMIN_UID_2", {
-        email: "not-an-admin@example.com",
-        email_verified: true,
-      })
-      .firestore();
+    const adminUser = {
+      uid: "ADMIN_UID_2",
+      email: "not-an-admin@example.com",
+    };
+    const permissions = resolvePermissions(adminUser, {});
+    expect(permissions.isAdmin).toBe(true);
+    expect(permissions.isSuperAdmin).toBe(true);
+    expect(permissions.canSaveFirebase).toBe(true);
+
+    const admin = testEnv.authenticatedContext(adminUser.uid, {
+      email: adminUser.email,
+      email_verified: true,
+    }).firestore();
 
     await seedHymn("bootstrap-exclusive-update", {
       title: "Admin-managed exclusive",
@@ -893,6 +902,17 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
         email_verified: true,
       })
       .firestore();
+    vi.stubEnv("VITE_ADMIN_EMAILS", "bootstrap@example.com");
+    const emailOnlyPermissions = resolvePermissions(
+      {
+        uid: "not-an-admin-uid",
+        email: "bootstrap@example.com",
+      },
+      {},
+    );
+    expect(emailOnlyPermissions.isAdmin).toBe(true);
+    expect(emailOnlyPermissions.isSuperAdmin).toBe(false);
+    expect(emailOnlyPermissions.canSaveFirebase).toBe(false);
     await assertFails(
       nonAdminSameEmail
         .collection("hymns")

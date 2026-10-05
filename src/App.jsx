@@ -237,6 +237,10 @@ function AppShell() {
   });
 
   const isDark = state.theme === "dark";
+  const livePerms = useMemo(
+    () => resolvePermissions(currentUser, teamData || {}),
+    [currentUser, teamData],
+  );
   const perms = useMemo(
     () =>
       resolvePermissionsWithOfflineCache(
@@ -248,9 +252,9 @@ function AppShell() {
     [currentUser, teamData, online],
   );
   const isAdmin = perms.isAdmin;
-  const isSuperAdmin = perms.isSuperAdmin;
-  const canDelete = perms.canDelete;
-  const canSaveFirebase = perms.canSaveFirebase;
+  const isSuperAdmin = livePerms.isSuperAdmin;
+  const canDelete = livePerms.canDelete;
+  const canSaveFirebase = livePerms.canSaveFirebase;
   const canWriteHymns = canSaveFirebase || isSuperAdmin;
   const canManageTeam = useMemo(
     () => canAccessTeamDashboard(currentUser, teamData || {}),
@@ -696,7 +700,12 @@ function AppShell() {
 
   const onSaveHymnToFirebase = useCallback(
     async ({ afterSave } = {}) => {
-      if (!canWriteHymns) {
+      const authenticatedUser = auth?.currentUser || null;
+      const savePermissions = resolvePermissions(
+        authenticatedUser,
+        teamData || {},
+      );
+      if (!savePermissions.canSaveFirebase) {
         showNotice("ليس لديك صلاحية حفظ الترانيم على السيرفر.", "error");
         return false;
       }
@@ -712,8 +721,8 @@ function AppShell() {
         ? hymns.find((item) => item.id === selectedHymnId)
         : null;
       const writeMetadata = buildHymnWriteMetadata({
-        currentUserUid: currentUser?.uid,
-        isBootstrapAdmin: isSuperAdmin,
+        currentUserUid: authenticatedUser.uid,
+        isBootstrapAdmin: savePermissions.isSuperAdmin,
         existingHymn,
         requestedExclusive: state.hymn.isExclusive,
       });
@@ -810,9 +819,6 @@ function AppShell() {
       }
     },
     [
-      canWriteHymns,
-      currentUser?.uid,
-      isSuperAdmin,
       loadHymn,
       markHymnSaved,
       navigateHymn,
@@ -821,6 +827,7 @@ function AppShell() {
       setHymns,
       showNotice,
       state.hymn,
+      teamData,
     ],
   );
 
@@ -1732,6 +1739,13 @@ function AppShell() {
           </div>
         </header>
         <main className="content adminDashboardPage">
+          {import.meta.env.DEV && auth?.currentUser ? (
+            <p className="sidebarHint" dir="ltr">
+              Firebase Auth UID: <code>{auth.currentUser.uid}</code>
+              <br />
+              Firebase Auth email: <code>{auth.currentUser.email || "(none)"}</code>
+            </p>
+          ) : null}
           <AdminDashboard
             members={teamMembersForDashboard}
             ignoreEnvAdminList={Boolean(teamData?.ignoreEnvAdminList)}
@@ -1858,8 +1872,12 @@ function AppShell() {
             {syncLabel}
           </p>
           <p className={`roleBadge ${isAdmin ? "admin" : "viewer"}`}>
-            {isAdmin
-              ? `أدمن: ${currentUser?.email || currentUser?.uid || "مُسجل"}`
+            {isSuperAdmin
+              ? `أدمن رئيسي: ${currentUser?.email || currentUser?.uid || "مُسجل"}`
+              : isAdmin && canSaveFirebase
+                ? `أدمن: ${currentUser?.email || currentUser?.uid || "مُسجل"}`
+                : isAdmin
+                  ? `محرر الواجهة فقط (لا يملك حفظ الخادم): ${currentUser?.email || currentUser?.uid || "مُسجل"}`
               : currentUser
                 ? "مستخدم مسجل (قراءة فقط)"
                 : "وضع القراءة فقط"}
