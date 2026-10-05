@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CANONICAL_HYMN_SCHEMA_VERSION,
+  buildHymnWriteMetadata,
   decodeStoredHymn,
   encodeHymnForFirestore,
   migrateLegacyHymnData,
@@ -16,6 +17,90 @@ import {
 } from "./hymnFirestore.fixtures.js";
 
 describe("canonical hymn model", () => {
+  it("preserves an existing exclusive owner when a bootstrap Admin saves content", () => {
+    expect(
+      buildHymnWriteMetadata({
+        currentUserUid: "ADMIN_UID_1",
+        isBootstrapAdmin: true,
+        existingHymn: {
+          ownerUid: "original-owner",
+          createdBy: "original-creator",
+          updatedBy: "original-creator",
+          isExclusive: true,
+          exclusiveOwnerUid: "exclusive-owner",
+        },
+        requestedExclusive: true,
+      }),
+    ).toEqual({
+      ownerUid: "original-owner",
+      createdBy: "original-creator",
+      updatedBy: "ADMIN_UID_1",
+      isExclusive: true,
+      exclusiveOwnerUid: "exclusive-owner",
+    });
+  });
+
+  it("clears exclusive ownership when an Admin explicitly makes a hymn public", () => {
+    expect(
+      buildHymnWriteMetadata({
+        currentUserUid: "ADMIN_UID_2",
+        isBootstrapAdmin: true,
+        existingHymn: {
+          ownerUid: "original-owner",
+          createdBy: "original-creator",
+          isExclusive: true,
+          exclusiveOwnerUid: "exclusive-owner",
+        },
+        requestedExclusive: false,
+      }),
+    ).toEqual({
+      ownerUid: "original-owner",
+      createdBy: "original-creator",
+      updatedBy: "ADMIN_UID_2",
+      isExclusive: false,
+      exclusiveOwnerUid: "",
+    });
+  });
+
+  it("does not let normal content savers change exclusive state or ownership", () => {
+    expect(
+      buildHymnWriteMetadata({
+        currentUserUid: "content-saver",
+        isBootstrapAdmin: false,
+        existingHymn: {
+          ownerUid: "original-owner",
+          createdBy: "original-creator",
+          isExclusive: true,
+          exclusiveOwnerUid: "exclusive-owner",
+        },
+        requestedExclusive: false,
+      }),
+    ).toMatchObject({
+      ownerUid: "original-owner",
+      createdBy: "original-creator",
+      updatedBy: "content-saver",
+      isExclusive: true,
+      exclusiveOwnerUid: "exclusive-owner",
+    });
+  });
+
+  it("uses the authenticated UID for a newly created exclusive hymn", () => {
+    expect(
+      buildHymnWriteMetadata({
+        currentUserUid: "ADMIN_UID_1",
+        isBootstrapAdmin: true,
+        existingHymn: null,
+        requestedExclusive: true,
+      }),
+    ).toEqual({
+      ownerUid: "ADMIN_UID_1",
+      createdBy: "ADMIN_UID_1",
+      updatedBy: "ADMIN_UID_1",
+      isExclusive: true,
+      exclusiveOwnerUid: "ADMIN_UID_1",
+    });
+  });
+
   it("normalizes the canonical internal representation", () => {
     const next = normalizeCanonicalHymn(simpleHymnFixture);
     const line = next.sections[0].lines[0];

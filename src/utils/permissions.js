@@ -82,6 +82,16 @@ export function isSuperAdminUser(user) {
   return isBootstrapAdminUser(user);
 }
 
+export function canReadExclusiveHymn(user, exclusiveOwnerUid) {
+  return (
+    isBootstrapAdminUser(user) ||
+    Boolean(
+      user?.uid &&
+        String(exclusiveOwnerUid || "") === String(user.uid),
+    )
+  );
+}
+
 export function hasEnvSuperAdminConfig() {
   return (
     parseList(import.meta.env.VITE_SUPER_ADMIN_EMAILS).length > 0 ||

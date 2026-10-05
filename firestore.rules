@@ -120,13 +120,25 @@ service cloud.firestore {
         request.resource.data.title is string &&
         request.resource.data.key is string &&
         request.resource.data.sections is list &&
-        request.resource.data.ownerUid == resource.data.ownerUid &&
-        request.resource.data.createdBy == resource.data.createdBy &&
         request.resource.data.updatedBy == request.auth.uid &&
         hasValidExclusiveMetadata() &&
         (
-          exclusiveMetadataUnchanged() ||
-          canChangeExclusiveMetadata()
+          isBootstrapAdmin() ||
+          (
+            request.resource.data.ownerUid == resource.data.ownerUid &&
+            request.resource.data.createdBy == resource.data.createdBy &&
+            (
+              resource.data.isExclusive == false ||
+              (
+                resource.data.isExclusive == true &&
+                resource.data.exclusiveOwnerUid == request.auth.uid
+              )
+            ) &&
+            (
+              exclusiveMetadataUnchanged() ||
+              canChangeExclusiveMetadata()
+            )
+          )
         );
 
       allow delete: if canDeleteHymns();

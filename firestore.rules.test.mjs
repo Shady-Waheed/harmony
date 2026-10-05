@@ -5,6 +5,7 @@ import {
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildHymnWriteMetadata } from "./src/utils/hymnFirestore.js";
 
 const projectId = "demo-harmony-notes";
 const emulatorEnabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
@@ -217,6 +218,23 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
         updatedBy: "member-uid",
         isExclusive: false,
         exclusiveOwnerUid: "",
+      }),
+    );
+
+    await seedHymn("can-edit-cannot-update", {
+      title: "Protected exclusive",
+      key: "C",
+      sections: [],
+      ownerUid: "another-owner",
+      createdBy: "another-owner",
+      updatedBy: "another-owner",
+      isExclusive: true,
+      exclusiveOwnerUid: "another-owner",
+    });
+    await assertFails(
+      editor.collection("hymns").doc("can-edit-cannot-update").update({
+        title: "Unauthorized update",
+        updatedBy: "member-uid",
       }),
     );
   });
@@ -694,6 +712,12 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
         updatedBy: "exclusive-saver",
       }),
     );
+    await assertFails(
+      saver.collection("hymns").doc("exclusive-downgrade").update({
+        title: "Non-owner content edit",
+        updatedBy: "exclusive-saver",
+      }),
+    );
     await seedHymn("exclusive-transfer", {
       title: "Keep owner",
       key: "B",
@@ -738,8 +762,14 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
     );
   });
 
-  it("allows bootstrap admins to administer exclusive hymn ownership", async () => {
-    const admin = bootstrapAdminDb();
+  it("allows bootstrap Admins to manage another user's hymns by UID only", async () => {
+    const admin = testEnv
+      .authenticatedContext("ADMIN_UID_2", {
+        email: "not-an-admin@example.com",
+        email_verified: true,
+      })
+      .firestore();
+
     await seedHymn("bootstrap-exclusive-update", {
       title: "Admin-managed exclusive",
       key: "D",
@@ -751,11 +781,126 @@ describeRules("Firestore Rules: UID-keyed team authorization", () => {
       exclusiveOwnerUid: "original-owner",
     });
 
+    const hymnRef = admin.collection("hymns").doc("bootstrap-exclusive-update");
+    await assertSucceeds(hymnRef.get());
     await assertSucceeds(
-      admin.collection("hymns").doc("bootstrap-exclusive-update").update({
-        exclusiveOwnerUid: "ADMIN_UID_1",
-        updatedBy: "ADMIN_UID_1",
+      hymnRef.update({
+        title: "Exclusive hymn updated by bootstrap UID",
+        updatedBy: "ADMIN_UID_2",
       }),
+    );
+    await assertSucceeds(
+      hymnRef.update({
+        title: "Still exclusive after Admin update",
+        isExclusive: true,
+        exclusiveOwnerUid: "original-owner",
+        updatedBy: "ADMIN_UID_2",
+      }),
+    );
+    await assertSucceeds(
+      hymnRef.set(
+        {
+          title: "Saved by the editor payload",
+          key: "D",
+          sections: [],
+          schemaVersion: 2,
+          ...buildHymnWriteMetadata({
+            currentUserUid: "ADMIN_UID_2",
+            isBootstrapAdmin: true,
+            existingHymn: {
+              ownerUid: "original-owner",
+              createdBy: "original-owner",
+              isExclusive: true,
+              exclusiveOwnerUid: "original-owner",
+            },
+            requestedExclusive: true,
+          }),
+        },
+        { merge: true },
+      ),
+    );
+    await seedHymn("bootstrap-legacy-hymn", {
+      title: "Legacy exclusive",
+      key: "F",
+      sections: [],
+      updatedBy: "legacy-import",
+      isExclusive: true,
+      exclusiveOwnerUid: "original-exclusive-owner",
+    });
+    const legacyRef = admin.collection("hymns").doc("bootstrap-legacy-hymn");
+    await assertSucceeds(
+      legacyRef.set(
+        {
+          title: "Legacy hymn edited by Admin",
+          key: "F",
+          sections: [],
+          schemaVersion: 2,
+          ...buildHymnWriteMetadata({
+            currentUserUid: "ADMIN_UID_2",
+            isBootstrapAdmin: true,
+            existingHymn: {
+              isExclusive: true,
+              exclusiveOwnerUid: "original-exclusive-owner",
+            },
+            requestedExclusive: true,
+          }),
+        },
+        { merge: true },
+      ),
+    );
+    const legacySnapshot = await legacyRef.get();
+    expect(legacySnapshot.data()).not.toHaveProperty("ownerUid");
+    expect(legacySnapshot.data()).not.toHaveProperty("createdBy");
+    expect(legacySnapshot.data()).toMatchObject({
+      exclusiveOwnerUid: "original-exclusive-owner",
+      updatedBy: "ADMIN_UID_2",
+    });
+
+    await assertSucceeds(
+      hymnRef.update({
+        title: "Made public by Admin",
+        isExclusive: false,
+        exclusiveOwnerUid: "",
+        updatedBy: "ADMIN_UID_2",
+      }),
+    );
+    await seedHymn("bootstrap-delete", {
+      title: "Delete target",
+      key: "E",
+      sections: [],
+      ownerUid: "another-owner",
+      createdBy: "another-owner",
+      updatedBy: "another-owner",
+      isExclusive: false,
+      exclusiveOwnerUid: "",
+    });
+    await assertSucceeds(
+      admin.collection("hymns").doc("bootstrap-delete").delete(),
+    );
+
+    const finalDoc = await hymnRef.get();
+    expect(finalDoc.data()).toMatchObject({
+      ownerUid: "original-owner",
+      createdBy: "original-owner",
+      updatedBy: "ADMIN_UID_2",
+      isExclusive: false,
+      exclusiveOwnerUid: "",
+    });
+
+    const nonAdminSameEmail = testEnv
+      .authenticatedContext("not-an-admin-uid", {
+        email: "bootstrap@example.com",
+        email_verified: true,
+      })
+      .firestore();
+    await assertFails(
+      nonAdminSameEmail
+        .collection("hymns")
+        .doc("bootstrap-exclusive-update")
+        .update({
+          title: "Email must not grant Admin",
+          updatedBy: "not-an-admin-uid",
+        }),
     );
   });
 

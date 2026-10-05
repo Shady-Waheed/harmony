@@ -26,6 +26,7 @@ import {
 } from "firebase/firestore";
 import { auth, db, googleProvider, hasFirebaseConfig } from "./firebase";
 import {
+  canReadExclusiveHymn,
   canAccessTeamDashboard,
   canManageSetlists,
   isSuperAdminUser,
@@ -56,6 +57,7 @@ import {
 } from "./utils/hymnSearch";
 import SetlistPanel from "./components/SetlistPanel";
 import {
+  buildHymnWriteMetadata,
   decodeStoredHymn,
   encodeHymnForFirestore,
 } from "./utils/hymnFirestore";
@@ -249,12 +251,13 @@ function AppShell() {
   const isSuperAdmin = perms.isSuperAdmin;
   const canDelete = perms.canDelete;
   const canSaveFirebase = perms.canSaveFirebase;
+  const canWriteHymns = canSaveFirebase || isSuperAdmin;
   const canManageTeam = useMemo(
     () => canAccessTeamDashboard(currentUser, teamData || {}),
     [currentUser, teamData],
   );
 
-  const showFirebaseSaveBtn = canSaveFirebase && hasFirebaseConfig;
+  const showFirebaseSaveBtn = canWriteHymns && hasFirebaseConfig;
   const showFirebaseDeleteBtn = canDelete && hasFirebaseConfig;
   const showFirebaseSidebarActions =
     showFirebaseSaveBtn || showFirebaseDeleteBtn;
@@ -266,9 +269,7 @@ function AppShell() {
         const isExclusive =
           Boolean(item.isExclusive) || exclusiveOwnerUid.length > 0;
         if (!isExclusive) return true;
-        if (isSuperAdminUser(currentUser)) return true;
-        if (!currentUser) return false;
-        return exclusiveOwnerUid === String(currentUser.uid || "");
+        return canReadExclusiveHymn(currentUser, exclusiveOwnerUid);
       }),
     [hymns, currentUser],
   );
@@ -390,8 +391,7 @@ function AppShell() {
       const isExclusive =
         Boolean(hymnDoc.isExclusive) || exclusiveOwnerUid.length > 0;
       if (!isExclusive) return true;
-      if (!currentUser) return false;
-      return exclusiveOwnerUid === String(currentUser.uid || "");
+      return canReadExclusiveHymn(currentUser, exclusiveOwnerUid);
     },
     [currentUser, hymns],
   );
@@ -696,7 +696,7 @@ function AppShell() {
 
   const onSaveHymnToFirebase = useCallback(
     async ({ afterSave } = {}) => {
-      if (!canSaveFirebase) {
+      if (!canWriteHymns) {
         showNotice("ليس لديك صلاحية حفظ الترانيم على السيرفر.", "error");
         return false;
       }
@@ -711,27 +711,18 @@ function AppShell() {
       const existingHymn = selectedHymnId
         ? hymns.find((item) => item.id === selectedHymnId)
         : null;
-      const isExclusive = isSuperAdmin
-        ? Boolean(state.hymn.isExclusive)
-        : Boolean(existingHymn?.isExclusive || existingHymn?.exclusiveOwnerUid);
+      const writeMetadata = buildHymnWriteMetadata({
+        currentUserUid: currentUser?.uid,
+        isBootstrapAdmin: isSuperAdmin,
+        existingHymn,
+        requestedExclusive: state.hymn.isExclusive,
+      });
       const payload = {
         title: canonicalPayload.title || title,
         key: canonicalPayload.key || state.hymn.key || "",
         sections: canonicalPayload.sections || [],
         schemaVersion: canonicalPayload.schemaVersion || 2,
-        isExclusive,
-        exclusiveOwnerUid: isSuperAdmin
-          ? isExclusive
-            ? String(currentUser?.uid || "")
-            : ""
-          : String(existingHymn?.exclusiveOwnerUid || ""),
-        ...(!selectedHymnId
-          ? {
-              ownerUid: String(currentUser?.uid || ""),
-              createdBy: String(currentUser?.uid || ""),
-            }
-          : {}),
-        updatedBy: String(currentUser?.uid || ""),
+        ...writeMetadata,
         updatedAt: serverTimestamp(),
       };
 
@@ -752,8 +743,8 @@ function AppShell() {
                     title,
                     key: payload.key,
                     sections: payload.sections,
-                    isExclusive: payload.isExclusive,
-                    exclusiveOwnerUid: payload.exclusiveOwnerUid,
+                    isExclusive: writeMetadata.isExclusive,
+                    exclusiveOwnerUid: writeMetadata.exclusiveOwnerUid,
                     updatedAt: Date.now(),
                   }
                 : item,
@@ -764,8 +755,8 @@ function AppShell() {
             id: selectedHymnId,
             title,
             key: payload.key,
-            isExclusive: payload.isExclusive,
-            exclusiveOwnerUid: payload.exclusiveOwnerUid,
+            isExclusive: writeMetadata.isExclusive,
+            exclusiveOwnerUid: writeMetadata.exclusiveOwnerUid,
           });
           navigateHymn(selectedHymnId, { replace: true });
           showNotice(
@@ -798,8 +789,8 @@ function AppShell() {
             ...state.hymn,
             id: created.id,
             title,
-            isExclusive: payload.isExclusive,
-            exclusiveOwnerUid: payload.exclusiveOwnerUid,
+            isExclusive: writeMetadata.isExclusive,
+            exclusiveOwnerUid: writeMetadata.exclusiveOwnerUid,
           },
           { ignoreDraft: true, mode: "edit" },
         );
@@ -819,7 +810,7 @@ function AppShell() {
       }
     },
     [
-      canSaveFirebase,
+      canWriteHymns,
       currentUser?.uid,
       isSuperAdmin,
       loadHymn,
@@ -847,7 +838,7 @@ function AppShell() {
         Boolean(sourceDoc.isExclusive) || exclusiveOwnerUid.length > 0;
       const canOpenExclusive =
         !isExclusive ||
-        (currentUser && exclusiveOwnerUid === String(currentUser.uid || ""));
+        canReadExclusiveHymn(currentUser, exclusiveOwnerUid);
       if (!canOpenExclusive) {
         showNotice("هذه الترانيمة حصرية وغير متاحة لهذا الحساب.", "error");
         return false;

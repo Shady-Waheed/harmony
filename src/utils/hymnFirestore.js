@@ -154,6 +154,42 @@ export function encodeHymnForFirestore(hymn) {
   });
 }
 
+export function buildHymnWriteMetadata({
+  currentUserUid,
+  isBootstrapAdmin,
+  existingHymn,
+  requestedExclusive,
+}) {
+  const uid = String(currentUserUid || "");
+  const existingExclusiveOwnerUid = String(
+    existingHymn?.exclusiveOwnerUid || "",
+  );
+  const wasExclusive =
+    Boolean(existingHymn?.isExclusive) || existingExclusiveOwnerUid.length > 0;
+  const isExclusive = isBootstrapAdmin
+    ? Boolean(requestedExclusive)
+    : wasExclusive;
+  const exclusiveOwnerUid = isExclusive
+    ? existingExclusiveOwnerUid || String(existingHymn?.ownerUid || uid)
+    : "";
+
+  return {
+    isExclusive,
+    exclusiveOwnerUid,
+    ...(existingHymn?.ownerUid
+      ? { ownerUid: existingHymn.ownerUid }
+      : existingHymn
+        ? {}
+        : { ownerUid: uid }),
+    ...(existingHymn?.createdBy
+      ? { createdBy: existingHymn.createdBy }
+      : existingHymn
+        ? {}
+        : { createdBy: uid }),
+    updatedBy: uid,
+  };
+}
+
 function coerceIndexArray(value) {
   if (Array.isArray(value)) return value;
   if (!isPlainObject(value)) return [];

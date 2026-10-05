@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  canReadExclusiveHymn,
   canAccessTeamDashboard,
   canManageSetlists,
   isSuperAdminUser,
@@ -42,6 +43,36 @@ describe("role matrix and permission resolution", () => {
     expect(resolvePermissions(user, {}).isAdmin).toBe(true);
     expect(resolvePermissions(user, {}).canSaveFirebase).toBe(true);
     expect(resolvePermissions(user, {}).canDelete).toBe(true);
+  });
+
+  it("recognizes both bootstrap Admin UIDs regardless of email", () => {
+    for (const uid of ["ADMIN_UID_1", "ADMIN_UID_2"]) {
+      const user = { uid, email: "ordinary@example.com" };
+      const permissions = resolvePermissions(user, {});
+
+      expect(permissions.isSuperAdmin).toBe(true);
+      expect(permissions.canSaveFirebase).toBe(true);
+      expect(permissions.canDelete).toBe(true);
+      expect(canReadExclusiveHymn(user, "another-owner")).toBe(true);
+    }
+
+    const nonAdmin = {
+      uid: "ordinary-uid",
+      email: "bootstrap@example.com",
+    };
+    expect(resolvePermissions(nonAdmin, {}).isSuperAdmin).toBe(false);
+    expect(resolvePermissions(nonAdmin, {}).canSaveFirebase).toBe(false);
+    expect(canReadExclusiveHymn(nonAdmin, "another-owner")).toBe(false);
+  });
+
+  it("allows exclusive reads for the owner but not other authenticated users", () => {
+    expect(
+      canReadExclusiveHymn({ uid: "exclusive-owner" }, "exclusive-owner"),
+    ).toBe(true);
+    expect(
+      canReadExclusiveHymn({ uid: "other-user" }, "exclusive-owner"),
+    ).toBe(false);
+    expect(canReadExclusiveHymn(null, "exclusive-owner")).toBe(false);
   });
 
   it("resolves distinct permissions only from the UID-keyed team row", () => {
