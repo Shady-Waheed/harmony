@@ -1790,6 +1790,49 @@ function AppShell() {
               </button>
             ) : null}
           </div>
+          {state.mode === "edit" && showFirebaseSaveBtn ? (
+            <button
+              type="button"
+              className="btn primary headerSaveButton"
+              onClick={saveError ? onRetrySave : onSaveHymnToFirebase}
+              disabled={savingHymn || (!isDirty && !saveError)}
+            >
+              {savingHymn ? (
+                <span className="headerSaveSpinner" aria-hidden="true" />
+              ) : saveState.status === "saved" ? (
+                <span aria-hidden="true">✓</span>
+              ) : (
+                <svg
+                  className="headerSaveIcon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M5 3.75h12l3.25 3.25v13.25H3.75V3.75H5Z"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M7.5 3.75v6h8v-6M7.5 20.25v-7h9v7"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+              <span>
+                {savingHymn
+                  ? "جارٍ الحفظ..."
+                  : saveError
+                    ? "إعادة المحاولة"
+                    : isDirty
+                      ? "حفظ التعديلات"
+                      : "محفوظ"}
+              </span>
+            </button>
+          ) : null}
           {isAdmin ? (
             <button
               className={`btn ${state.mode === "edit" ? "primary" : ""}`}
