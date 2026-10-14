@@ -4,6 +4,7 @@ import { loadSetlist, saveSetlist } from "../utils/setlistStorage";
 export default function SetlistPanel({
   currentId,
   currentTitle,
+  userUid = "guest",
   onOpen,
   canAdd,
   canManageSharedSetlists = false,
@@ -20,11 +21,11 @@ export default function SetlistPanel({
   sharedSetlistItems = [],
   sharedSetlistsLoading = false,
 }) {
-  const [items, setItems] = useState(loadSetlist);
+  const [items, setItems] = useState(() => loadSetlist(userUid));
 
   useEffect(() => {
-    saveSetlist(items);
-  }, [items]);
+    saveSetlist(items, userUid);
+  }, [items, userUid]);
 
   const alreadyAdded = items.some((item) => item.id === currentId);
   const activeSharedSetlist =

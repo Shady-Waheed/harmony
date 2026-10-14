@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  filterAuthorizedHymns,
   getHymnLoadState,
   getHymnReadPlan,
+  mergeOfflineHymnResults,
   mergeHymnQueryResults,
 } from "./hymnRead.js";
+import { canReadExclusiveHymn } from "./permissions.js";
 
 const timestamp = (milliseconds) => ({ toMillis: () => milliseconds });
 
@@ -83,6 +86,78 @@ describe("hymn read result merge", () => {
       "public-old",
     ]);
   });
+
+  it("renders the cached library before an online server refresh", () => {
+    const cached = [{ id: "hymn-1", title: "Saved copy" }];
+    const immediate = mergeOfflineHymnResults({ cachedHymns: cached });
+    const refreshed = mergeOfflineHymnResults({
+      cachedHymns: cached,
+      serverHymns: [{ id: "hymn-1", title: "Server copy" }],
+      serverIsAuthoritative: true,
+    });
+
+    expect(immediate).toEqual(cached);
+    expect(refreshed).toEqual([{ id: "hymn-1", title: "Server copy" }]);
+  });
+
+  it("does not clear a valid cache after a failed or non-authoritative read", () => {
+    expect(
+      mergeOfflineHymnResults({
+        cachedHymns: [{ id: "cached", title: "Saved" }],
+        serverHymns: [],
+      }),
+    ).toMatchObject([{ id: "cached", title: "Saved" }]);
+  });
+
+  it("keeps dirty drafts when an authoritative server response is empty", () => {
+    expect(
+      mergeOfflineHymnResults({
+        cachedHymns: [{ id: "removed", title: "Old server copy" }],
+        serverHymns: [],
+        drafts: [{ hymn: { id: "removed", title: "Unsynced edit" } }],
+        serverIsAuthoritative: true,
+      }),
+    ).toMatchObject([{ id: "removed", title: "Unsynced edit" }]);
+  });
+
+  it("lets a dirty local draft override an older server snapshot without duplicating IDs", () => {
+    const merged = mergeOfflineHymnResults({
+      cachedHymns: [{ id: "same", title: "Cached" }],
+      serverHymns: [
+        { id: "same", title: "Older server" },
+        { id: "same", title: "Duplicate server" },
+      ],
+      drafts: [{ hymn: { id: "same", title: "Local unsynced edit" } }],
+      serverIsAuthoritative: true,
+    });
+
+    expect(merged).toEqual([{ id: "same", title: "Local unsynced edit" }]);
+  });
+
+  it("caches Exclusive hymns only for an owner or bootstrap Admin", () => {
+    const hymns = [
+      { id: "public", isExclusive: false, exclusiveOwnerUid: "" },
+      {
+        id: "private",
+        isExclusive: true,
+        exclusiveOwnerUid: "owner-uid",
+      },
+    ];
+
+    expect(
+      filterAuthorizedHymns(hymns, { uid: "other-uid" }, canReadExclusiveHymn),
+    ).toMatchObject([{ id: "public" }]);
+    expect(
+      filterAuthorizedHymns(hymns, { uid: "owner-uid" }, canReadExclusiveHymn),
+    ).toHaveLength(2);
+    expect(
+      filterAuthorizedHymns(
+        hymns,
+        { uid: "15dQtzmhFmTep92fBEg7jfkJ62I2" },
+        canReadExclusiveHymn,
+      ),
+    ).toHaveLength(2);
+  });
 });
 
 describe("hymn loading UI state", () => {
@@ -106,5 +181,26 @@ describe("hymn loading UI state", () => {
     expect(getHymnLoadState({ loading: true, error: null, hymns: [] })).toBe(
       "loading",
     );
+  });
+
+  it("shows an offline-empty state instead of claiming the online library is empty", () => {
+    expect(
+      getHymnLoadState({
+        loading: false,
+        error: "unavailable",
+        hymns: [],
+        offline: true,
+      }),
+    ).toBe("offline-empty");
+  });
+
+  it("renders cached hymns even while the server refresh reports an error", () => {
+    expect(
+      getHymnLoadState({
+        loading: true,
+        error: "unavailable",
+        hymns: [{ id: "cached" }],
+      }),
+    ).toBe("success");
   });
 });

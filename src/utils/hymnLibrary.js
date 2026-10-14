@@ -2,6 +2,16 @@ export const FAVORITES_STORAGE_KEY = "harmony-notes-favorites-v1";
 export const RECENT_HYMNS_STORAGE_KEY = "harmony-notes-recent-v1";
 export const RECENT_HYMNS_LIMIT = 20;
 export const HYMN_LIBRARY_EVENT = "harmony-notes:hymn-library-change";
+let libraryScopeUid = "guest";
+
+export function setHymnLibraryScope(uid) {
+  libraryScopeUid = String(uid || "guest");
+}
+
+function scopedKey(key, storage) {
+  if (storage !== undefined || libraryScopeUid === "guest") return key;
+  return `${key}:${libraryScopeUid}`;
+}
 
 function normalizeIds(value, limit = Infinity) {
   if (!Array.isArray(value)) return [];
@@ -29,7 +39,7 @@ function getStorage(storage) {
 
 function readList(key, storage) {
   try {
-    const raw = getStorage(storage)?.getItem(key);
+    const raw = getStorage(storage)?.getItem(scopedKey(key, storage));
     if (!raw) return { ids: [], supported: true };
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -61,9 +71,12 @@ function writeList(key, kind, hymnIds, storage, limit = Infinity) {
   const target = getStorage(storage);
   try {
     if (!target) return false;
-    const current = readList(key, target);
+    const current = readList(key, storage);
     if (!current.supported) return false;
-    target.setItem(key, JSON.stringify({ version: 1, hymnIds: ids }));
+    target.setItem(
+      scopedKey(key, storage),
+      JSON.stringify({ version: 1, hymnIds: ids }),
+    );
   } catch {
     return false;
   }

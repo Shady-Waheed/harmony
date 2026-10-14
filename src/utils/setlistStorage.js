@@ -1,8 +1,23 @@
-const SETLIST_KEY = "harmony-notes-setlist-v1";
+const SETLIST_KEY_PREFIX = "harmony-notes-setlist-v1:";
+const LEGACY_SETLIST_KEY = "harmony-notes-setlist-v1";
 
-export function loadSetlist() {
+function storageKey(uid) {
+  return `${SETLIST_KEY_PREFIX}${String(uid || "guest")}`;
+}
+
+export function loadSetlist(uid) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(SETLIST_KEY) || "[]");
+    const scopeUid = String(uid || "guest");
+    const key = storageKey(scopeUid);
+    let raw = localStorage.getItem(key);
+    if (!raw && scopeUid === "guest") {
+      raw = localStorage.getItem(LEGACY_SETLIST_KEY);
+      if (raw) {
+        localStorage.setItem(key, raw);
+        localStorage.removeItem(LEGACY_SETLIST_KEY);
+      }
+    }
+    const parsed = JSON.parse(raw || "[]");
     if (!Array.isArray(parsed)) return [];
     return parsed
       .map((item) => ({
@@ -15,6 +30,6 @@ export function loadSetlist() {
   }
 }
 
-export function saveSetlist(items) {
-  localStorage.setItem(SETLIST_KEY, JSON.stringify(items));
+export function saveSetlist(items, uid) {
+  localStorage.setItem(storageKey(uid), JSON.stringify(items));
 }

@@ -50,7 +50,7 @@ export function useOfflineSync({
     label = 'بدون إنترنت — التعديلات محفوظة محليًا وستُرفع عند عودة النت'
   } else if (pendingWrites && online) {
     status = 'pending-upload'
-    label = 'جاري رفع التعديلات إلى السيرفر…'
+    label = 'تعديلات محفوظة محليًا — في انتظار المزامنة'
   } else if (!online) {
     status = 'offline'
     label = 'بدون إنترنت — تعرض نسخة محفوظة على الجهاز'

@@ -56,6 +56,45 @@ export function decodeStoredSetlist(data) {
   });
 }
 
+export function mergeSharedSetlists({
+  cachedSetlists = [],
+  serverSetlists = [],
+  pendingChanges = [],
+  serverIsAuthoritative = false,
+} = {}) {
+  const byId = new Map();
+  const groups = serverIsAuthoritative
+    ? [serverSetlists]
+    : [cachedSetlists, serverSetlists];
+
+  for (const group of groups) {
+    for (const item of group || []) {
+      if (!item?.id) continue;
+      const normalized = normalizeSharedSetlist(item);
+      byId.set(normalized.id, {
+        ...byId.get(normalized.id),
+        ...normalized,
+      });
+    }
+  }
+
+  for (const change of pendingChanges || []) {
+    const id = String(change?.id || change?.setlist?.id || "");
+    if (!id) continue;
+    if (change.deleted) {
+      byId.delete(id);
+    } else if (change.setlist) {
+      byId.set(id, normalizeSharedSetlist(change.setlist));
+    }
+  }
+
+  return [...byId.values()].sort((left, right) => {
+    const leftDate = left.updatedAt ? Date.parse(left.updatedAt) : 0;
+    const rightDate = right.updatedAt ? Date.parse(right.updatedAt) : 0;
+    return rightDate - leftDate || left.id.localeCompare(right.id);
+  });
+}
+
 export function encodeSetlistForFirestore(setlist) {
   const normalized = normalizeSharedSetlist(setlist);
 

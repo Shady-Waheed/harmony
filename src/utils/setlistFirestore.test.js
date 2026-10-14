@@ -3,6 +3,7 @@ import {
   SETLIST_SCHEMA_VERSION,
   decodeStoredSetlist,
   encodeSetlistForFirestore,
+  mergeSharedSetlists,
   normalizeSharedSetlist,
   reorderSetlistHymns,
 } from "./setlistFirestore";
@@ -97,5 +98,52 @@ describe("shared setlist model", () => {
     });
 
     expect(setlist.hymnIds).toEqual(["hymn-a", "deleted-hymn"]);
+  });
+
+  it("keeps previously synchronized setlists when the server is unavailable", () => {
+    const cached = [
+      {
+        id: "cached-setlist",
+        name: "Saved service",
+        hymnIds: ["hymn-a"],
+        ownerUid: "uid-1",
+      },
+    ];
+
+    expect(
+      mergeSharedSetlists({ cachedSetlists: cached, serverSetlists: [] }),
+    ).toMatchObject([{ id: "cached-setlist", hymnIds: ["hymn-a"] }]);
+  });
+
+  it("deduplicates IDs and preserves pending setlist changes across server refreshes", () => {
+    const queued = {
+      id: "setlist-1",
+      name: "Offline edit",
+      hymnIds: ["hymn-a", "hymn-a"],
+      ownerUid: "uid-1",
+      updatedBy: "uid-1",
+    };
+    const merged = mergeSharedSetlists({
+      cachedSetlists: [{ ...queued, name: "Cached" }],
+      serverSetlists: [{ ...queued, name: "Older server" }],
+      pendingChanges: [{ id: queued.id, setlist: queued }],
+      serverIsAuthoritative: true,
+    });
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      id: "setlist-1",
+      name: "Offline edit",
+      hymnIds: ["hymn-a"],
+    });
+  });
+
+  it("keeps queued deletions from being resurrected by a cached server snapshot", () => {
+    expect(
+      mergeSharedSetlists({
+        cachedSetlists: [{ id: "removed", name: "Old", hymnIds: [] }],
+        pendingChanges: [{ id: "removed", deleted: true }],
+      }),
+    ).toEqual([]);
   });
 });

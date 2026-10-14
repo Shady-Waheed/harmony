@@ -144,6 +144,33 @@ export function decodeStoredHymn(hymn) {
   return migrateLegacyHymnData(source);
 }
 
+function stableValue(value) {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!isPlainObject(value)) return value;
+  return Object.keys(value)
+    .sort()
+    .reduce((result, key) => {
+      result[key] = stableValue(value[key]);
+      return result;
+    }, {});
+}
+
+export function areHymnContentsEqual(left, right) {
+  if (!left || !right) return false;
+  try {
+    const a = decodeStoredHymn(left);
+    const b = decodeStoredHymn(right);
+    return (
+      a.title === b.title &&
+      a.key === b.key &&
+      JSON.stringify(stableValue(a.sections)) ===
+        JSON.stringify(stableValue(b.sections))
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function encodeHymnForFirestore(hymn) {
   const canonical = decodeStoredHymn(hymn);
   const rows = encodeSectionsForFirestore(canonical.sections || []);

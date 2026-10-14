@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CANONICAL_HYMN_SCHEMA_VERSION,
+  areHymnContentsEqual,
   buildHymnWriteMetadata,
   decodeStoredHymn,
   encodeHymnForFirestore,
@@ -17,6 +18,16 @@ import {
 } from "./hymnFirestore.fixtures.js";
 
 describe("canonical hymn model", () => {
+  it("compares server hymns semantically across Firestore and canonical encodings", () => {
+    const canonical = decodeStoredHymn(simpleHymnFixture);
+    const encoded = encodeHymnForFirestore(simpleHymnFixture);
+
+    expect(areHymnContentsEqual(canonical, encoded)).toBe(true);
+    expect(
+      areHymnContentsEqual(canonical, { ...encoded, title: "Changed" }),
+    ).toBe(false);
+  });
+
   it("preserves an existing exclusive owner when a bootstrap Admin saves content", () => {
     expect(
       buildHymnWriteMetadata({

@@ -57,8 +57,52 @@ export function mergeHymnQueryResults(...hymnGroups) {
   });
 }
 
-export function getHymnLoadState({ loading, error, hymns }) {
+export function mergeOfflineHymnResults({
+  cachedHymns = [],
+  serverHymns = [],
+  drafts = [],
+  serverIsAuthoritative = false,
+} = {}) {
+  const base = new Map();
+  const sourceGroups = serverIsAuthoritative
+    ? [serverHymns]
+    : [cachedHymns, serverHymns];
+
+  for (const group of sourceGroups) {
+    for (const hymn of group || []) {
+      if (!hymn?.id) continue;
+      const id = String(hymn.id);
+      base.set(id, { ...base.get(id), ...hymn, id });
+    }
+  }
+
+  for (const draftEntry of drafts || []) {
+    const draft = draftEntry?.hymn || draftEntry;
+    if (!draft?.id) continue;
+    const id = String(draft.id);
+    base.set(id, { ...base.get(id), ...draft, id });
+  }
+
+  return [...base.values()].sort((left, right) => {
+    const timeDifference =
+      createdAtMillis(right.createdAt) - createdAtMillis(left.createdAt);
+    if (timeDifference !== 0) return timeDifference;
+    return String(left.id).localeCompare(String(right.id));
+  });
+}
+
+export function filterAuthorizedHymns(hymns, user, canReadExclusiveHymn) {
+  return (hymns || []).filter((hymn) => {
+    const exclusiveOwnerUid = String(hymn?.exclusiveOwnerUid || "");
+    const isExclusive = Boolean(hymn?.isExclusive) || Boolean(exclusiveOwnerUid);
+    return !isExclusive || canReadExclusiveHymn(user, exclusiveOwnerUid);
+  });
+}
+
+export function getHymnLoadState({ loading, error, hymns, offline = false }) {
+  if (hymns.length > 0) return "success";
   if (loading) return "loading";
+  if (offline) return "offline-empty";
   if (error) return "error";
-  return hymns.length === 0 ? "empty" : "success";
+  return "empty";
 }

@@ -13,10 +13,19 @@ import {
   CANONICAL_HYMN_SCHEMA_VERSION,
   normalizeCanonicalHymn,
 } from "../utils/hymnFirestore";
-import { clearDraft, getDraft, writeDraft } from "../utils/hymnDrafts";
-import { recordRecentHymn } from "../utils/hymnLibrary";
+import {
+  clearDraft,
+  getDraft,
+  setDraftScope,
+  writeDraft,
+} from "../utils/hymnDrafts";
+import {
+  recordRecentHymn,
+  setHymnLibraryScope,
+} from "../utils/hymnLibrary";
 
-const STORAGE_KEY = "harmony-notes-hymn-v2";
+const STORAGE_KEY_PREFIX = "harmony-notes-hymn-v2:";
+const LEGACY_STORAGE_KEY = "harmony-notes-hymn-v2";
 const HISTORY_LIMIT = 50;
 const HISTORY_GROUP_MS = 800;
 
@@ -117,9 +126,17 @@ function createEmptyHymn() {
   });
 }
 
-function loadInitial() {
+function loadInitial(uid) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const key = `${STORAGE_KEY_PREFIX}${uid}`;
+    let raw = localStorage.getItem(key);
+    if (!raw && uid === "guest") {
+      raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (raw) {
+        localStorage.setItem(key, raw);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      }
+    }
     if (!raw) {
       return createFreshState("dark");
     }
@@ -169,7 +186,11 @@ export function transposeHymnShape(hymn, steps) {
 export function HymnProvider({ children }) {
   const persistFullHymnRef = useRef(true);
   const historyGroupRef = useRef(0);
-  const [state, setState] = useState(loadInitial);
+  const [state, setState] = useState(() => createFreshState("dark"));
+  const [storageScopeUid, setStorageScopeUidState] = useState("");
+  const storageScopeRef = useRef("");
+  const skipProjectPersistRef = useRef(false);
+  const skipDraftPersistRef = useRef(false);
   const [persistRevision, setPersistRevision] = useState(0);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -179,7 +200,26 @@ export function HymnProvider({ children }) {
     setPersistRevision((r) => r + 1);
   }, []);
 
+  const setStorageScopeUid = useCallback((uid) => {
+    const nextUid = String(uid || "guest");
+    if (storageScopeRef.current === nextUid) return;
+    storageScopeRef.current = nextUid;
+    skipProjectPersistRef.current = true;
+    skipDraftPersistRef.current = true;
+    setDraftScope(nextUid);
+    setHymnLibraryScope(nextUid);
+    setStorageScopeUidState(nextUid);
+    setState(loadInitial(nextUid));
+  }, []);
+
   useEffect(() => {
+    if (!storageScopeUid || storageScopeUid !== storageScopeRef.current) {
+      return;
+    }
+    if (skipProjectPersistRef.current) {
+      skipProjectPersistRef.current = false;
+      return;
+    }
     const persistFull = persistFullHymnRef.current;
     const hymnToStore = persistFull ? state.hymn : state.committedHymn;
     const payload = {
@@ -187,17 +227,31 @@ export function HymnProvider({ children }) {
       mode: persistFull ? state.mode : "view",
       theme: state.theme,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(
+      `${STORAGE_KEY_PREFIX}${storageScopeUid}`,
+      JSON.stringify(payload),
+    );
   }, [
     state.hymn,
     state.committedHymn,
     state.mode,
     state.theme,
     persistRevision,
+    storageScopeUid,
   ]);
 
   useEffect(() => {
-    if (!persistFullHymnRef.current) return undefined;
+    if (
+      !storageScopeUid ||
+      storageScopeUid !== storageScopeRef.current ||
+      !persistFullHymnRef.current
+    ) {
+      return undefined;
+    }
+    if (skipDraftPersistRef.current) {
+      skipDraftPersistRef.current = false;
+      return undefined;
+    }
     const id = state.hymn?.id;
     if (!id) return undefined;
     const timer = window.setTimeout(() => {
@@ -205,10 +259,29 @@ export function HymnProvider({ children }) {
         clearDraft(id);
         return;
       }
-      writeDraft(id, state.hymn);
+      writeDraft(id, state.hymn, { baseHymn: state.lastSavedHymn });
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [state.hymn, state.lastSavedHymn]);
+  }, [state.hymn, state.lastSavedHymn, storageScopeUid]);
+
+  useEffect(() => {
+    const persistCurrentDraft = () => {
+      if (!storageScopeRef.current) return;
+      const current = stateRef.current;
+      if (
+        current.hymn?.id &&
+        (!current.lastSavedHymn ||
+          !hymnsEqual(current.hymn, current.lastSavedHymn))
+      ) {
+        writeDraft(current.hymn.id, current.hymn, {
+          baseHymn: current.lastSavedHymn,
+        });
+      }
+    };
+
+    window.addEventListener("pagehide", persistCurrentDraft);
+    return () => window.removeEventListener("pagehide", persistCurrentDraft);
+  }, []);
 
   const actions = useMemo(() => {
     const withCommitted = (prev, nextHymn) => ({
@@ -262,6 +335,9 @@ export function HymnProvider({ children }) {
         draft?.hymn && !options.ignoreDraft
           ? normalizeHymn({ ...draft.hymn, id: normalized.id })
           : normalized;
+      const baseline = draft?.baseHymn
+        ? normalizeHymn({ ...draft.baseHymn, id: normalized.id })
+        : normalized;
       historyGroupRef.current = 0;
       setState((prev) => ({
         ...prev,
@@ -271,7 +347,7 @@ export function HymnProvider({ children }) {
           : persistFullHymnRef.current
             ? working
             : normalized,
-        lastSavedHymn: cloneHymn(working),
+        lastSavedHymn: cloneHymn(baseline),
         undoStack: [],
         redoStack: [],
         transposeOffset: 0,
@@ -491,7 +567,11 @@ export function HymnProvider({ children }) {
 
     const saveDraftNow = () => {
       const id = stateRef.current.hymn?.id;
-      if (id) writeDraft(id, stateRef.current.hymn);
+      if (id) {
+        writeDraft(id, stateRef.current.hymn, {
+          baseHymn: stateRef.current.lastSavedHymn,
+        });
+      }
     };
 
     const discardDraft = () => {
@@ -530,13 +610,14 @@ export function HymnProvider({ children }) {
       importProject,
       resetProject,
       setPersistFullHymn,
+      setStorageScopeUid,
       markHymnSaved,
       syncLastSavedIfEmpty,
       saveDraftNow,
       discardDraft,
       resetTranspose,
     };
-  }, [setPersistFullHymn]);
+  }, [setPersistFullHymn, setStorageScopeUid]);
 
   const isDirty = useMemo(() => {
     if (!state.lastSavedHymn)

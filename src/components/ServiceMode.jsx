@@ -5,6 +5,7 @@ import { resolveServiceIndex } from "../utils/serviceMode";
 export default function ServiceMode({
   serviceMode,
   hymns = [],
+  libraryLoading = false,
   currentUser,
   theme = "dark",
   onExit,
@@ -132,7 +133,11 @@ export default function ServiceMode({
         </aside>
 
         <div className="editorPane">
-          {!canReadCurrent || !currentHymn ? (
+          {libraryLoading && !currentHymn ? (
+            <div className="card emptyState" role="status">
+              <h3>جاري فتح المكتبة المحفوظة...</h3>
+            </div>
+          ) : !canReadCurrent || !currentHymn ? (
             <div className="card emptyState">
               <h3>الترنيمة الحالية غير متاحة في هذا الحساب.</h3>
               <p>قد تكون محجوبة أو غير موجودة في السجل الحالي.</p>

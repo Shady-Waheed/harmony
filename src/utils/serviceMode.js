@@ -1,4 +1,9 @@
 export const SERVICE_MODE_STORAGE_KEY = "harmony-notes-service-mode-v1";
+const LEGACY_SERVICE_MODE_KEY = SERVICE_MODE_STORAGE_KEY;
+
+function storageKey(uid) {
+  return `${SERVICE_MODE_STORAGE_KEY}:${String(uid || "guest")}`;
+}
 
 export function resolveServiceIndex(hymnIds, currentIndex) {
   const ids = Array.isArray(hymnIds) ? hymnIds.filter(Boolean) : [];
@@ -72,24 +77,34 @@ export function normalizeServiceSetlist(serviceMode = {}) {
   };
 }
 
-export function saveServiceModeToStorage(serviceMode) {
+export function saveServiceModeToStorage(serviceMode, uid) {
+  const key = storageKey(uid);
   if (!serviceMode || !Array.isArray(serviceMode.hymnIds)) {
-    localStorage.removeItem(SERVICE_MODE_STORAGE_KEY);
+    localStorage.removeItem(key);
     return;
   }
 
   const nextMode = normalizeServiceSetlist(serviceMode);
   if (!nextMode.hymnIds.length) {
-    localStorage.removeItem(SERVICE_MODE_STORAGE_KEY);
+    localStorage.removeItem(key);
     return;
   }
 
-  localStorage.setItem(SERVICE_MODE_STORAGE_KEY, JSON.stringify(nextMode));
+  localStorage.setItem(key, JSON.stringify(nextMode));
 }
 
-export function loadServiceModeFromStorage() {
+export function loadServiceModeFromStorage(uid) {
   try {
-    const raw = localStorage.getItem(SERVICE_MODE_STORAGE_KEY);
+    const scopeUid = String(uid || "guest");
+    const key = storageKey(scopeUid);
+    let raw = localStorage.getItem(key);
+    if (!raw && scopeUid === "guest") {
+      raw = localStorage.getItem(LEGACY_SERVICE_MODE_KEY);
+      if (raw) {
+        localStorage.setItem(key, raw);
+        localStorage.removeItem(LEGACY_SERVICE_MODE_KEY);
+      }
+    }
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);

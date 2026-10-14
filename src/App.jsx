@@ -34,6 +34,12 @@ import {
   SETTINGS_TEAM_DOC,
 } from "./utils/permissions";
 import {
+  isDraftStale,
+  isPermissionFailure,
+  selectPendingSyncDraft,
+  shouldClearPendingDraft,
+} from "./utils/pendingSyncRecovery";
+import {
   cacheUserPermissions,
   resolvePermissionsWithOfflineCache,
 } from "./utils/permissionsCache";
@@ -43,7 +49,14 @@ import {
   PROJECT_EXTENSION,
   readTextFile,
 } from "./utils/projectFile";
-import { clearDraft, getDraft } from "./utils/hymnDrafts";
+import {
+  clearDraft,
+  getAllDrafts,
+  getDraft,
+  markDraftConflict,
+  markDraftPendingSync,
+  writeDraft,
+} from "./utils/hymnDrafts";
 import {
   useOfflineSync,
   isBrowserOffline,
@@ -58,12 +71,14 @@ import {
 import SetlistPanel from "./components/SetlistPanel";
 import {
   buildHymnWriteMetadata,
+  areHymnContentsEqual,
   decodeStoredHymn,
   encodeHymnForFirestore,
 } from "./utils/hymnFirestore";
 import {
   decodeStoredSetlist,
   encodeSetlistForFirestore,
+  mergeSharedSetlists,
   normalizeSharedSetlist,
   reorderSetlistHymns,
 } from "./utils/setlistFirestore";
@@ -85,13 +100,17 @@ import {
   readFavoriteIds,
   readRecentHymnIds,
   resolveHymnsByIds,
+  setHymnLibraryScope,
   toggleFavorite,
 } from "./utils/hymnLibrary";
 import {
+  filterAuthorizedHymns,
   getHymnLoadState,
   getHymnReadPlan,
+  mergeOfflineHymnResults,
   mergeHymnQueryResults,
 } from "./utils/hymnRead";
+import { offlineAccountStore } from "./utils/offlineAccountStore";
 
 function buildHymnQueries(userUid, isBootstrapAdmin) {
   const hymnsCollection = collection(db, "hymns");
@@ -114,13 +133,30 @@ function mapHymnSnapshot(snapshot) {
   }));
 }
 
+function awaitFirestoreOperation(operation) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      const error = new Error("Firestore operation timed out.");
+      error.code = "deadline-exceeded";
+      reject(error);
+    }, 10000);
+  });
+
+  return Promise.race([operation, timeout]).finally(() => {
+    window.clearTimeout(timeoutId);
+  });
+}
+
 async function fetchHymnDocFromServer(hymnId) {
   if (!db || !hasFirebaseConfig || !hymnId) {
     return null;
   }
 
   try {
-    const snapshot = await getDocFromServer(doc(db, "hymns", hymnId));
+    const snapshot = await awaitFirestoreOperation(
+      getDocFromServer(doc(db, "hymns", hymnId)),
+    );
     if (!snapshot.exists()) {
       return null;
     }
@@ -157,7 +193,9 @@ async function refreshHymnsListFromServer(userUid, isBootstrapAdmin) {
 
   const queries = buildHymnQueries(userUid, isBootstrapAdmin);
   const snapshots = await Promise.all(
-    queries.map(({ query: hymnsQuery }) => getDocsFromServer(hymnsQuery)),
+    queries.map(({ query: hymnsQuery }) =>
+      awaitFirestoreOperation(getDocsFromServer(hymnsQuery)),
+    ),
   );
   return mergeHymnQueryResults(...snapshots.map(mapHymnSnapshot));
 }
@@ -173,6 +211,7 @@ function AppShell() {
     loadHymn,
     createNewHymn,
     setPersistFullHymn,
+    setStorageScopeUid,
     markHymnSaved,
     syncLastSavedIfEmpty,
     saveDraftNow,
@@ -186,6 +225,10 @@ function AppShell() {
   const [isExporting, setIsExporting] = useState(false);
   const [outputModeOpen, setOutputModeOpen] = useState(false);
   const [hymns, setHymns] = useState([]);
+  const hymnsRef = useRef(hymns);
+  hymnsRef.current = hymns;
+  const synchronizedHymnsRef = useRef([]);
+  const hymnServerReadyUidRef = useRef("");
   const [loadingHymns, setLoadingHymns] = useState(true);
   const [hymnsError, setHymnsError] = useState(null);
   const [hymnListenerRetry, setHymnListenerRetry] = useState(0);
@@ -202,27 +245,40 @@ function AppShell() {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [recentOnly, setRecentOnly] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const currentHymnRef = useRef(state.hymn);
+  currentHymnRef.current = state.hymn;
   const [authLoading, setAuthLoading] = useState(true);
   const viewRef = useRef(null);
   const projectFileInputRef = useRef(null);
   const noticeTimeoutRef = useRef(null);
   const currentUserUidRef = useRef("");
   currentUserUidRef.current = String(currentUser?.uid || "");
+  const authScopeUidRef = useRef(null);
 
   const [teamData, setTeamData] = useState(null);
   const [hymnsFromCache, setHymnsFromCache] = useState(false);
   const [teamFromCache, setTeamFromCache] = useState(false);
   const [pendingFirestoreWrites, setPendingFirestoreWrites] = useState(false);
   const pendingSyncNoticeRef = useRef(false);
+  const hymnSyncInFlightRef = useRef(false);
   const lastRouteAttemptRef = useRef("");
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [savingTeam, setSavingTeam] = useState(false);
   const [sharedSetlists, setSharedSetlists] = useState([]);
   const [sharedSetlistsLoading, setSharedSetlistsLoading] = useState(false);
   const [selectedSharedSetlistId, setSelectedSharedSetlistId] = useState("");
-  const [serviceMode, setServiceMode] = useState(() =>
-    loadServiceModeFromStorage(),
-  );
+  const pendingSetlistChangesRef = useRef([]);
+  const setlistSyncInFlightRef = useRef(false);
+  const [pendingSyncRevision, setPendingSyncRevision] = useState(0);
+  const [serviceMode, setServiceMode] = useState(null);
+  const scopedDrafts = getAllDrafts(currentUser?.uid || "guest");
+  const hasHymnSyncConflict = scopedDrafts.some((draft) => draft.conflict);
+  const canRetryLocalSync =
+    scopedDrafts.some((draft) => draft.pendingSync && !draft.conflict) ||
+    pendingSetlistChangesRef.current.length > 0;
+  const pendingLocalSync =
+    scopedDrafts.some((draft) => draft.pendingSync) ||
+    pendingSetlistChangesRef.current.length > 0;
 
   const {
     status: syncStatus,
@@ -233,7 +289,7 @@ function AppShell() {
     teamFromCache,
     teamActive: Boolean(currentUser),
     hymnsReady: !loadingHymns,
-    pendingWrites: pendingFirestoreWrites,
+    pendingWrites: pendingFirestoreWrites || pendingLocalSync,
   });
 
   const isDark = state.theme === "dark";
@@ -241,6 +297,8 @@ function AppShell() {
     () => resolvePermissions(currentUser, teamData || {}),
     [currentUser, teamData],
   );
+  const livePermsRef = useRef(livePerms);
+  livePermsRef.current = livePerms;
   const perms = useMemo(
     () =>
       resolvePermissionsWithOfflineCache(
@@ -310,6 +368,7 @@ function AppShell() {
     loading: authLoading || loadingHymns,
     error: hymnsError,
     hymns,
+    offline: !online,
   });
   const visibleHymnsById = useMemo(
     () => new Map(visibleHymns.map((item) => [item.id, item])),
@@ -365,6 +424,8 @@ function AppShell() {
     hasFirebaseConfig &&
     canManageSetlists(currentUser, teamData || {}),
   );
+  const canManageSharedSetlistsRef = useRef(canManageSharedSetlists);
+  canManageSharedSetlistsRef.current = canManageSharedSetlists;
   const selectedSharedSetlist = useMemo(
     () =>
       sharedSetlists.find((item) => item.id === selectedSharedSetlistId) ||
@@ -487,14 +548,38 @@ function AppShell() {
     }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const nextUid = String(user?.uid || "guest");
+      if (authScopeUidRef.current !== nextUid) {
+        authScopeUidRef.current = nextUid;
+        setStorageScopeUid(nextUid);
+        setHymnLibraryScope(nextUid);
+        setFavoriteIds(readFavoriteIds());
+        setRecentHymnIds(readRecentHymnIds());
+        setHymns([]);
+        synchronizedHymnsRef.current = [];
+        hymnServerReadyUidRef.current = "";
+        setLoadingHymns(true);
+        setSharedSetlists([]);
+        setSharedSetlistsLoading(Boolean(user));
+        pendingSetlistChangesRef.current = [];
+        setPendingSyncRevision((revision) => revision + 1);
+        setSelectedHymnId("");
+        setSelectedSharedSetlistId("");
+        setTeamData(null);
+        setTeamFromCache(false);
+        setPendingFirestoreWrites(false);
+        setHymnsError(null);
+        setServiceMode(loadServiceModeFromStorage(nextUid));
+      }
       setCurrentUser(user);
       setAuthLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [setStorageScopeUid]);
 
   useEffect(() => {
     if (authLoading) return undefined;
+    const userUid = String(currentUser?.uid || "guest");
     if (!db || !hasFirebaseConfig) {
       setHymns([]);
       setHymnsError(null);
@@ -503,14 +588,13 @@ function AppShell() {
     }
 
     setLoadingHymns(true);
-    setHymns([]);
     setHymnsError(null);
     setHymnsFromCache(false);
     setPendingFirestoreWrites(false);
+    if (!online) hymnServerReadyUidRef.current = "";
 
-    const userUid = String(currentUser?.uid || "");
     const queries = buildHymnQueries(
-      userUid || null,
+      currentUser?.uid || null,
       isSuperAdminUser(currentUser),
     );
     const queryResults = Object.fromEntries(
@@ -523,38 +607,102 @@ function AppShell() {
       queries.map(({ source }) => [source, false]),
     );
     let active = true;
+    let cachedHymns = [];
+    let accountCacheReady = false;
+    let serverSnapshotsComplete = false;
 
     const publishResults = () => {
       if (!active) return;
-      setHymns(mergeHymnQueryResults(...Object.values(queryResults)));
+      const serverHymns = mergeHymnQueryResults(
+        ...Object.values(queryResults),
+      );
+      const serverIsAuthoritative =
+        Object.values(receivedInitialSnapshot).every(Boolean) &&
+        Object.values(queryMetadata).every(
+          (metadata) => metadata && !metadata.fromCache && !metadata.hasPendingWrites,
+        );
+      const mergedHymns = mergeOfflineHymnResults({
+        cachedHymns,
+        serverHymns,
+        drafts: getAllDrafts(userUid),
+        serverIsAuthoritative,
+      });
+      setHymns(
+        filterAuthorizedHymns(
+          mergedHymns,
+          currentUser,
+          canReadExclusiveHymn,
+        ),
+      );
       setHymnsFromCache(
-        Object.values(queryMetadata).some((metadata) => metadata?.fromCache),
+        !serverIsAuthoritative &&
+          (cachedHymns.length > 0 ||
+            Object.values(queryMetadata).some((metadata) => metadata?.fromCache)),
       );
       setPendingFirestoreWrites(
         Object.values(queryMetadata).some(
           (metadata) => metadata?.hasPendingWrites,
         ),
       );
-      if (Object.values(receivedInitialSnapshot).every(Boolean)) {
+      if (serverIsAuthoritative) {
+        cachedHymns = filterAuthorizedHymns(
+          serverHymns,
+          currentUser,
+          canReadExclusiveHymn,
+        );
+        synchronizedHymnsRef.current = cachedHymns;
+        if (hymnServerReadyUidRef.current !== userUid) {
+          hymnServerReadyUidRef.current = userUid;
+          setPendingSyncRevision((revision) => revision + 1);
+        }
+        offlineAccountStore
+          .update(userUid, { hymns: cachedHymns })
+          .catch(() => undefined);
+      }
+      serverSnapshotsComplete = serverIsAuthoritative;
+      if (serverSnapshotsComplete && accountCacheReady) {
         setLoadingHymns(false);
       }
     };
 
+    offlineAccountStore.read(userUid).then((account) => {
+      if (
+        !active ||
+        String(currentUserUidRef.current || "guest") !== userUid
+      ) return;
+      accountCacheReady = true;
+      cachedHymns = filterAuthorizedHymns(
+        account.hymns,
+        currentUser,
+        canReadExclusiveHymn,
+      );
+      synchronizedHymnsRef.current = cachedHymns;
+      if (getAllDrafts(userUid).some((draft) => draft.pendingSync)) {
+        setPendingSyncRevision((revision) => revision + 1);
+      }
+      publishResults();
+      if (cachedHymns.length || !online || serverSnapshotsComplete) {
+        setLoadingHymns(false);
+      }
+    });
+
     const unsubscribes = queries.map(({ source, query: hymnsQuery }) => {
       return onSnapshot(
         hymnsQuery,
-        { includeMetadataChanges: true, source: "server" },
+        { includeMetadataChanges: true },
         (snapshot) => {
           if (!active) return;
           queryResults[source] = mapHymnSnapshot(snapshot);
           queryMetadata[source] = snapshot.metadata;
           receivedInitialSnapshot[source] = true;
+          if (!snapshot.metadata.fromCache) setHymnsError(null);
           publishResults();
         },
         (error) => {
           if (!active) return;
+          hymnServerReadyUidRef.current = "";
           setHymnsError(error?.code || "read-failed");
-          setLoadingHymns(false);
+          if (accountCacheReady) setLoadingHymns(false);
           if (import.meta.env.DEV) {
             console.warn(
               `[hymns ${source} snapshot]`,
@@ -569,17 +717,39 @@ function AppShell() {
       active = false;
       unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
-  }, [authLoading, currentUser, hymnListenerRetry]);
+  }, [authLoading, currentUser, hymnListenerRetry, online]);
 
   useEffect(() => {
     if (!db || !hasFirebaseConfig || authLoading || !currentUser) {
-      setSharedSetlists([]);
       setSelectedSharedSetlistId("");
       setSharedSetlistsLoading(false);
       return undefined;
     }
 
+    const userUid = String(currentUser.uid);
+    let active = true;
+    let cachedSetlists = [];
+    let serverSetlists = [];
+    let serverIsAuthoritative = false;
     setSharedSetlistsLoading(true);
+    offlineAccountStore.read(userUid).then((account) => {
+      if (!active || currentUserUidRef.current !== userUid) return;
+      cachedSetlists = account.sharedSetlists;
+      pendingSetlistChangesRef.current = account.pendingSetlistChanges;
+      if (pendingSetlistChangesRef.current.length) {
+        setPendingSyncRevision((revision) => revision + 1);
+      }
+      setSharedSetlists(
+        mergeSharedSetlists({
+          cachedSetlists,
+          serverSetlists,
+          pendingChanges: pendingSetlistChangesRef.current,
+          serverIsAuthoritative,
+        }),
+      );
+      setSharedSetlistsLoading(false);
+    });
+
     const setlistsQuery = query(
       collection(db, "setlists"),
       orderBy("updatedAt", "desc"),
@@ -587,22 +757,41 @@ function AppShell() {
     const unsubscribe = onSnapshot(
       setlistsQuery,
       (snapshot) => {
-        const nextSetlists = snapshot.docs.map((docSnap) => {
+        if (!active) return;
+        serverSetlists = snapshot.docs.map((docSnap) => {
           const raw = { id: docSnap.id, ...docSnap.data() };
           return decodeStoredSetlist(raw);
         });
-        setSharedSetlists(nextSetlists);
+        serverIsAuthoritative =
+          !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites;
+        setSharedSetlists(
+          mergeSharedSetlists({
+            cachedSetlists,
+            serverSetlists,
+            pendingChanges: pendingSetlistChangesRef.current,
+            serverIsAuthoritative,
+          }),
+        );
+        if (serverIsAuthoritative) {
+          cachedSetlists = serverSetlists;
+          offlineAccountStore
+            .update(userUid, { sharedSetlists: serverSetlists })
+            .catch(() => undefined);
+        }
         setSharedSetlistsLoading(false);
       },
       (err) => {
+        if (!active) return;
         console.warn("[setlists snapshot]", err?.code || err?.message || err);
-        setSharedSetlists([]);
         setSharedSetlistsLoading(false);
       },
     );
 
-    return () => unsubscribe();
-  }, [authLoading, currentUser]);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [authLoading, currentUser, online]);
 
   useEffect(() => {
     if (!db || !hasFirebaseConfig || authLoading || !currentUser) {
@@ -616,7 +805,7 @@ function AppShell() {
     const teamRef = doc(db, SETTINGS_TEAM_DOC.collection, SETTINGS_TEAM_DOC.id);
     const unsubscribe = onSnapshot(
       teamRef,
-      { includeMetadataChanges: true, source: "server" },
+      { includeMetadataChanges: true },
       (snapshot) => {
         const nextTeamData = snapshot.exists() ? snapshot.data() || {} : {};
         setTeamData({
@@ -649,14 +838,246 @@ function AppShell() {
   }, [currentUser, teamData]);
 
   useEffect(() => {
-    if (serviceMode) {
-      setMode("view");
-      saveServiceModeToStorage(serviceMode);
+    const userUid = String(currentUser?.uid || "");
+    if (
+      !online ||
+      !userUid ||
+      !livePerms.canSaveFirebase ||
+      hymnServerReadyUidRef.current !== userUid ||
+      hymnSyncInFlightRef.current
+    ) {
       return;
     }
 
-    saveServiceModeToStorage(null);
-  }, [serviceMode, setMode]);
+    hymnSyncInFlightRef.current = true;
+    const syncPendingDrafts = async () => {
+      try {
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          if (
+            currentUserUidRef.current !== userUid ||
+            !livePermsRef.current.canSaveFirebase
+          ) {
+            break;
+          }
+
+          const entry = selectPendingSyncDraft(getAllDrafts(userUid), userUid);
+          if (!entry?.hymn?.id) break;
+
+          const hymn = entry.hymn;
+          const latestDraft = getDraft(hymn.id, userUid);
+          if (isDraftStale(entry, latestDraft)) {
+            continue;
+          }
+
+          const existingHymn = entry.isNew
+            ? null
+            : synchronizedHymnsRef.current.find(
+                  (item) => item.id === hymn.id,
+                ) ||
+              entry.baseHymn ||
+              null;
+          if (
+            !entry.isNew &&
+            entry.baseHymn &&
+            (!existingHymn ||
+              !areHymnContentsEqual(entry.baseHymn, existingHymn))
+          ) {
+            markDraftConflict(hymn.id, userUid);
+            showNotice(
+              "تغيّرت نسخة الخادم؛ احتُفظ بالتعديل محليًا. راجع الترنيمة قبل الحفظ.",
+              "error",
+            );
+            break;
+          }
+          const canonicalPayload = encodeHymnForFirestore(hymn);
+          const writeMetadata = buildHymnWriteMetadata({
+            currentUserUid: userUid,
+            isBootstrapAdmin: livePermsRef.current.isSuperAdmin,
+            existingHymn,
+            requestedExclusive: hymn.isExclusive,
+          });
+          await setDoc(
+            doc(db, "hymns", hymn.id),
+            {
+              title: canonicalPayload.title,
+              key: canonicalPayload.key,
+              sections: canonicalPayload.sections,
+              schemaVersion: canonicalPayload.schemaVersion,
+              ...writeMetadata,
+              updatedAt: serverTimestamp(),
+              ...(!existingHymn ? { createdAt: Timestamp.now() } : {}),
+            },
+            { merge: true },
+          );
+
+          if (currentUserUidRef.current !== userUid) break;
+          if (
+            shouldClearPendingDraft({
+              saveSucceeded: true,
+              hymnId: hymn.id,
+            })
+          ) {
+            clearDraft(hymn.id, entry.updatedAt, userUid);
+          }
+          const savedCopy = {
+            ...existingHymn,
+            id: hymn.id,
+            title: canonicalPayload.title,
+            key: canonicalPayload.key,
+            sections: canonicalPayload.sections,
+            schemaVersion: canonicalPayload.schemaVersion,
+            ...writeMetadata,
+            createdAt: existingHymn?.createdAt || Date.now(),
+            updatedAt: Date.now(),
+          };
+          const account = await offlineAccountStore.read(userUid);
+          const cachedHymns = mergeHymnQueryResults(
+            account.hymns.filter((item) => item.id !== hymn.id),
+            [savedCopy],
+          );
+          synchronizedHymnsRef.current = cachedHymns;
+          await offlineAccountStore.update(userUid, { hymns: cachedHymns });
+          setHymns((previous) =>
+            mergeOfflineHymnResults({
+              cachedHymns: previous,
+              serverHymns: [savedCopy],
+              drafts: getAllDrafts(userUid),
+            }),
+          );
+
+          if (
+            getDraft(hymn.id, userUid) === null &&
+            currentHymnRef.current?.id === hymn.id
+          ) {
+            markHymnSaved(hymn);
+          }
+        }
+      } catch (error) {
+        if (isPermissionFailure(error)) {
+          showNotice(
+            "ليس لديك صلاحية تحديث هذه الترنيمة على السيرفر.",
+            "error",
+          );
+          return;
+        }
+        if (import.meta.env.DEV) {
+          console.warn(
+            "[pending hymn sync]",
+            error?.code || error?.message || error,
+          );
+        }
+      } finally {
+        hymnSyncInFlightRef.current = false;
+      }
+    };
+
+    syncPendingDrafts();
+  }, [
+    currentUser?.uid,
+    livePerms.canSaveFirebase,
+    markHymnSaved,
+    online,
+    pendingSyncRevision,
+    showNotice,
+  ]);
+
+  useEffect(() => {
+    const userUid = String(currentUser?.uid || "");
+    if (
+      !online ||
+      !userUid ||
+      !canManageSharedSetlists ||
+      setlistSyncInFlightRef.current
+    ) {
+      return;
+    }
+
+    setlistSyncInFlightRef.current = true;
+    const syncPendingSetlists = async () => {
+      try {
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          if (
+            currentUserUidRef.current !== userUid ||
+            !canManageSharedSetlistsRef.current
+          ) {
+            break;
+          }
+
+          const account = await offlineAccountStore.read(userUid);
+          const change = account.pendingSetlistChanges[0];
+          pendingSetlistChangesRef.current = account.pendingSetlistChanges;
+          if (!change) break;
+
+          if (change.deleted) {
+            await deleteDoc(doc(db, "setlists", change.id));
+          } else {
+            const serialized = encodeSetlistForFirestore(change.setlist);
+            await setDoc(
+              doc(db, "setlists", change.id),
+              {
+                schemaVersion: serialized.schemaVersion,
+                name: serialized.name,
+                hymnIds: serialized.hymnIds,
+                ownerUid: serialized.ownerUid,
+                createdBy: serialized.createdBy,
+                updatedBy: userUid,
+                createdAt: serialized.createdAt,
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true },
+            );
+          }
+
+          if (currentUserUidRef.current !== userUid) break;
+          const updatedAccount = await offlineAccountStore.update(
+            userUid,
+            (latestAccount) => ({
+              pendingSetlistChanges:
+                latestAccount.pendingSetlistChanges.filter(
+                  (item) => item.token !== change.token,
+                ),
+            }),
+          );
+          const remaining = updatedAccount.pendingSetlistChanges;
+          pendingSetlistChangesRef.current = remaining;
+          setPendingSyncRevision((revision) => revision + 1);
+          setSharedSetlists((previous) =>
+            mergeSharedSetlists({
+              cachedSetlists: previous,
+              pendingChanges: remaining,
+            }),
+          );
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            "[pending setlist sync]",
+            error?.code || error?.message || error,
+          );
+        }
+      } finally {
+        setlistSyncInFlightRef.current = false;
+      }
+    };
+
+    syncPendingSetlists();
+  }, [
+    canManageSharedSetlists,
+    currentUser?.uid,
+    online,
+    pendingSyncRevision,
+  ]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (serviceMode) {
+      setMode("view");
+      saveServiceModeToStorage(serviceMode, currentUser?.uid || "guest");
+      return;
+    }
+
+    saveServiceModeToStorage(null, currentUser?.uid || "guest");
+  }, [authLoading, currentUser?.uid, serviceMode, setMode]);
 
   useEffect(() => {
     if (!isAdmin && state.mode !== "view") {
@@ -720,6 +1141,15 @@ function AppShell() {
       const existingHymn = selectedHymnId
         ? hymns.find((item) => item.id === selectedHymnId)
         : null;
+      const synchronizedExistingHymn = selectedHymnId
+        ? synchronizedHymnsRef.current.find(
+            (item) => item.id === selectedHymnId,
+          )
+        : null;
+      const currentDraft = getDraft(state.hymn.id);
+      const isNewHymn = selectedHymnId
+        ? Boolean(currentDraft?.isNew)
+        : true;
       const writeMetadata = buildHymnWriteMetadata({
         currentUserUid: authenticatedUser.uid,
         isBootstrapAdmin: savePermissions.isSuperAdmin,
@@ -735,14 +1165,90 @@ function AppShell() {
         updatedAt: serverTimestamp(),
       };
 
+      if (
+        !isBrowserOffline() &&
+        !isNewHymn &&
+        (!synchronizedExistingHymn ||
+          !areHymnContentsEqual(
+            state.lastSavedHymn || existingHymn,
+            synchronizedExistingHymn,
+          )) &&
+        !window.confirm(
+          "تغيّرت نسخة الخادم منذ فتح الترنيمة. هل تريد استبدالها بتعديلاتك؟",
+        )
+      ) {
+        writeDraft(state.hymn.id, state.hymn, {
+          baseHymn: state.lastSavedHymn,
+          isNew: false,
+          pendingSync: true,
+        });
+        markDraftConflict(state.hymn.id, authenticatedUser.uid);
+        showNotice(
+          "احتُفظ بالتعديل محليًا؛ راجع اختلاف نسخة الخادم قبل إعادة المحاولة.",
+          "error",
+        );
+        return false;
+      }
+
+      writeDraft(state.hymn.id, state.hymn, {
+        baseHymn: state.lastSavedHymn,
+        isNew: isNewHymn,
+      });
+      if (isBrowserOffline()) {
+        const localHymnId = String(selectedHymnId || state.hymn.id || "");
+        writeDraft(
+          localHymnId,
+          { ...state.hymn, id: localHymnId, ...writeMetadata },
+          {
+            baseHymn: state.lastSavedHymn,
+            isNew: isNewHymn,
+          },
+        );
+        markDraftPendingSync(localHymnId);
+        setPendingSyncRevision((revision) => revision + 1);
+        setSelectedHymnId(localHymnId);
+        setHymns((previous) =>
+          filterAuthorizedHymns(
+            mergeOfflineHymnResults({
+              cachedHymns: previous,
+              drafts: getAllDrafts(authenticatedUser.uid),
+            }),
+            authenticatedUser,
+            canReadExclusiveHymn,
+          ),
+        );
+        navigateHymn(localHymnId, { replace: true });
+        showNotice(offlineSaveNotice("save"), "success");
+        if (afterSave) await afterSave();
+        return true;
+      }
+
       try {
         setSavingHymn(true);
         setSaveError(null);
-        const offline = isBrowserOffline();
 
         if (selectedHymnId) {
           await setDoc(doc(db, "hymns", selectedHymnId), payload, {
             merge: true,
+          });
+          const savedCopy = {
+            ...existingHymn,
+            id: selectedHymnId,
+            title,
+            key: payload.key,
+            sections: payload.sections,
+            schemaVersion: payload.schemaVersion,
+            ...writeMetadata,
+            updatedAt: Date.now(),
+          };
+          synchronizedHymnsRef.current = mergeHymnQueryResults(
+            synchronizedHymnsRef.current.filter(
+              (item) => item.id !== selectedHymnId,
+            ),
+            [savedCopy],
+          );
+          await offlineAccountStore.update(authenticatedUser.uid, {
+            hymns: synchronizedHymnsRef.current,
           });
           setHymns((prev) =>
             prev.map((item) =>
@@ -768,17 +1274,32 @@ function AppShell() {
             exclusiveOwnerUid: writeMetadata.exclusiveOwnerUid,
           });
           navigateHymn(selectedHymnId, { replace: true });
-          showNotice(
-            offline ? offlineSaveNotice("save") : "تم تحديث الترنيمة.",
-            "success",
-          );
+          showNotice("تم تحديث الترنيمة.", "success");
           if (afterSave) await afterSave();
           return true;
         }
 
+        const createdAt = Timestamp.now();
         const created = await addDoc(collection(db, "hymns"), {
           ...payload,
-          createdAt: Timestamp.now(),
+          createdAt,
+        });
+        const savedCopy = {
+          id: created.id,
+          title,
+          key: payload.key,
+          sections: payload.sections,
+          schemaVersion: payload.schemaVersion,
+          ...writeMetadata,
+          createdAt,
+          updatedAt: Date.now(),
+        };
+        synchronizedHymnsRef.current = mergeHymnQueryResults(
+          synchronizedHymnsRef.current.filter((item) => item.id !== created.id),
+          [savedCopy],
+        );
+        await offlineAccountStore.update(authenticatedUser.uid, {
+          hymns: synchronizedHymnsRef.current,
         });
         setSelectedHymnId(created.id);
         setHymns((prev) => [
@@ -804,13 +1325,19 @@ function AppShell() {
           { ignoreDraft: true, mode: "edit" },
         );
         navigateHymn(created.id, { replace: true });
-        showNotice(
-          offline ? offlineSaveNotice("save") : "تم حفظ ترنيمة جديدة.",
-          "success",
-        );
+        showNotice("تم حفظ ترنيمة جديدة.", "success");
         if (afterSave) await afterSave();
         return true;
       } catch (error) {
+        if (
+          isBrowserOffline() ||
+          ["unavailable", "deadline-exceeded", "network-request-failed"].includes(
+            error?.code,
+          )
+        ) {
+          markDraftPendingSync(state.hymn.id);
+          setPendingSyncRevision((revision) => revision + 1);
+        }
         setSaveError(error?.message || "save failed");
         showNotice(`تعذر الحفظ على السيرفر: ${error.message}`, "error");
         return false;
@@ -827,6 +1354,7 @@ function AppShell() {
       setHymns,
       showNotice,
       state.hymn,
+      state.lastSavedHymn,
       teamData,
     ],
   );
@@ -834,7 +1362,7 @@ function AppShell() {
   const finalizeSelectHymn = useCallback(
     async (hymnDoc, { fromRoute = false } = {}) => {
       const remoteDoc =
-        hymnDoc?.id && db && hasFirebaseConfig
+        hymnDoc?.id && db && hasFirebaseConfig && !isBrowserOffline()
           ? await fetchHymnDocFromServer(hymnDoc.id)
           : null;
       const sourceDoc = remoteDoc || hymnDoc;
@@ -864,11 +1392,7 @@ function AppShell() {
           isExclusive,
           exclusiveOwnerUid,
         },
-        {
-          ignoreDraft: true,
-          useDraft: false,
-          mode: isAdmin ? "edit" : "view",
-        },
+        { mode: isAdmin ? "edit" : "view" },
       );
       return true;
     },
@@ -1082,23 +1606,41 @@ function AppShell() {
         return;
       }
 
-      const requestUid = String(currentUser?.uid || "");
+      const requestUid = String(currentUser?.uid || "guest");
       const requestIsBootstrapAdmin = isSuperAdmin;
       try {
         setLoadingHymns(true);
         setHymnsError(null);
         const nextHymns = await refreshHymnsListFromServer(
-          requestUid,
+          requestUid === "guest" ? null : requestUid,
           requestIsBootstrapAdmin,
         );
-        if (currentUserUidRef.current !== requestUid) return;
-        setHymns(nextHymns);
+        if (String(currentUserUidRef.current || "guest") !== requestUid) return;
+        const authorizedServerHymns = filterAuthorizedHymns(
+          nextHymns,
+          currentUser,
+          canReadExclusiveHymn,
+        );
+        synchronizedHymnsRef.current = authorizedServerHymns;
+        if (hymnServerReadyUidRef.current !== requestUid) {
+          hymnServerReadyUidRef.current = requestUid;
+          setPendingSyncRevision((revision) => revision + 1);
+        }
+        const mergedHymns = mergeOfflineHymnResults({
+          serverHymns: authorizedServerHymns,
+          drafts: getAllDrafts(requestUid),
+          serverIsAuthoritative: true,
+        });
+        setHymns(mergedHymns);
+        await offlineAccountStore.update(requestUid, {
+          hymns: authorizedServerHymns,
+        });
         setHymnsFromCache(false);
         setPendingFirestoreWrites(false);
 
         if (selectedHymnId) {
           const remoteDoc = await fetchHymnDocFromServer(selectedHymnId);
-          if (currentUserUidRef.current !== requestUid) return;
+          if (String(currentUserUidRef.current || "guest") !== requestUid) return;
           if (remoteDoc) {
             const sourceDoc = remoteDoc;
             const canonicalRemote = decodeStoredHymn(sourceDoc);
@@ -1113,11 +1655,7 @@ function AppShell() {
                   Boolean(sourceDoc.exclusiveOwnerUid),
                 exclusiveOwnerUid: String(sourceDoc.exclusiveOwnerUid || ""),
               },
-              {
-                ignoreDraft: true,
-                useDraft: false,
-                mode: isAdmin ? "edit" : "view",
-              },
+              { mode: isAdmin ? "edit" : "view" },
             );
           }
         }
@@ -1128,7 +1666,7 @@ function AppShell() {
 
         showNotice("تم تحديث البيانات من السيرفر بنجاح.", "success");
       } catch (error) {
-        if (currentUserUidRef.current !== requestUid) return;
+        if (String(currentUserUidRef.current || "guest") !== requestUid) return;
         setHymnsError(error?.code || "read-failed");
         if (import.meta.env.DEV) {
           console.warn(
@@ -1138,13 +1676,13 @@ function AppShell() {
         }
         showNotice("تعذر تحميل الترانيم من الخادم.", "error");
       } finally {
-        if (currentUserUidRef.current === requestUid) {
+        if (String(currentUserUidRef.current || "guest") === requestUid) {
           setLoadingHymns(false);
         }
       }
     },
     [
-      currentUser?.uid,
+      currentUser,
       isAdmin,
       isDirty,
       isSuperAdmin,
@@ -1329,8 +1867,6 @@ function AppShell() {
         exclusiveOwnerUid: String(hymnDoc.exclusiveOwnerUid || ""),
       },
       {
-        ignoreDraft: true,
-        useDraft: false,
         mode: "view",
       },
     );
@@ -1459,39 +1995,32 @@ function AppShell() {
 
       const normalized = normalizeSharedSetlist({
         ...setlist,
+        id: setlist?.id || doc(collection(db, "setlists")).id,
         ownerUid: setlist?.ownerUid || currentUser.uid,
         createdBy: setlist?.createdBy || currentUser.uid,
         updatedBy: currentUser.uid,
         updatedAt: new Date().toISOString(),
         createdAt: setlist?.createdAt || new Date().toISOString(),
       });
-
-      const serialized = encodeSetlistForFirestore(normalized);
-      const payload = {
-        schemaVersion: serialized.schemaVersion,
-        name: serialized.name,
-        hymnIds: serialized.hymnIds,
-        ownerUid: serialized.ownerUid,
-        createdBy: serialized.createdBy,
-        updatedBy: serialized.updatedBy,
-        createdAt: setlist?.createdAt
-          ? serialized.createdAt
-          : serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      const change = {
+        id: normalized.id,
+        setlist: normalized,
+        token: `${Date.now()}-${Math.random()}`,
       };
-
-      if (!normalized.id) {
-        const created = await addDoc(collection(db, "setlists"), payload);
-        return {
-          ...normalized,
-          id: created.id,
-        };
-      }
-
-      await setDoc(doc(db, "setlists", normalized.id), payload, {
-        merge: true,
-      });
-      return normalized;
+      const account = await offlineAccountStore.update(
+        currentUser.uid,
+        (current) => ({
+          pendingSetlistChanges: [
+            ...current.pendingSetlistChanges.filter(
+              (item) => item.id !== normalized.id,
+            ),
+            change,
+          ],
+        }),
+      );
+      pendingSetlistChangesRef.current = account.pendingSetlistChanges;
+      setPendingSyncRevision((revision) => revision + 1);
+      return { ...normalized, pendingSync: true };
     },
     [canManageSharedSetlists, currentUser],
   );
@@ -1502,13 +2031,12 @@ function AppShell() {
       const next = await persistSharedSetlist(setlist);
       if (!next) return null;
 
-      setSharedSetlists((prev) => {
-        const existed = prev.some((item) => item.id === next.id);
-        if (!existed) {
-          return [next, ...prev];
-        }
-        return prev.map((item) => (item.id === next.id ? next : item));
-      });
+      setSharedSetlists((prev) =>
+        mergeSharedSetlists({
+          cachedSetlists: prev,
+          pendingChanges: pendingSetlistChangesRef.current,
+        }),
+      );
       if (next.id) {
         setSelectedSharedSetlistId(next.id);
       }
@@ -1557,20 +2085,41 @@ function AppShell() {
       const confirmed = window.confirm("هل تريد حذف هذه القائمة المشتركة؟");
       if (!confirmed) return;
 
-      try {
-        await deleteDoc(doc(db, "setlists", setlistId));
-        setSharedSetlists((prev) =>
-          prev.filter((item) => item.id !== setlistId),
-        );
-        if (selectedSharedSetlistId === setlistId) {
-          setSelectedSharedSetlistId("");
-        }
-        showNotice("تم حذف قائمة الخدمة المشتركة.", "success");
-      } catch (error) {
-        showNotice(`فشل حذف قائمة الخدمة: ${error.message}`, "error");
+      const userUid = String(currentUser?.uid || "");
+      const change = {
+        id: setlistId,
+        deleted: true,
+        token: `${Date.now()}-${Math.random()}`,
+      };
+      const account = await offlineAccountStore.update(userUid, (current) => ({
+        pendingSetlistChanges: [
+          ...current.pendingSetlistChanges.filter(
+            (item) => item.id !== setlistId,
+          ),
+          change,
+        ],
+      }));
+      pendingSetlistChangesRef.current = account.pendingSetlistChanges;
+      setPendingSyncRevision((revision) => revision + 1);
+      setSharedSetlists((prev) =>
+        prev.filter((item) => item.id !== setlistId),
+      );
+      if (selectedSharedSetlistId === setlistId) {
+        setSelectedSharedSetlistId("");
       }
+      showNotice(
+        isBrowserOffline()
+          ? "حُذفت القائمة محليًا وستُزامن عند عودة الاتصال."
+          : "تم حذف قائمة الخدمة المشتركة.",
+        "success",
+      );
     },
-    [canManageSharedSetlists, selectedSharedSetlistId, showNotice],
+    [
+      canManageSharedSetlists,
+      currentUser?.uid,
+      selectedSharedSetlistId,
+      showNotice,
+    ],
   );
 
   const onAddCurrentToSharedSetlist = useCallback(
@@ -1702,6 +2251,7 @@ function AppShell() {
       <ServiceMode
         serviceMode={serviceMode}
         hymns={hymns}
+        libraryLoading={loadingHymns}
         currentUser={currentUser}
         theme={state.theme}
         onExit={onExitServiceMode}
@@ -1914,6 +2464,24 @@ function AppShell() {
           <p className={`syncBadge syncBadge--${syncStatus}`} role="status">
             {syncLabel}
           </p>
+          {hasHymnSyncConflict ? (
+            <p className="sidebarHint" role="alert">
+              احتُفظ بمسودة محلية لأن نسخة الخادم تغيّرت. افتح الترنيمة وراجعها
+              قبل الحفظ.
+            </p>
+          ) : null}
+          {canRetryLocalSync && online ? (
+            <button
+              type="button"
+              className="btn btnSmall"
+              disabled={!livePerms.canSaveFirebase && !canManageSharedSetlists}
+              onClick={() =>
+                setPendingSyncRevision((revision) => revision + 1)
+              }
+            >
+              إعادة المزامنة
+            </button>
+          ) : null}
           <p className={`roleBadge ${isAdmin ? "admin" : "viewer"}`}>
             {isSuperAdmin
               ? `أدمن رئيسي: ${currentUser?.email || currentUser?.uid || "مُسجل"}`
@@ -2027,7 +2595,7 @@ function AppShell() {
                 placeholder="العنوان أو الكلمات أو المقام أو الكورد…"
                 value={hymnSearchQuery}
                 onChange={(e) => setHymnSearchQuery(e.target.value)}
-                disabled={loadingHymns}
+                disabled={authLoading || (loadingHymns && hymns.length === 0)}
                 autoComplete="off"
                 spellCheck={false}
                 aria-label="البحث في العنوان والكلمات والمقام والكورد"
@@ -2037,7 +2605,7 @@ function AppShell() {
                   className="input hymnKeyFilter"
                   value={hymnKeyFilter}
                   onChange={(event) => setHymnKeyFilter(event.target.value)}
-                  disabled={loadingHymns}
+                  disabled={authLoading || (loadingHymns && hymns.length === 0)}
                   aria-label="تصفية حسب المقام المحفوظ"
                 >
                   <option value="">كل المقامات</option>
@@ -2152,6 +2720,12 @@ function AppShell() {
             <p className="sidebarHint">جاري تحميل الترانيم...</p>
           ) : null}
 
+          {hymnsError && hymns.length > 0 ? (
+            <p className="sidebarHint" role="status">
+              الخادم غير متاح حاليًا؛ تعرض المكتبة المحفوظة على هذا الجهاز.
+            </p>
+          ) : null}
+
           {hasFirebaseConfig && hymnLoadState === "error" ? (
             <div className="sidebarHint" role="alert">
               <p>
@@ -2170,6 +2744,13 @@ function AppShell() {
 
           {hasFirebaseConfig && hymnLoadState === "empty" ? (
             <p className="sidebarHint">لا توجد ترانيم محفوظة حاليًا.</p>
+          ) : null}
+
+          {hasFirebaseConfig && hymnLoadState === "offline-empty" ? (
+            <p className="sidebarHint" role="status">
+              لا توجد ترانيم محفوظة على هذا الجهاز. اتصل بالإنترنت مرة واحدة
+              لتحميل المكتبة.
+            </p>
           ) : null}
 
           {hasFirebaseConfig &&
@@ -2214,8 +2795,10 @@ function AppShell() {
           ) : null}
 
           <SetlistPanel
+            key={currentUser?.uid || "guest"}
             currentId={selectedHymnId}
             currentTitle={state.hymn.title}
+            userUid={currentUser?.uid || "guest"}
             canAdd={Boolean(selectedHymnId)}
             canManageSharedSetlists={canManageSharedSetlists}
             sharedSetlists={sharedSetlists}

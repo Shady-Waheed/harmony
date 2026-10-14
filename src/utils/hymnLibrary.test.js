@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   FAVORITES_STORAGE_KEY,
   RECENT_HYMNS_LIMIT,
@@ -8,6 +8,7 @@ import {
   readRecentHymnIds,
   recordRecentHymn,
   resolveHymnsByIds,
+  setHymnLibraryScope,
   toggleFavorite,
   writeFavoriteIds,
   writeRecentHymnIds,
@@ -48,6 +49,11 @@ const canonicalHymn = {
 };
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+
+afterEach(() => {
+  setHymnLibraryScope("guest");
+  vi.unstubAllGlobals();
+});
 
 describe("local hymn favorites", () => {
   it("starts empty and safely handles invalid local storage data", () => {
@@ -90,6 +96,19 @@ describe("local hymn favorites", () => {
       version: 1,
       hymnIds: [],
     });
+  });
+
+  it("isolates favorites by signed-in UID", () => {
+    const storage = createStorage();
+    vi.stubGlobal("localStorage", storage);
+    setHymnLibraryScope("user-a");
+    writeFavoriteIds(["private-a"]);
+    setHymnLibraryScope("user-b");
+
+    expect(readFavoriteIds()).toEqual([]);
+    writeFavoriteIds(["private-b"]);
+    setHymnLibraryScope("user-a");
+    expect(readFavoriteIds()).toEqual(["private-a"]);
   });
 
   it("resolves only IDs present in the accessible hymn collection", () => {
