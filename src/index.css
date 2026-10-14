@@ -312,11 +312,6 @@ body {
   font-weight: 600;
 }
 
-.saveWriteCompleted {
-  font-size: 0.68rem;
-  font-weight: 600;
-}
-
 .headerSaveButton {
   gap: 0.5rem;
   white-space: nowrap;
@@ -904,6 +899,10 @@ body {
 
 .toastNotice.success {
   border-color: color-mix(in srgb, var(--success) 55%, var(--border));
+}
+
+.toastNotice.info {
+  border-color: color-mix(in srgb, var(--info) 55%, var(--border));
 }
 
 .toastNotice.error {

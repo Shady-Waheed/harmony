@@ -90,7 +90,10 @@ import {
   saveServiceModeToStorage,
 } from "./utils/serviceMode";
 import {
+  resolveSaveAttempt,
+  resolveSaveErrorNotification,
   resolveSaveState,
+  showSaveSuccessNotification,
   shouldBlockBeforeUnload,
   shouldPromptBeforeDiscard,
 } from "./utils/saveState";
@@ -220,6 +223,8 @@ function AppShell() {
     undo,
     redo,
   } = useHymnStore();
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
   const { routeHymnId, navigateHymn } = useHymnRoute();
   const [loadingExport, setLoadingExport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -236,6 +241,7 @@ function AppShell() {
   const [favoriteIds, setFavoriteIds] = useState(readFavoriteIds);
   const [recentHymnIds, setRecentHymnIds] = useState(readRecentHymnIds);
   const [savingHymn, setSavingHymn] = useState(false);
+  const saveInFlightRef = useRef(false);
   const [saveError, setSaveError] = useState(null);
   const [saveErrorCode, setSaveErrorCode] = useState("");
   const [saveErrorWriteCompleted, setSaveErrorWriteCompleted] = useState(false);
@@ -262,6 +268,7 @@ function AppShell() {
   const [teamFromCache, setTeamFromCache] = useState(false);
   const [pendingFirestoreWrites, setPendingFirestoreWrites] = useState(false);
   const pendingSyncNoticeRef = useRef(false);
+  const lastDirectHymnWriteAtRef = useRef(0);
   const hymnSyncInFlightRef = useRef(false);
   const lastRouteAttemptRef = useRef("");
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
@@ -466,8 +473,35 @@ function AppShell() {
   const showNotice = useCallback((message, type = "info") => {
     setNotice({ message, type });
     window.clearTimeout(noticeTimeoutRef.current);
-    noticeTimeoutRef.current = window.setTimeout(() => setNotice(null), 2800);
+    const duration = type === "error" ? 7000 : type === "success" ? 4000 : 5000;
+    noticeTimeoutRef.current = window.setTimeout(
+      () => setNotice(null),
+      duration,
+    );
   }, []);
+
+  const runSaveFollowup = useCallback(
+    async (afterSave, isOffline = false) => {
+      if (!afterSave) return true;
+      try {
+        await afterSave();
+        return true;
+      } catch (error) {
+        console.warn(
+          "[save follow-up failed]",
+          error?.code || error?.name || "unknown",
+        );
+        showNotice(
+          isOffline
+            ? "تم حفظ التغييرات على الجهاز فقط، لكن تعذّر إكمال الإجراء التالي."
+            : "تم حفظ التغييرات بنجاح، لكن تعذّر إكمال الإجراء التالي.",
+          "info",
+        );
+        return false;
+      }
+    },
+    [showNotice],
+  );
 
   const logSaveFailure = useCallback(
     (error, context = {}) => {
@@ -1138,7 +1172,11 @@ function AppShell() {
       .then(() => {
         if (!cancelled && !pendingSyncNoticeRef.current) {
           pendingSyncNoticeRef.current = true;
-          showNotice("تم رفع كل التعديلات إلى السيرفر.", "success");
+          const directSaveJustConfirmed =
+            Date.now() - lastDirectHymnWriteAtRef.current < 10000;
+          if (!directSaveJustConfirmed) {
+            showNotice("تم رفع كل التعديلات إلى السيرفر.", "success");
+          }
         }
       })
       .catch((err) => {
@@ -1155,6 +1193,26 @@ function AppShell() {
 
   const onSaveHymnToFirebase = useCallback(
     async ({ afterSave } = {}) => {
+      const saveAttempt = resolveSaveAttempt({
+        isDirty: isDirtyRef.current,
+        isSaving: saveInFlightRef.current,
+        firestoreWriteCompleted: saveErrorWriteCompleted,
+      });
+      if (saveAttempt === "in-progress") {
+        return false;
+      }
+      if (saveAttempt === "already-written") {
+        showNotice(
+          "تم تأكيد الكتابة على السيرفر؛ لن نكررها بسبب تعذّر التحديث المحلي.",
+          "info",
+        );
+        return false;
+      }
+      if (saveAttempt === "unchanged") {
+        showNotice("مفيش تغييرات جديدة للحفظ.", "info");
+        return false;
+      }
+
       const authenticatedUser = auth?.currentUser || null;
       const savePermissions = resolvePermissions(
         authenticatedUser,
@@ -1238,47 +1296,50 @@ function AppShell() {
         return false;
       }
 
-      writeDraft(state.hymn.id, state.hymn, {
-        baseHymn: state.lastSavedHymn,
-        isNew: isNewHymn,
-      });
-      if (isBrowserOffline()) {
-        const localHymnId = String(selectedHymnId || state.hymn.id || "");
-        writeDraft(
-          localHymnId,
-          { ...state.hymn, id: localHymnId, ...writeMetadata },
-          {
-            baseHymn: state.lastSavedHymn,
-            isNew: isNewHymn,
-          },
-        );
-        markDraftPendingSync(localHymnId);
-        setPendingSyncRevision((revision) => revision + 1);
-        setSelectedHymnId(localHymnId);
-        setHymns((previous) =>
-          filterAuthorizedHymns(
-            mergeOfflineHymnResults({
-              cachedHymns: previous,
-              drafts: getAllDrafts(authenticatedUser.uid),
-            }),
-            authenticatedUser,
-            canReadExclusiveHymn,
-          ),
-        );
-        navigateHymn(localHymnId, { replace: true });
-        showNotice(offlineSaveNotice("save"), "success");
-        if (afterSave) await afterSave();
-        return true;
-      }
-
+      saveInFlightRef.current = true;
+      setSavingHymn(true);
+      setSaveError(null);
+      setSaveErrorCode("");
+      setSaveErrorWriteCompleted(false);
+      let localDraftSaved = false;
       let firestoreWriteCompleted = false;
       try {
-        setSavingHymn(true);
-        setSaveError(null);
-        setSaveErrorCode("");
-        setSaveErrorWriteCompleted(false);
+        writeDraft(state.hymn.id, state.hymn, {
+          baseHymn: state.lastSavedHymn,
+          isNew: isNewHymn,
+        });
+        localDraftSaved = true;
+        if (isBrowserOffline()) {
+          const localHymnId = String(selectedHymnId || state.hymn.id || "");
+          writeDraft(
+            localHymnId,
+            { ...state.hymn, id: localHymnId, ...writeMetadata },
+            {
+              baseHymn: state.lastSavedHymn,
+              isNew: isNewHymn,
+            },
+          );
+          markDraftPendingSync(localHymnId);
+          setPendingSyncRevision((revision) => revision + 1);
+          setSelectedHymnId(localHymnId);
+          setHymns((previous) =>
+            filterAuthorizedHymns(
+              mergeOfflineHymnResults({
+                cachedHymns: previous,
+                drafts: getAllDrafts(authenticatedUser.uid),
+              }),
+              authenticatedUser,
+              canReadExclusiveHymn,
+            ),
+          );
+          navigateHymn(localHymnId, { replace: true });
+          if (!(await runSaveFollowup(afterSave, true))) return true;
+          showSaveSuccessNotification(showNotice, { isOffline: true });
+          return true;
+        }
 
         if (selectedHymnId) {
+          lastDirectHymnWriteAtRef.current = Date.now();
           await setDoc(doc(db, "hymns", selectedHymnId), payload, {
             merge: true,
           });
@@ -1326,12 +1387,13 @@ function AppShell() {
             exclusiveOwnerUid: writeMetadata.exclusiveOwnerUid,
           });
           navigateHymn(selectedHymnId, { replace: true });
-          showNotice("تم تحديث الترنيمة.", "success");
-          if (afterSave) await afterSave();
+          if (!(await runSaveFollowup(afterSave))) return true;
+          showSaveSuccessNotification(showNotice);
           return true;
         }
 
         const createdAt = Timestamp.now();
+        lastDirectHymnWriteAtRef.current = Date.now();
         const created = await addDoc(collection(db, "hymns"), {
           ...payload,
           createdAt,
@@ -1378,15 +1440,19 @@ function AppShell() {
           { ignoreDraft: true, mode: "edit" },
         );
         navigateHymn(created.id, { replace: true });
-        showNotice("تم حفظ ترنيمة جديدة.", "success");
-        if (afterSave) await afterSave();
+        if (!(await runSaveFollowup(afterSave))) return true;
+        showSaveSuccessNotification(showNotice);
         return true;
       } catch (error) {
+        if (!firestoreWriteCompleted) {
+          lastDirectHymnWriteAtRef.current = 0;
+        }
         if (
-          isBrowserOffline() ||
-          ["unavailable", "deadline-exceeded", "network-request-failed"].includes(
-            error?.code,
-          )
+          !firestoreWriteCompleted &&
+          (isBrowserOffline() ||
+            ["unavailable", "deadline-exceeded", "network-request-failed"].includes(
+              error?.code,
+            ))
         ) {
           markDraftPendingSync(state.hymn.id);
           setPendingSyncRevision((revision) => revision + 1);
@@ -1405,9 +1471,15 @@ function AppShell() {
           isOffline: isBrowserOffline(),
           firestoreWriteCompleted,
         });
-        showNotice(`تعذر الحفظ على السيرفر. حاول مرة أخرى.`, "error");
+        const notification = resolveSaveErrorNotification(error, {
+          isOffline: isBrowserOffline(),
+          localDraftSaved,
+          firestoreWriteCompleted,
+        });
+        showNotice(notification.message, notification.type);
         return false;
       } finally {
+        saveInFlightRef.current = false;
         setSavingHymn(false);
       }
     },
@@ -1418,11 +1490,13 @@ function AppShell() {
       hymns,
       isDirty,
       logSaveFailure,
+      runSaveFollowup,
       selectedHymnId,
       setHymns,
       showNotice,
       state.hymn,
       state.lastSavedHymn,
+      saveErrorWriteCompleted,
       teamData,
       teamFromCache,
     ],
@@ -2374,7 +2448,13 @@ function AppShell() {
           />
         </main>
         {notice ? (
-          <div className={`toastNotice ${notice.type}`}>{notice.message}</div>
+          <div
+            className={`toastNotice ${notice.type}`}
+            role={notice.type === "error" ? "alert" : "status"}
+            aria-live={notice.type === "error" ? "assertive" : "polite"}
+          >
+            {notice.message}
+          </div>
         ) : null}
       </div>
     );
@@ -2405,16 +2485,9 @@ function AppShell() {
                   : saveState.label}
               </span>
               {saveState.status === "error" && saveErrorCode ? (
-                <>
-                  <span className="saveErrorCode" dir="ltr">
-                    {saveErrorCode}
-                  </span>
-                  {saveErrorWriteCompleted ? (
-                    <span className="saveWriteCompleted">
-                      اكتملت كتابة الخادم
-                    </span>
-                  ) : null}
-                </>
+                <span className="saveErrorCode" dir="ltr">
+                  {saveErrorCode}
+                </span>
               ) : null}
             </div>
             {state.mode === "edit" && showFirebaseSaveBtn ? (
@@ -2424,8 +2497,7 @@ function AppShell() {
                 onClick={saveError ? onRetrySave : onSaveHymnToFirebase}
                 disabled={
                   savingHymn ||
-                  saveErrorWriteCompleted ||
-                  (!isDirty && !saveError)
+                  saveErrorWriteCompleted
                 }
               >
                 {savingHymn ? (
@@ -2981,7 +3053,13 @@ function AppShell() {
       ) : null}
 
       {notice ? (
-        <div className={`toastNotice ${notice.type}`}>{notice.message}</div>
+        <div
+          className={`toastNotice ${notice.type}`}
+          role={notice.type === "error" ? "alert" : "status"}
+          aria-live={notice.type === "error" ? "assertive" : "polite"}
+        >
+          {notice.message}
+        </div>
       ) : null}
     </div>
   );

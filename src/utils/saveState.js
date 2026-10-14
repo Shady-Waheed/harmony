@@ -31,6 +31,115 @@ export function getSaveStateLabel(status) {
   }
 }
 
+export function resolveSaveAttempt({
+  isDirty = false,
+  isSaving = false,
+  firestoreWriteCompleted = false,
+} = {}) {
+  if (isSaving) return "in-progress";
+  if (firestoreWriteCompleted) return "already-written";
+  if (!isDirty) return "unchanged";
+  return "save";
+}
+
+export function resolveSaveSuccessNotification({ isOffline = false } = {}) {
+  if (isOffline) {
+    return {
+      type: "info",
+      message:
+        "تم حفظ التغييرات على الجهاز فقط — ستتم مزامنتها عند عودة الإنترنت.",
+    };
+  }
+  return { type: "success", message: "تم حفظ التغييرات بنجاح." };
+}
+
+export function showSaveSuccessNotification(
+  showNotice,
+  { isOffline = false } = {},
+) {
+  const notification = resolveSaveSuccessNotification({ isOffline });
+  showNotice(notification.message, notification.type);
+}
+
+export function resolveSaveErrorNotification(
+  error,
+  {
+    isOffline = false,
+    localDraftSaved = false,
+    firestoreWriteCompleted = false,
+  } = {},
+) {
+  const code = String(error?.code || "");
+  const codeSuffix = code ? ` (${code})` : "";
+  const localDraftSuffix = localDraftSaved
+    ? " احتُفظ بالتغييرات كمسودة محلية."
+    : "";
+
+  if (firestoreWriteCompleted) {
+    return {
+      type: "info",
+      message:
+        "تم حفظ الترنيمة على السيرفر، لكن تعذّر إكمال التحديث المحلي. لن نكرر الكتابة." +
+        codeSuffix,
+    };
+  }
+
+  if (code === "permission-denied") {
+    return {
+      type: "error",
+      message:
+        "فشل الحفظ: الحساب لا يملك صلاحية الحفظ على السيرفر." +
+        localDraftSuffix,
+    };
+  }
+
+  if (code === "unauthenticated") {
+    return {
+      type: "error",
+      message: "فشل الحفظ: سجّل الدخول مرة أخرى." + localDraftSuffix,
+    };
+  }
+
+  if (code === "unavailable" || code === "network-request-failed" || isOffline) {
+    return {
+      type: "error",
+      message:
+        "تعذر إكمال الحفظ على السيرفر. تحقق من الإنترنت وحاول مجددًا." +
+        localDraftSuffix,
+    };
+  }
+
+  if (code === "deadline-exceeded") {
+    return {
+      type: "error",
+      message:
+        "انتهت مهلة الاتصال بالسيرفر. حاول مرة أخرى." + localDraftSuffix,
+    };
+  }
+
+  if (code === "resource-exhausted") {
+    return {
+      type: "error",
+      message:
+        "رفضت الخدمة الطلب بسبب تجاوز حد الاستخدام." + localDraftSuffix,
+    };
+  }
+
+  if (code === "failed-precondition") {
+    return {
+      type: "error",
+      message:
+        `تعذر إكمال الحفظ بسبب شرط من الخدمة${codeSuffix}. حاول مرة أخرى.` +
+        localDraftSuffix,
+    };
+  }
+
+  return {
+    type: "error",
+    message: `حدث خطأ أثناء الحفظ${codeSuffix}. حاول مرة أخرى.${localDraftSuffix}`,
+  };
+}
+
 export function resolveSaveState({
   isDirty = false,
   isSaving = false,
