@@ -330,8 +330,6 @@ function AppShell() {
 
   const showFirebaseSaveBtn = canWriteHymns && hasFirebaseConfig;
   const showFirebaseDeleteBtn = canDelete && hasFirebaseConfig;
-  const showFirebaseSidebarActions =
-    showFirebaseSaveBtn || showFirebaseDeleteBtn;
 
   const visibleHymns = useMemo(
     () =>
@@ -2467,9 +2465,9 @@ function AppShell() {
       lang="ar"
     >
       <header className="topBar">
-        <div>
-          <h1>Harmony Notes</h1>
-          <p>محرر ترانيم احترافي لكتابة الكوردات وعرضها</p>
+        <div className="topBarIdentity">
+          <p className="appBrand">Harmony Notes</p>
+          <h1>{state.hymn.title || "ترنيمة بدون عنوان"}</h1>
         </div>
 
         <div className="topBarControls">
@@ -2490,7 +2488,7 @@ function AppShell() {
                 </span>
               ) : null}
             </div>
-            {state.mode === "edit" && showFirebaseSaveBtn ? (
+            {showFirebaseSaveBtn ? (
               <button
                 type="button"
                 className="btn primary headerSaveButton"
@@ -2541,7 +2539,7 @@ function AppShell() {
           </div>
 
           <div className="headerActionCluster">
-            <div className="headerActionGroup">
+            <div className="headerActionGroup headerModeGroup" aria-label="وضع العمل">
               {isAdmin ? (
                 <button
                   className={`btn ${state.mode === "edit" ? "primary" : ""}`}
@@ -2558,61 +2556,94 @@ function AppShell() {
               </button>
             </div>
 
-            <div className="headerActionGroup">
-              {isAdmin ? (
-                <>
-                  <button className="btn" onClick={onSaveProjectFile}>
-                    حفظ ملف المشروع
-                  </button>
-                  <button className="btn" onClick={onOpenProjectClick}>
-                    استيراد ملف المشروع
-                  </button>
-                </>
-              ) : null}
-              <button className="btn" onClick={onTriggerRefresh}>
-                تحديث / مزامنة
-              </button>
-              <button className="btn" onClick={onExport} disabled={loadingExport}>
-                {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => setOutputModeOpen(true)}
-                aria-haspopup="dialog"
-              >
-                إخراج
-              </button>
-              <button
-                className="btn"
-                onClick={onCopyHymnLink}
-                disabled={!selectedHymnId}
-              >
-                نسخ الرابط
-              </button>
-            </div>
-
-            <div className="headerActionGroup headerActionGroup--utility">
-              {!authLoading && !currentUser ? (
-                <button className="btn primary" onClick={onAdminSignIn}>
-                  دخول أدمن
-                </button>
-              ) : null}
-              {!authLoading && currentUser ? (
-                <button className="btn" onClick={onAdminSignOut}>
-                  خروج
-                </button>
-              ) : null}
-              {canManageTeam ? (
-                <button
-                  type="button"
-                  className="btn primary"
-                  onClick={() => setShowAdminDashboard(true)}
+            <details className="headerToolsMenu">
+              <summary>أدوات وإجراءات</summary>
+              <div className="headerToolsContent">
+                <section className="headerToolsSection" aria-labelledby="header-output-label">
+                  <h2 id="header-output-label">العرض والتصدير</h2>
+                  <div className="headerToolsActions">
+                    <button className="btn" onClick={onExport} disabled={loadingExport}>
+                      {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => setOutputModeOpen(true)}
+                      aria-haspopup="dialog"
+                    >
+                      إعدادات العرض والإخراج
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={onCopyHymnLink}
+                      disabled={!selectedHymnId}
+                    >
+                      نسخ رابط الترنيمة
+                    </button>
+                  </div>
+                </section>
+                {isAdmin ? (
+                  <section className="headerToolsSection" aria-labelledby="header-project-label">
+                    <h2 id="header-project-label">ملف المشروع</h2>
+                    <div className="headerToolsActions">
+                      <button className="btn" onClick={onSaveProjectFile}>
+                        حفظ ملف المشروع
+                      </button>
+                      <button className="btn" onClick={onOpenProjectClick}>
+                        استيراد ملف المشروع
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
+                <section className="headerToolsSection" aria-labelledby="header-extra-label">
+                  <h2 id="header-extra-label">إجراءات إضافية</h2>
+                  <div className="headerToolsActions">
+                    <button className="btn" onClick={onTriggerRefresh}>
+                      تحديث / مزامنة المكتبة
+                    </button>
+                    <button type="button" className="btn" onClick={toggleTheme}>
+                      {isDark ? "الوضع النهاري" : "الوضع الليلي"}
+                    </button>
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        className="btn danger"
+                        onClick={onResetProject}
+                      >
+                        ابدأ من الأول...
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
+                <section
+                  className="headerToolsSection"
+                  aria-labelledby="header-account-label"
                 >
-                  لوحة الصلاحيات
-                </button>
-              ) : null}
-            </div>
+                  <h2 id="header-account-label">الحساب والإدارة</h2>
+                  <div className="headerToolsActions">
+                    {!authLoading && !currentUser ? (
+                      <button className="btn" onClick={onAdminSignIn}>
+                        دخول المشرف
+                      </button>
+                    ) : null}
+                    {!authLoading && currentUser ? (
+                      <button className="btn" onClick={onAdminSignOut}>
+                        تسجيل الخروج
+                      </button>
+                    ) : null}
+                    {canManageTeam ? (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setShowAdminDashboard(true)}
+                      >
+                        إدارة صلاحيات الفريق
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
+              </div>
+            </details>
           </div>
 
           {isAdmin ? (
@@ -2661,7 +2692,7 @@ function AppShell() {
                 ? "مستخدم مسجل (قراءة فقط)"
                 : "وضع القراءة فقط"}
           </p>
-          <section className="hymnLibrary" aria-label="My library">
+          <section className="hymnLibrary" aria-label="مكتبة الترانيم">
             <div className="row between sidebarHeader">
               <h3>مكتبتي</h3>
               {selectedHymnIsAccessible ? (
@@ -2814,43 +2845,33 @@ function AppShell() {
             </div>
           ) : null}
 
-          {showFirebaseSidebarActions ? (
-            <div className="row wrap sidebarActions">
-              {isSuperAdmin ? (
-                <label className="adminDashToggle">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(state.hymn.isExclusive)}
-                    onChange={(e) =>
-                      updateHymn({ isExclusive: e.target.checked })
-                    }
-                  />
-                  <span>حصرية لي فقط</span>
-                </label>
-              ) : null}
-              {showFirebaseSaveBtn && state.mode !== "edit" ? (
-                <button
-                  className="btn primary"
-                  onClick={onSaveHymnToFirebase}
-                  disabled={savingHymn}
-                >
-                  {savingHymn
-                    ? "جاري الحفظ..."
-                    : selectedHymnId
-                      ? "تحديث"
-                      : "حفظ"}
-                </button>
-              ) : null}
-              {showFirebaseDeleteBtn ? (
-                <button
-                  className="btn danger"
-                  onClick={onDeleteHymnFromFirebase}
-                  disabled={!selectedHymnId || deletingHymn}
-                >
-                  {deletingHymn ? "جاري الحذف..." : "حذف الترانيمة"}
-                </button>
-              ) : null}
-            </div>
+          {showFirebaseDeleteBtn || (isSuperAdmin && showFirebaseSaveBtn) ? (
+            <details className="sidebarGroup hymnAdminActions">
+              <summary>إدارة الترنيمة</summary>
+              <div className="row wrap sidebarActions">
+                {isSuperAdmin ? (
+                  <label className="adminDashToggle">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(state.hymn.isExclusive)}
+                      onChange={(e) =>
+                        updateHymn({ isExclusive: e.target.checked })
+                      }
+                    />
+                    <span>حصرية لي فقط</span>
+                  </label>
+                ) : null}
+                {showFirebaseDeleteBtn ? (
+                  <button
+                    className="btn danger"
+                    onClick={onDeleteHymnFromFirebase}
+                    disabled={!selectedHymnId || deletingHymn}
+                  >
+                    {deletingHymn ? "جاري الحذف..." : "حذف الترانيمة"}
+                  </button>
+                ) : null}
+              </div>
+            </details>
           ) : null}
           {isAdmin ? (
             <div className="draftActions">
@@ -2859,23 +2880,26 @@ function AppShell() {
                   مسودة محلية — غير محفوظة على السيرفر
                 </p>
               ) : null}
-              <div className="row wrap sidebarActions">
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={onSaveDraftClick}
-                >
-                  حفظ مسودة
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={onDiscardDraftClick}
-                  disabled={!isDirty || !state.lastSavedHymn}
-                >
-                  تجاهل المسودة
-                </button>
-              </div>
+              <details className="sidebarGroup">
+                <summary>إدارة المسودة المحلية</summary>
+                <div className="row wrap sidebarActions">
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={onSaveDraftClick}
+                  >
+                    حفظ مسودة محلية
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={onDiscardDraftClick}
+                    disabled={!isDirty || !state.lastSavedHymn}
+                  >
+                    تجاهل المسودة
+                  </button>
+                </div>
+              </details>
             </div>
           ) : null}
           {!hasFirebaseConfig ? (
@@ -2962,27 +2986,30 @@ function AppShell() {
             </ul>
           ) : null}
 
-          <SetlistPanel
-            key={currentUser?.uid || "guest"}
-            currentId={selectedHymnId}
-            currentTitle={state.hymn.title}
-            userUid={currentUser?.uid || "guest"}
-            canAdd={Boolean(selectedHymnId)}
-            canManageSharedSetlists={canManageSharedSetlists}
-            sharedSetlists={sharedSetlists}
-            selectedSharedSetlistId={selectedSharedSetlistId}
-            onSelectSharedSetlist={setSelectedSharedSetlistId}
-            onCreateSharedSetlist={onCreateSharedSetlist}
-            onDeleteSharedSetlist={onDeleteSharedSetlist}
-            onRenameSharedSetlist={onRenameSharedSetlist}
-            onAddCurrentToSharedSetlist={onAddCurrentToSharedSetlist}
-            onMoveSharedSetlistItem={onMoveSharedSetlistItem}
-            onRemoveSharedSetlistItem={onRemoveSharedSetlistItem}
-            onStartServiceMode={onStartServiceMode}
-            sharedSetlistItems={selectedSharedSetlistItems}
-            sharedSetlistsLoading={sharedSetlistsLoading}
-            onOpen={onOpenSetlistHymn}
-          />
+          <details className="sidebarGroup serviceListsGroup">
+            <summary>قوائم الخدمة</summary>
+            <SetlistPanel
+              key={currentUser?.uid || "guest"}
+              currentId={selectedHymnId}
+              currentTitle={state.hymn.title}
+              userUid={currentUser?.uid || "guest"}
+              canAdd={Boolean(selectedHymnId)}
+              canManageSharedSetlists={canManageSharedSetlists}
+              sharedSetlists={sharedSetlists}
+              selectedSharedSetlistId={selectedSharedSetlistId}
+              onSelectSharedSetlist={setSelectedSharedSetlistId}
+              onCreateSharedSetlist={onCreateSharedSetlist}
+              onDeleteSharedSetlist={onDeleteSharedSetlist}
+              onRenameSharedSetlist={onRenameSharedSetlist}
+              onAddCurrentToSharedSetlist={onAddCurrentToSharedSetlist}
+              onMoveSharedSetlistItem={onMoveSharedSetlistItem}
+              onRemoveSharedSetlistItem={onRemoveSharedSetlistItem}
+              onStartServiceMode={onStartServiceMode}
+              sharedSetlistItems={selectedSharedSetlistItems}
+              sharedSetlistsLoading={sharedSetlistsLoading}
+              onOpen={onOpenSetlistHymn}
+            />
+          </details>
         </aside>
 
         <div className="editorPane">
@@ -2997,26 +3024,13 @@ function AppShell() {
       {state.mode === "edit" && isAdmin ? (
         <section className="previewWrap">
           <h3>معاينة مباشرة</h3>
-          <HymnView ref={viewRef} isExporting={isExporting} />
+          <HymnView
+            ref={viewRef}
+            isExporting={isExporting}
+            hideMusicianControls
+          />
         </section>
       ) : null}
-
-      {isAdmin ? (
-        <button className="floatingResetBtn" onClick={onResetProject}>
-          ابدأ من الأول
-        </button>
-      ) : null}
-
-      <button
-        className={`floatingThemeBtn ${isDark ? "toLight" : "toDark"}`}
-        onClick={toggleTheme}
-        title={isDark ? "الوضع النهاري" : "الوضع الليلي"}
-        aria-label={
-          isDark ? "التحويل إلى الوضع النهاري" : "التحويل إلى الوضع الليلي"
-        }
-      >
-        {isDark ? "☀" : "✦"}
-      </button>
 
       {outputModeOpen ? <OutputMode onClose={closeOutputMode} /> : null}
 

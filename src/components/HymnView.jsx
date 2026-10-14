@@ -18,14 +18,15 @@ function TransposeControls({ hymnKey, transposeOffset, onTranspose, onReset }) {
   const hasTranspose = Number(transposeOffset || 0) !== 0;
 
   return (
-    <div className="musicianControls" aria-label="Music controls">
+    <div className="musicianControls" aria-label="أدوات الموسيقى">
+      <span className="transposeControlsLabel">أدوات الموسيقى</span>
       <div className="transposeControlGroup">
         <button
           type="button"
           className="btn compactTransposeBtn"
           onClick={() => onTranspose?.(-1)}
-          aria-label="Transpose down semitone"
-          title="Transpose down"
+          aria-label="خفض نصف درجة"
+          title="خفض نصف درجة"
         >
           −
         </button>
@@ -36,8 +37,8 @@ function TransposeControls({ hymnKey, transposeOffset, onTranspose, onReset }) {
           type="button"
           className="btn compactTransposeBtn"
           onClick={() => onTranspose?.(1)}
-          aria-label="Transpose up semitone"
-          title="Transpose up"
+          aria-label="رفع نصف درجة"
+          title="رفع نصف درجة"
         >
           +
         </button>
@@ -46,14 +47,14 @@ function TransposeControls({ hymnKey, transposeOffset, onTranspose, onReset }) {
             type="button"
             className="btn compactTransposeBtn reset"
             onClick={onReset}
-            aria-label="Reset transpose"
+            aria-label="إعادة المقام الأصلي"
           >
-            Reset
+            إعادة
           </button>
         ) : null}
       </div>
       <div className="sheetKeyPill singerKeyPill">
-        <small>Key</small>
+        <small>المقام</small>
         <strong>{keyLabel || "—"}</strong>
       </div>
     </div>
@@ -315,7 +316,7 @@ function ChordLabels({
 }
 
 const HymnView = forwardRef(function HymnView(
-  { isExporting = false, outputOptions = null },
+  { isExporting = false, outputOptions = null, hideMusicianControls = false },
   ref,
 ) {
   const { state, transposeHymn, resetTranspose } = useHymnStore();
@@ -383,12 +384,14 @@ const HymnView = forwardRef(function HymnView(
                     : `Current key: ${displayedKey || "—"}`}
                 </span>
               </div>
-              <TransposeControls
-                hymnKey={hymn.key}
-                transposeOffset={transposeOffset || 0}
-                onTranspose={transposeHymn}
-                onReset={resetTranspose}
-              />
+              {!hideMusicianControls ? (
+                <TransposeControls
+                  hymnKey={hymn.key}
+                  transposeOffset={transposeOffset || 0}
+                  onTranspose={transposeHymn}
+                  onReset={resetTranspose}
+                />
+              ) : null}
             </>
           )}
         </header>

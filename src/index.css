@@ -432,6 +432,29 @@ body {
   margin-top: 0.25rem;
 }
 
+.sidebarGroup {
+  margin-top: 0.55rem;
+}
+
+.sidebarGroup > summary {
+  min-height: 40px;
+  font-size: 0.9rem;
+}
+
+.sidebarGroup[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
+.serviceListsGroup .setlistPanel {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.hymnAdminActions .sidebarActions {
+  margin-bottom: 0.3rem;
+}
+
 .libraryGroup > summary {
   min-height: 40px;
   display: flex;
@@ -601,10 +624,28 @@ body {
   min-width: 0;
 }
 
+.topBarIdentity {
+  flex: 0 1 auto;
+  align-self: flex-start;
+  min-width: 0;
+}
+
+.topBarIdentity .appBrand {
+  margin: 0 0 0.15rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.topBarIdentity h1 {
+  overflow-wrap: anywhere;
+}
+
 .headerActionCluster {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   gap: 0.5rem;
   width: 100%;
@@ -620,10 +661,80 @@ body {
 
 .headerActionGroup--primary {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: center;
   gap: 0.55rem;
   flex-wrap: wrap;
+}
+
+.headerModeGroup {
+  width: auto;
+}
+
+.headerToolsMenu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.headerToolsMenu > summary,
+.sidebarGroup > summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--btn-bg);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.headerToolsMenu > summary:hover,
+.sidebarGroup > summary:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+
+.headerToolsMenu > summary:focus-visible,
+.sidebarGroup > summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.headerToolsContent {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.headerToolsSection {
+  min-width: 0;
+}
+
+.headerToolsSection h2 {
+  margin: 0 0 0.45rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.headerToolsActions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr));
+  gap: 0.4rem;
+}
+
+.headerToolsActions .btn {
+  width: 100%;
+  min-width: 0;
 }
 
 .topBar h1 {
@@ -916,6 +1027,34 @@ body {
 .transposeRow {
   margin-bottom: 0.9rem;
   gap: 0.6rem;
+}
+
+.editorMusicTools {
+  margin: 0.75rem 0;
+}
+
+.editorMusicTools > summary {
+  width: fit-content;
+  min-height: 42px;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.editorMusicTools > summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.transposeControlsLabel {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
 .transposeRow .btn {
@@ -2646,6 +2785,10 @@ body {
     gap: 0.8rem;
   }
 
+  .topBar > div:first-child.topBarIdentity {
+    flex: 0 1 auto;
+  }
+
   .topBarControls {
     width: 100%;
   }
@@ -2675,6 +2818,18 @@ body {
     grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   }
 
+  .headerToolsMenu {
+    width: 100%;
+  }
+
+  .headerToolsMenu > summary {
+    width: 100%;
+  }
+
+  .headerToolsContent {
+    grid-template-columns: 1fr;
+  }
+
   .sidebarHeader {
     gap: 0.55rem;
     flex-wrap: wrap;
@@ -2685,7 +2840,7 @@ body {
   }
 
   .hymnList {
-    max-height: none;
+    max-height: 38vh;
   }
 
   .metaGrid {
@@ -2871,6 +3026,18 @@ body {
 
   .headerActionGroup,
   .headerActionGroup--primary {
+    grid-template-columns: 1fr;
+  }
+
+  .headerActionGroup.headerModeGroup {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .headerActionGroup--primary {
+    grid-template-columns: 1fr;
+  }
+
+  .headerToolsActions {
     grid-template-columns: 1fr;
   }
 

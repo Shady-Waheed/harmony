@@ -63,7 +63,7 @@ export default function SetlistPanel({
   return (
     <div className="setlistPanel">
       <div className="row between sidebarHeader">
-        <h3>سيت ليست</h3>
+        <h3>قائمة الخدمة المحلية</h3>
         <button
           type="button"
           className="btn"

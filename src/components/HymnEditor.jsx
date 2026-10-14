@@ -420,6 +420,7 @@ function HymnEditor() {
     removeLine,
     updateLine,
     transposeHymn,
+    resetTranspose,
     undo,
     redo,
     canUndo,
@@ -506,24 +507,37 @@ function HymnEditor() {
           placeholder="المقام (Key)"
         />
       </div>
-      <div className="row wrap transposeRow">
-        <button
-          className="btn"
-          onClick={() => transposeHymn(-1)}
-          title="Transpose -1 semitone"
-          aria-label="Transpose down"
-        >
-          -
-        </button>
-        <button
-          className="btn"
-          onClick={() => transposeHymn(1)}
-          title="Transpose +1 semitone"
-          aria-label="Transpose up"
-        >
-          +
-        </button>
-      </div>
+      <details className="editorMusicTools">
+        <summary>أدوات الموسيقى</summary>
+        <div className="row wrap transposeRow">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => transposeHymn(-1)}
+            title="خفض نصف درجة"
+          >
+            خفض نصف درجة
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => transposeHymn(1)}
+            title="رفع نصف درجة"
+          >
+            رفع نصف درجة
+          </button>
+          {state.transposeOffset !== 0 ? (
+            <button
+              type="button"
+              className="btn"
+              onClick={resetTranspose}
+              title="إعادة المقام الأصلي"
+            >
+              إعادة المقام الأصلي
+            </button>
+          ) : null}
+        </div>
+      </details>
 
       {hymn.sections.map((section, secIndex) => {
         const sectionOpen = openSectionId === section.id;
