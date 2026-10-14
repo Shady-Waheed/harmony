@@ -4479,3 +4479,122 @@ body {
     font-size: var(--output-lyric-size, 36px) !important;
   }
 }
+
+
+/* Keep chord editing focused: show letter-level controls only for the selected word. */
+.wordComposer {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: 0.55rem;
+  align-items: stretch;
+}
+
+.wordBlockWrap {
+  min-width: 0;
+  margin: 0;
+  padding: 0.48rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.38rem;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+}
+
+.wordBlockWrap .gapEditor {
+  align-items: stretch;
+  gap: 0.28rem;
+}
+
+.wordBlockWrap .miniAddBtn {
+  min-height: 32px;
+  padding: 0.22rem 0.55rem;
+  align-self: flex-start;
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+}
+
+.wordBlockWrap .gapSlotList {
+  margin: 0;
+  gap: 0.22rem;
+}
+
+.wordBlockWrap .gapTokenBtn {
+  min-height: 30px;
+  color: var(--chord);
+  background: color-mix(in srgb, var(--chord) 8%, var(--surface));
+}
+
+.wordChordCell.word {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.wordLabelToggle {
+  display: flex;
+  width: 100%;
+  min-height: 54px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.08rem;
+  margin: 0;
+  padding: 0.32rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  cursor: pointer;
+  transition: var(--interactive-transition);
+}
+
+.wordLabelToggle:hover,
+.wordLabelToggle[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--border));
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+}
+
+.wordEditorHint {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.wordBlockWrap .letterEditorRun {
+  justify-content: center;
+  gap: 0.14rem;
+  padding: 0.5rem 0.15rem 0.3rem;
+  border-top: 1px solid var(--border);
+}
+
+.wordBlockWrap .letterEditorCell {
+  min-width: 1.75rem;
+}
+
+.wordBlockWrap .letterEditorCell .wordChordAddBtn {
+  min-width: 1.55rem;
+  min-height: 26px;
+}
+
+.wordBlockWrap .inlineEditorPanel {
+  width: 100%;
+  margin-block: 0.25rem;
+  padding: 0.45rem;
+  border-style: solid;
+  background: var(--surface-strong);
+}
+
+@media (max-width: 520px) {
+  .wordComposer {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 132px), 1fr));
+    gap: 0.42rem;
+  }
+
+  .wordBlockWrap {
+    padding: 0.38rem;
+  }
+}

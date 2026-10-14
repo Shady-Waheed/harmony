@@ -428,6 +428,7 @@ function HymnEditor() {
   } = useHymnStore();
   const { hymn } = state;
   const [activeEditorId, setActiveEditorId] = useState("");
+  const [expandedWordEditorId, setExpandedWordEditorId] = useState("");
   const [openSectionId, setOpenSectionId] = useState(
     () => hymn.sections[0]?.id ?? null,
   );
@@ -663,6 +664,7 @@ function HymnEditor() {
                                 <div className="gapEditor">
                                   <button
                                     className="miniAddBtn"
+                                    type="button"
                                     onClick={() => {
                                       const nextBeforeWordChords =
                                         normalizedLine.beforeWordChords.map(
@@ -688,6 +690,14 @@ function HymnEditor() {
                                         beforeWordInversions:
                                           nextBeforeWordInversions,
                                       });
+                                      setActiveEditorId(
+                                        getEditorId(
+                                          line.id,
+                                          "before",
+                                          wordIndex,
+                                          (normalizedLine.beforeWordChords[wordIndex] || []).length,
+                                        ),
+                                      );
                                     }}
                                   >
                                     + قبل
@@ -828,7 +838,32 @@ function HymnEditor() {
                                 </div>
 
                                 <div className="wordChordCell word">
-                                  <div className="letterEditorRun">
+                                  <button
+                                    className="wordLabel wordLabelToggle"
+                                    type="button"
+                                    aria-expanded={
+                                      expandedWordEditorId ===
+                                      `${line.id}:${wordIndex}`
+                                    }
+                                    onClick={() =>
+                                      setExpandedWordEditorId((current) =>
+                                        current === `${line.id}:${wordIndex}`
+                                          ? ""
+                                          : `${line.id}:${wordIndex}`,
+                                      )
+                                    }
+                                  >
+                                    <span>{word}</span>
+                                    <span className="wordEditorHint">
+                                      {expandedWordEditorId ===
+                                      `${line.id}:${wordIndex}`
+                                        ? "إخفاء التفاصيل"
+                                        : "توزيع الكوردات"}
+                                    </span>
+                                  </button>
+                                  {expandedWordEditorId ===
+                                  `${line.id}:${wordIndex}` ? (
+                                    <div className="letterEditorRun">
                                     {splitWordLetters(word).map(
                                       (letter, letterIndex) => {
                                         const chordGroup =
@@ -1053,13 +1088,14 @@ function HymnEditor() {
                                         );
                                       },
                                     )}
-                                  </div>
-                                  <span className="wordLabel">{word}</span>
+                                    </div>
+                                  ) : null}
                                 </div>
 
                                 <div className="gapEditor">
                                   <button
                                     className="miniAddBtn"
+                                    type="button"
                                     onClick={() => {
                                       const nextAfterWordChords =
                                         normalizedLine.afterWordChords.map(
@@ -1085,6 +1121,14 @@ function HymnEditor() {
                                         afterWordInversions:
                                           nextAfterWordInversions,
                                       });
+                                      setActiveEditorId(
+                                        getEditorId(
+                                          line.id,
+                                          "after",
+                                          wordIndex,
+                                          (normalizedLine.afterWordChords[wordIndex] || []).length,
+                                        ),
+                                      );
                                     }}
                                   >
                                     + بعد
