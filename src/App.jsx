@@ -1346,6 +1346,7 @@ function AppShell() {
       setSaveErrorWriteCompleted(false);
       let localDraftSaved = false;
       let firestoreWriteCompleted = false;
+      let writeOperation = writeMode;
       try {
         writeDraft(state.hymn.id, state.hymn, {
           baseHymn: state.lastSavedHymn,
@@ -1383,51 +1384,78 @@ function AppShell() {
 
         if (writeMode === "update") {
           lastDirectHymnWriteAtRef.current = Date.now();
-          await updateDoc(doc(db, "hymns", selectedHymnId), payload);
+          let savedHymnId = selectedHymnId;
+          let savedMetadata = writeMetadata;
+          try {
+            await updateDoc(doc(db, "hymns", selectedHymnId), payload);
+          } catch (error) {
+            if (error?.code !== "not-found") throw error;
+
+            savedMetadata = buildHymnWriteMetadata({
+              currentUserUid: authenticatedUser.uid,
+              isBootstrapAdmin: savePermissions.isSuperAdmin,
+              existingHymn: null,
+              requestedExclusive: state.hymn.isExclusive,
+            });
+            const createdAt = Timestamp.now();
+            const created = await addDoc(collection(db, "hymns"), {
+              ...payload,
+              ...savedMetadata,
+              createdAt,
+            });
+            savedHymnId = created.id;
+            writeOperation = "create-after-not-found";
+            clearDraft(selectedHymnId, undefined, authenticatedUser.uid);
+            setSelectedHymnId(savedHymnId);
+            loadHymn(
+              {
+                ...state.hymn,
+                id: savedHymnId,
+                title,
+                isExclusive: savedMetadata.isExclusive,
+                exclusiveOwnerUid: savedMetadata.exclusiveOwnerUid,
+              },
+              { ignoreDraft: true, mode: "edit" },
+            );
+            navigateHymn(savedHymnId, { replace: true });
+          }
           firestoreWriteCompleted = true;
           const savedCopy = {
-            ...existingHymn,
-            id: selectedHymnId,
+            ...(savedHymnId === selectedHymnId ? existingHymn : {}),
+            id: savedHymnId,
             title,
             key: payload.key,
             sections: payload.sections,
             schemaVersion: payload.schemaVersion,
-            ...writeMetadata,
+            ...savedMetadata,
             updatedAt: Date.now(),
           };
           synchronizedHymnsRef.current = mergeHymnQueryResults(
             synchronizedHymnsRef.current.filter(
-              (item) => item.id !== selectedHymnId,
+              (item) =>
+                item.id !== selectedHymnId && item.id !== savedHymnId,
             ),
             [savedCopy],
           );
           await offlineAccountStore.update(authenticatedUser.uid, {
             hymns: synchronizedHymnsRef.current,
           });
-          setHymns((prev) =>
-            prev.map((item) =>
-              item.id === selectedHymnId
-                ? {
-                    ...item,
-                    title,
-                    key: payload.key,
-                    sections: payload.sections,
-                    isExclusive: writeMetadata.isExclusive,
-                    exclusiveOwnerUid: writeMetadata.exclusiveOwnerUid,
-                    updatedAt: Date.now(),
-                  }
-                : item,
+          setHymns((prev) => [
+            savedCopy,
+            ...prev.filter(
+              (item) =>
+                item.id !== selectedHymnId && item.id !== savedHymnId,
             ),
-          );
+          ]);
           markHymnSaved({
             ...state.hymn,
-            id: selectedHymnId,
+            id: savedHymnId,
             title,
             key: payload.key,
-            isExclusive: writeMetadata.isExclusive,
-            exclusiveOwnerUid: writeMetadata.exclusiveOwnerUid,
+            isExclusive: savedMetadata.isExclusive,
+            exclusiveOwnerUid: savedMetadata.exclusiveOwnerUid,
           });
-          navigateHymn(selectedHymnId, { replace: true });
+          navigateHymn(savedHymnId, { replace: true });
           if (!(await runSaveFollowup(afterSave))) return true;
           showSaveSuccessNotification(showNotice);
           return true;
@@ -1518,7 +1546,7 @@ function AppShell() {
           selectedHymnId,
           hymnId: state.hymn?.id,
           projectId: firebaseApp?.options?.projectId,
-          writeOperation: writeMode,
+          writeOperation,
           payloadValidation: {
             titleIsString: typeof payload.title === "string",
             keyIsString: typeof payload.key === "string",
