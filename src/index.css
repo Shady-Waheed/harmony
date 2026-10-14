@@ -30,6 +30,15 @@
   --favorite-border: rgba(230, 174, 67, 0.55);
   --overlay: rgba(4, 8, 18, 0.62);
   --focus-ring: color-mix(in srgb, var(--primary) 72%, transparent);
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-menu: 16px;
+  --border-subtle: color-mix(in srgb, var(--border) 64%, transparent);
+  --interactive-transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --glass-bg: color-mix(in srgb, var(--panel) 82%, transparent);
+  --segmented-bg: rgba(5, 10, 25, 0.62);
+  --segmented-border: rgba(168, 184, 234, 0.12);
+  --primary-glow: color-mix(in srgb, var(--primary) 24%, transparent);
   --section: #5a97ff;
   --chord: #e8b86d;
   --lyric: #f3eee6;
@@ -83,6 +92,11 @@
   --favorite-border: rgba(128, 84, 0, 0.38);
   --overlay: rgba(16, 26, 52, 0.48);
   --focus-ring: color-mix(in srgb, var(--primary) 72%, transparent);
+  --border-subtle: color-mix(in srgb, var(--border) 64%, transparent);
+  --glass-bg: color-mix(in srgb, var(--panel) 88%, transparent);
+  --segmented-bg: rgba(31, 42, 70, 0.08);
+  --segmented-border: rgba(78, 98, 145, 0.2);
+  --primary-glow: color-mix(in srgb, var(--primary) 18%, transparent);
   --section: #2b63ea;
   --chord: #9a3412;
   --lyric: #1c1917;
@@ -99,6 +113,34 @@
 
 * {
   box-sizing: border-box;
+}
+
+button,
+a,
+summary {
+  -webkit-tap-highlight-color: transparent;
+  transition: var(--interactive-transition);
+}
+
+button:not(:disabled):hover,
+a[href]:hover {
+  transform: translateY(-1px);
+}
+
+button:not(:disabled):active,
+a[href]:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 body {
@@ -118,7 +160,8 @@ body {
   padding: 1rem;
   direction: rtl;
   text-align: right;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   color: var(--text);
   background: radial-gradient(
     circle at top right,
@@ -462,12 +505,16 @@ body {
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.35rem 0.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--text);
   cursor: pointer;
   font-size: 0.88rem;
   font-weight: 700;
   list-style-position: inside;
+  border: 1px solid var(--border-subtle);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .libraryGroup > summary:hover {
@@ -607,26 +654,34 @@ body {
 }
 
 .topBar {
+  position: relative;
+  z-index: 100;
+  overflow: visible;
   margin-bottom: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  padding: 0.5rem 0 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.2fr);
+  align-items: center;
+  gap: 1.15rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-menu);
+  background: var(--glass-bg);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .topBarControls {
   display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  align-items: stretch;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
   gap: 0.6rem;
   min-width: 0;
 }
 
 .topBarIdentity {
-  flex: 0 1 auto;
-  align-self: flex-start;
+  align-self: center;
   min-width: 0;
 }
 
@@ -668,12 +723,57 @@ body {
 }
 
 .headerModeGroup {
-  width: auto;
+  display: inline-flex;
+  width: fit-content;
+  gap: 0.2rem;
+  padding: 0.22rem;
+  border: 1px solid var(--segmented-border);
+  border-radius: 999px;
+  background: var(--segmented-bg);
+  box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.12);
+}
+
+.headerModeGroup .btn {
+  min-height: 38px;
+  padding: 0.45rem 0.85rem;
+  border-color: transparent;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.headerModeGroup .btn:not(.primary):hover {
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+}
+
+.headerModeGroup .btn.primary {
+  box-shadow: 0 3px 10px var(--primary-glow);
 }
 
 .headerToolsMenu {
   position: relative;
+  z-index: auto;
   flex: 0 0 auto;
+}
+
+.headerToolsMenu[open] {
+  z-index: 9999;
+}
+
+.headerSaveCluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.headerSaveCluster .saveStatus {
+  max-width: min(100%, 20rem);
+}
+
+.headerSaveCluster .saveStatus > span:nth-child(2) {
+  overflow-wrap: anywhere;
 }
 
 .headerToolsMenu > summary,
@@ -684,13 +784,16 @@ body {
   justify-content: space-between;
   gap: 0.55rem;
   padding: 0.5rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--btn-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--glass-bg);
   color: var(--text);
   cursor: pointer;
   font-weight: 700;
   list-style-position: inside;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .headerToolsMenu > summary:hover,
@@ -705,36 +808,64 @@ body {
 }
 
 .headerToolsContent {
+  position: absolute;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  z-index: 9999;
+  width: min(720px, calc(100vw - 2.5rem));
+  min-width: min(280px, calc(100vw - 2rem));
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
   gap: 0.75rem;
-  margin-top: 0.55rem;
+  margin: 0;
   padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--panel);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-menu);
+  background: color-mix(in srgb, var(--panel) 95%, transparent);
+  box-shadow:
+    var(--shadow),
+    inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .headerToolsSection {
   min-width: 0;
+  padding-inline-start: 0.7rem;
+  border-inline-start: 1px solid var(--border-subtle);
+}
+
+.headerToolsSection:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
 }
 
 .headerToolsSection h2 {
-  margin: 0 0 0.45rem;
-  color: var(--muted);
-  font-size: 0.82rem;
+  margin: 0 0 0.65rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: color-mix(in srgb, var(--text) 82%, var(--primary));
+  font-size: 0.9rem;
 }
 
 .headerToolsActions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr));
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .headerToolsActions .btn {
   width: 100%;
   min-width: 0;
+  min-height: 44px;
+  padding: 0.62rem 0.75rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--btn-bg) 62%, transparent);
+}
+
+.headerToolsActions .btn:hover {
+  background: color-mix(in srgb, var(--primary-soft) 72%, var(--btn-bg));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .topBar h1 {
@@ -765,10 +896,10 @@ body {
 
 .card {
   background: var(--panel);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 18px;
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-menu);
   box-shadow: var(--shadow);
   padding: 1rem;
 }
@@ -782,12 +913,12 @@ body {
 
 .input {
   width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
   background: var(--input-bg);
   color: var(--text);
-  padding: 0.65rem 0.78rem;
-  transition: 0.2s ease;
+  padding: 0.72rem 0.9rem;
+  transition: var(--interactive-transition);
   font-family: var(--font-ui);
   font-size: 1rem;
   font-weight: 500;
@@ -797,9 +928,13 @@ body {
 
 .app select {
   color-scheme: inherit;
-  border-color: var(--border) !important;
+  border-color: var(--border-subtle) !important;
   background-color: var(--input-bg) !important;
   color: var(--text) !important;
+  border-radius: var(--radius-card);
+  min-height: 42px;
+  padding-inline: 0.8rem 2.1rem;
+  transition: var(--interactive-transition);
 }
 
 .app select option {
@@ -898,14 +1033,14 @@ body {
 }
 
 .btn {
-  border: 1px solid var(--border);
-  background: var(--btn-bg);
+  border: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--btn-bg) 72%, transparent);
   color: var(--text);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   padding: 0.56rem 0.82rem;
   cursor: pointer;
   min-height: 40px;
-  transition: 0.2s ease;
+  transition: var(--interactive-transition);
   font-family: var(--font-ui);
   font-size: 0.95rem;
   font-weight: 600;
@@ -913,8 +1048,8 @@ body {
 }
 
 .btn:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border-subtle));
+  background-color: color-mix(in srgb, var(--primary-soft) 48%, var(--btn-bg));
 }
 
 .btn.primary {
@@ -925,12 +1060,18 @@ body {
   );
   border-color: var(--primary-button);
   color: var(--primary-button-text);
+  box-shadow: 0 5px 16px var(--primary-glow);
+}
+
+.btn.primary:hover {
+  border-color: color-mix(in srgb, var(--primary-button) 82%, white);
+  box-shadow: 0 7px 20px var(--primary-glow);
 }
 
 .btn.danger {
-  border-color: color-mix(in srgb, var(--danger) 65%, var(--border));
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--border-subtle));
   color: var(--danger-ink);
-  background: var(--danger-soft);
+  background: color-mix(in srgb, var(--danger-soft) 76%, transparent);
 }
 
 .floatingResetBtn {
@@ -1037,13 +1178,16 @@ body {
   width: fit-content;
   min-height: 42px;
   padding: 0.5rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
   font-weight: 700;
   list-style-position: inside;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .editorMusicTools > summary:focus-visible {
@@ -1059,6 +1203,23 @@ body {
 
 .transposeRow .btn {
   min-width: 132px;
+}
+
+.transposeSegmentGroup {
+  width: fit-content;
+  padding: 0.25rem;
+  border: 1px solid var(--segmented-border);
+  border-radius: var(--radius-menu);
+  background: var(--segmented-bg);
+}
+
+.transposeSegmentGroup .btn {
+  border-radius: var(--radius-control);
+  background: transparent;
+}
+
+.transposeSegmentGroup .btn:hover {
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
 }
 
 .sectionHeaderRow {
@@ -1594,11 +1755,22 @@ body {
 .transposeControlGroup {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.3rem 0.4rem;
-  border: 1px solid var(--sheet-rule);
+  gap: 0.18rem;
+  padding: 0.22rem;
+  border: 1px solid var(--segmented-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--sheet-pill) 84%, transparent);
+  background: var(--segmented-bg);
+  box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.14);
+}
+
+.transposeControlGroup .compactTransposeBtn {
+  border-color: transparent;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.transposeControlGroup .compactTransposeBtn:hover {
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
 }
 
 .compactTransposeBtn {
@@ -2781,41 +2953,35 @@ body {
   }
 
   .topBar {
-    flex-direction: column;
-    gap: 0.8rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    overflow: visible;
   }
 
-  .topBar > div:first-child.topBarIdentity {
-    flex: 0 1 auto;
+  .topBarIdentity {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    text-align: center;
   }
 
   .topBarControls {
-    width: 100%;
-  }
-
-  .headerActionGroup,
-  .headerActionCluster,
-  .headerActionGroup--primary {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 0.62fr);
     justify-content: stretch;
     width: 100%;
   }
 
-  .headerActionGroup {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .headerActionGroup.headerModeGroup {
+    grid-column: 1 / -1;
+    justify-self: center;
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
   }
 
-  .headerActionGroup .btn,
-  .headerActionGroup .saveStatus,
-  .headerActionGroup--primary .btn,
-  .headerActionGroup--primary .saveStatus {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .headerActionGroup--primary {
-    display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  .headerSaveCluster {
+    justify-content: flex-start;
   }
 
   .headerToolsMenu {
@@ -2828,6 +2994,20 @@ body {
 
   .headerToolsContent {
     grid-template-columns: 1fr;
+    width: min(420px, calc(100vw - 2.5rem));
+    min-width: min(280px, calc(100vw - 2rem));
+  }
+
+  .headerToolsSection,
+  .headerToolsSection:first-child {
+    padding: 0 0 0.65rem;
+    border: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .headerToolsSection:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
   }
 
   .sidebarHeader {
@@ -3018,23 +3198,25 @@ body {
     font-size: 0.91rem;
   }
 
-  .headerActionGroup,
-  .headerActionCluster,
-  .headerActionGroup--primary {
-    gap: 0.4rem;
+  .topBarControls {
+    grid-template-columns: minmax(0, 1fr) 112px;
+    gap: 0.45rem;
   }
 
-  .headerActionGroup,
-  .headerActionGroup--primary {
-    grid-template-columns: 1fr;
+  .headerSaveCluster {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .headerActionGroup.headerModeGroup {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .headerSaveCluster .saveStatus,
+  .headerSaveCluster .headerSaveButton {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
   }
 
-  .headerActionGroup--primary {
-    grid-template-columns: 1fr;
+  .headerSaveCluster .saveStatus {
+    justify-content: center;
   }
 
   .headerToolsActions {

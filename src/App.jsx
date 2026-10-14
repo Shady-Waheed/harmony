@@ -2470,8 +2470,25 @@ function AppShell() {
           <h1>{state.hymn.title || "ترنيمة بدون عنوان"}</h1>
         </div>
 
+        <div className="headerActionGroup headerModeGroup" aria-label="وضع العمل">
+          {isAdmin ? (
+            <button
+              className={`btn ${state.mode === "edit" ? "primary" : ""}`}
+              onClick={() => setMode("edit")}
+            >
+              وضع التعديل
+            </button>
+          ) : null}
+          <button
+            className={`btn ${state.mode === "view" ? "primary" : ""}`}
+            onClick={() => setMode("view")}
+          >
+            وضع العرض
+          </button>
+        </div>
+
         <div className="topBarControls">
-          <div className="headerActionGroup headerActionGroup--primary">
+          <div className="headerSaveCluster">
             <div
               className={`saveStatus saveStatus--${saveState.status}`}
               role="status"
@@ -2538,25 +2555,7 @@ function AppShell() {
             ) : null}
           </div>
 
-          <div className="headerActionCluster">
-            <div className="headerActionGroup headerModeGroup" aria-label="وضع العمل">
-              {isAdmin ? (
-                <button
-                  className={`btn ${state.mode === "edit" ? "primary" : ""}`}
-                  onClick={() => setMode("edit")}
-                >
-                  وضع التعديل
-                </button>
-              ) : null}
-              <button
-                className={`btn ${state.mode === "view" ? "primary" : ""}`}
-                onClick={() => setMode("view")}
-              >
-                وضع العرض
-              </button>
-            </div>
-
-            <details className="headerToolsMenu">
+          <details className="headerToolsMenu">
               <summary>أدوات وإجراءات</summary>
               <div className="headerToolsContent">
                 <section className="headerToolsSection" aria-labelledby="header-output-label">
@@ -2643,8 +2642,7 @@ function AppShell() {
                   </div>
                 </section>
               </div>
-            </details>
-          </div>
+          </details>
 
           {isAdmin ? (
             <input

@@ -509,7 +509,7 @@ function HymnEditor() {
       </div>
       <details className="editorMusicTools">
         <summary>أدوات الموسيقى</summary>
-        <div className="row wrap transposeRow">
+        <div className="row wrap transposeRow transposeSegmentGroup">
           <button
             type="button"
             className="btn"
