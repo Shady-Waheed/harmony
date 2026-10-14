@@ -24,7 +24,13 @@ import {
   waitForPendingWrites,
   where,
 } from "firebase/firestore";
-import { auth, db, googleProvider, hasFirebaseConfig } from "./firebase";
+import {
+  app as firebaseApp,
+  auth,
+  db,
+  googleProvider,
+  hasFirebaseConfig,
+} from "./firebase";
 import {
   canReadExclusiveHymn,
   canAccessTeamDashboard,
@@ -244,6 +250,7 @@ function AppShell() {
   const saveInFlightRef = useRef(false);
   const [saveError, setSaveError] = useState(null);
   const [saveErrorCode, setSaveErrorCode] = useState("");
+  const [saveDiagnostic, setSaveDiagnostic] = useState(null);
   const [saveErrorWriteCompleted, setSaveErrorWriteCompleted] = useState(false);
   const [deletingHymn, setDeletingHymn] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -524,11 +531,15 @@ function AppShell() {
             }
           : null,
         hymnId: context.selectedHymnId || context.hymnId || null,
+        projectId: context.projectId || null,
+        writeOperation: context.writeOperation || null,
+        payloadValidation: context.payloadValidation || null,
         isDirty: Boolean(context.isDirty),
         isOffline: Boolean(context.isOffline),
         firestoreWriteCompleted: Boolean(context.firestoreWriteCompleted),
       };
       console.warn("[save failed]", safeContext);
+      return safeContext;
     },
     [],
   );
@@ -1298,6 +1309,7 @@ function AppShell() {
       setSavingHymn(true);
       setSaveError(null);
       setSaveErrorCode("");
+      setSaveDiagnostic(null);
       setSaveErrorWriteCompleted(false);
       let localDraftSaved = false;
       let firestoreWriteCompleted = false;
@@ -1458,17 +1470,30 @@ function AppShell() {
         setSaveError(error?.message || "save failed");
         setSaveErrorCode(error?.code || "unknown");
         setSaveErrorWriteCompleted(firestoreWriteCompleted);
-        logSaveFailure(error, {
+        const diagnostic = logSaveFailure(error, {
           authenticatedUser,
           teamData,
           teamFromCache,
           savePermissions,
           selectedHymnId,
           hymnId: state.hymn?.id,
+          projectId: firebaseApp?.options?.projectId,
+          writeOperation: selectedHymnId ? "update" : "create",
+          payloadValidation: {
+            titleIsString: typeof payload.title === "string",
+            keyIsString: typeof payload.key === "string",
+            sectionsIsArray: Array.isArray(payload.sections),
+            updatedByMatchesAuth: payload.updatedBy === authenticatedUser.uid,
+            exclusiveMetadataIsValid:
+              typeof payload.isExclusive === "boolean" &&
+              typeof payload.exclusiveOwnerUid === "string" &&
+              (!payload.isExclusive || payload.exclusiveOwnerUid.length > 0),
+          },
           isDirty,
           isOffline: isBrowserOffline(),
           firestoreWriteCompleted,
         });
+        setSaveDiagnostic(diagnostic);
         const notification = resolveSaveErrorNotification(error, {
           isOffline: isBrowserOffline(),
           localDraftSaved,
@@ -2554,6 +2579,73 @@ function AppShell() {
               </button>
             ) : null}
           </div>
+          {saveDiagnostic ? (
+            <details className="saveDiagnosticDetails">
+              <summary>تفاصيل آمنة للتشخيص</summary>
+              <dl>
+                <div>
+                  <dt>رمز الخطأ</dt>
+                  <dd dir="ltr">{saveDiagnostic.code}</dd>
+                </div>
+                <div>
+                  <dt>مشروع Firebase</dt>
+                  <dd dir="ltr">{saveDiagnostic.projectId || "غير معروف"}</dd>
+                </div>
+                <div>
+                  <dt>UID المستخدم</dt>
+                  <dd dir="ltr">{saveDiagnostic.userUid || "غير مسجل"}</dd>
+                </div>
+                <div>
+                  <dt>نوع الكتابة</dt>
+                  <dd>
+                    {saveDiagnostic.writeOperation === "update"
+                      ? "تحديث ترنيمة"
+                      : "إنشاء ترنيمة"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>صلاحية الحفظ المحلية</dt>
+                  <dd>
+                    {saveDiagnostic.savePermissions?.canSaveFirebase
+                      ? "مسموحة"
+                      : "غير مسموحة"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>مشرف أساسي</dt>
+                  <dd>{saveDiagnostic.savePermissions?.isSuperAdmin ? "نعم" : "لا"}</dd>
+                </div>
+                <div>
+                  <dt>عضو الفريق / canSaveFirebase</dt>
+                  <dd>
+                    {saveDiagnostic.teamMemberFound ? "موجود" : "غير موجود"} /{" "}
+                    {saveDiagnostic.teamCanSaveFirebase ? "مسموحة" : "غير مفعّلة"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>بيانات الفريق من الذاكرة المؤقتة</dt>
+                  <dd>{saveDiagnostic.teamSnapshotFromCache ? "نعم" : "لا"}</dd>
+                </div>
+                <div>
+                  <dt>تأكيد الكتابة على السيرفر</dt>
+                  <dd>
+                    {saveDiagnostic.firestoreWriteCompleted ? "نعم" : "لا"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>حقول الطلب المطلوبة</dt>
+                  <dd>
+                    {saveDiagnostic.payloadValidation
+                      ? Object.values(saveDiagnostic.payloadValidation).every(Boolean)
+                        ? "مكتملة"
+                        : "يوجد حقل غير صالح"
+                      : "غير متاحة"}
+                  </dd>
+                </div>
+              </dl>
+              <p>لا تشمل هذه التفاصيل كلمات مرور أو رموز دخول أو محتوى الترنيمة.</p>
+            </details>
+          ) : null}
 
           <details className="headerToolsMenu">
               <summary>أدوات وإجراءات</summary>
@@ -2744,7 +2836,7 @@ function AppShell() {
                 <p className="sidebarHint">لا توجد ترانيم مفضلة متاحة.</p>
               )}
             </details>
-            <details className="libraryGroup" open>
+            <details className="libraryGroup">
               <summary>
                 <span>استُخدمت مؤخرًا</span>
                 <small>{recentHymns.length}</small>

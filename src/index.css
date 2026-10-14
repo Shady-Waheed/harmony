@@ -370,6 +370,65 @@ body {
   font-weight: 600;
 }
 
+.saveDiagnosticDetails {
+  flex: 1 0 100%;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.saveDiagnosticDetails > summary {
+  width: fit-content;
+  min-height: 36px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.saveDiagnosticDetails > summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.saveDiagnosticDetails dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.45rem;
+  margin: 0.55rem 0 0;
+  padding: 0.65rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--glass-bg);
+}
+
+.saveDiagnosticDetails dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 0.65rem;
+  min-width: 0;
+}
+
+.saveDiagnosticDetails dt {
+  color: var(--muted);
+}
+
+.saveDiagnosticDetails dd {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-chord);
+  overflow-wrap: anywhere;
+}
+
+.saveDiagnosticDetails p {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+}
+
 .headerSaveButton {
   gap: 0.5rem;
   white-space: nowrap;
