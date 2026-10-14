@@ -95,6 +95,53 @@ describe("line chord normalization", () => {
     ]);
   });
 
+  it("does not restore a deleted after-word chord from the legacy gap alias", () => {
+    const line = normalizeLineStructure({
+      lyrics: "يا سيدي",
+      afterWordChords: [["C"], []],
+    });
+    const deleted = normalizeLineStructure({
+      ...line,
+      afterWordChords: [[], []],
+      afterWordInversions: [[], []],
+    });
+
+    expect(deleted.afterWordChords).toEqual([[], []]);
+    expect(buildDisplayCells(deleted).map((cell) => cell.type)).toEqual([
+      "word",
+      "word",
+    ]);
+  });
+
+  it("does not restore a deleted letter chord from the word chord aliases", () => {
+    const line = normalizeLineStructure({
+      lyrics: "يا",
+      wordLetterChords: [[[], ["C"]]],
+    });
+    const deletedLetters = line.wordLetterChords.map((letters) =>
+      letters.map((chords) => [...chords]),
+    );
+    const deletedInversions = line.wordLetterInversions.map((letters) =>
+      letters.map((inversions) => [...inversions]),
+    );
+    deletedLetters[0][1].splice(0, 1);
+    deletedInversions[0][1].splice(0, 1);
+    const remainingGroups = deletedLetters.map((letters) =>
+      letters.flatMap((chords) => chords.filter(Boolean)),
+    );
+    const deleted = normalizeLineStructure({
+      ...line,
+      wordLetterChords: deletedLetters,
+      wordLetterInversions: deletedInversions,
+      wordChordGroups: remainingGroups,
+      wordChords: remainingGroups.map((group) => group[0] || ""),
+      wordInversions: remainingGroups.map((group) => group.map(() => "")),
+    });
+
+    expect(deleted.wordChordGroups).toEqual([[]]);
+    expect(deleted.wordChords).toEqual([""]);
+  });
+
   it("keeps mixed word, letter, before, after, and gap chord positions intact", () => {
     const line = {
       lyrics: "يا سيدي أنت",

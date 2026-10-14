@@ -172,15 +172,6 @@ function coerceChordGroups(values) {
   });
 }
 
-function slotGroupsHaveValues(groups) {
-  return (groups || []).some((group) =>
-    Array.isArray(group) ? group.some(Boolean) : Boolean(group),
-  );
-}
-
-function slotGroupsHaveSlots(groups) {
-  return (groups || []).some((group) => Array.isArray(group) && group.length > 0);
-}
 
 function coerceLetterMatrix(values) {
   const words = coerceIndexArray(values);
@@ -337,9 +328,10 @@ export function normalizeLineStructure(line) {
   const coercedAfterWordInversions = coerceChordGroups(
     line?.afterWordInversions,
   );
-  const hasAfterWordSlots = slotGroupsHaveSlots(coercedAfterWordChords);
+  const hasExplicitAfterWordChords = line?.afterWordChords != null;
+  const hasExplicitAfterWordInversions = line?.afterWordInversions != null;
   const afterWordChords = normalizeWordSlotGroups(
-    slotGroupsHaveValues(coercedAfterWordChords) || hasAfterWordSlots
+    hasExplicitAfterWordChords
       ? coercedAfterWordChords
       : words.map((_, i) =>
           i < loadedGapChords.length ? loadedGapChords[i] : [],
@@ -347,7 +339,7 @@ export function normalizeLineStructure(line) {
     words.length,
   );
   const afterWordInversions = normalizeWordSlotInversions(
-    slotGroupsHaveValues(coercedAfterWordInversions) || hasAfterWordSlots
+    hasExplicitAfterWordInversions || hasExplicitAfterWordChords
       ? coercedAfterWordInversions
       : words.map((_, i) =>
           i < loadedGapInversions.length ? loadedGapInversions[i] : [],

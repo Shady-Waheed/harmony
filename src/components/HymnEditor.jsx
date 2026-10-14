@@ -1065,6 +1065,22 @@ function HymnEditor() {
                                                           chordIndex,
                                                           1,
                                                         );
+                                                        const nextWordChordGroups =
+                                                          nextChords.map((letters) =>
+                                                            letters.flatMap((chords) =>
+                                                              chords.filter(Boolean),
+                                                            ),
+                                                          );
+                                                        const nextWordInversions =
+                                                          nextChords.map((letters, currentWordIndex) =>
+                                                            letters.flatMap((chords, currentLetterIndex) =>
+                                                              chords.flatMap((chord, currentChordIndex) =>
+                                                                chord
+                                                                  ? [nextInversions[currentWordIndex][currentLetterIndex][currentChordIndex] || ""]
+                                                                  : [],
+                                                              ),
+                                                            ),
+                                                          );
                                                         updateLine(
                                                           section.id,
                                                           line.id,
@@ -1073,6 +1089,12 @@ function HymnEditor() {
                                                               nextChords,
                                                             wordLetterInversions:
                                                               nextInversions,
+                                                            wordChordGroups:
+                                                              nextWordChordGroups,
+                                                            wordChords:
+                                                              nextWordChordGroups.map((group) => group[0] || ""),
+                                                            wordInversions:
+                                                              nextWordInversions,
                                                           },
                                                         );
                                                         setActiveEditorId("");
