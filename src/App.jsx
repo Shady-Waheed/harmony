@@ -237,6 +237,8 @@ function AppShell() {
   const [recentHymnIds, setRecentHymnIds] = useState(readRecentHymnIds);
   const [savingHymn, setSavingHymn] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [saveErrorCode, setSaveErrorCode] = useState("");
+  const [saveErrorWriteCompleted, setSaveErrorWriteCompleted] = useState(false);
   const [deletingHymn, setDeletingHymn] = useState(false);
   const [notice, setNotice] = useState(null);
   const [pendingUnsafeTransition, setPendingUnsafeTransition] = useState(null);
@@ -466,6 +468,38 @@ function AppShell() {
     window.clearTimeout(noticeTimeoutRef.current);
     noticeTimeoutRef.current = window.setTimeout(() => setNotice(null), 2800);
   }, []);
+
+  const logSaveFailure = useCallback(
+    (error, context = {}) => {
+      const authenticatedUid = String(context.authenticatedUser?.uid || "");
+      const memberRow =
+        authenticatedUid &&
+        context.teamData?.members &&
+        !Array.isArray(context.teamData.members)
+          ? context.teamData.members[authenticatedUid]
+          : null;
+      const safeContext = {
+        code: error?.code || "unknown",
+        message: error?.message || "save failed",
+        userUid: authenticatedUid || null,
+        teamMemberFound: Boolean(memberRow && typeof memberRow === "object"),
+        teamCanSaveFirebase: memberRow?.canSaveFirebase === true,
+        teamSnapshotFromCache: Boolean(context.teamFromCache),
+        savePermissions: context.savePermissions
+          ? {
+              canSaveFirebase: context.savePermissions.canSaveFirebase,
+              isSuperAdmin: context.savePermissions.isSuperAdmin,
+            }
+          : null,
+        hymnId: context.selectedHymnId || context.hymnId || null,
+        isDirty: Boolean(context.isDirty),
+        isOffline: Boolean(context.isOffline),
+        firestoreWriteCompleted: Boolean(context.firestoreWriteCompleted),
+      };
+      console.warn("[save failed]", safeContext);
+    },
+    [],
+  );
 
   const closeOutputMode = useCallback(() => {
     setOutputModeOpen(false);
@@ -1127,6 +1161,20 @@ function AppShell() {
         teamData || {},
       );
       if (!savePermissions.canSaveFirebase) {
+        const authenticatedUid = String(authenticatedUser?.uid || "");
+        const memberRow =
+          authenticatedUid &&
+          teamData?.members &&
+          !Array.isArray(teamData.members)
+            ? teamData.members[authenticatedUid]
+            : null;
+        console.warn("[save blocked] permission denied", {
+          userUid: authenticatedUid || null,
+          teamMemberFound: Boolean(memberRow && typeof memberRow === "object"),
+          teamCanSaveFirebase: memberRow?.canSaveFirebase === true,
+          isSuperAdmin: savePermissions.isSuperAdmin,
+          teamSnapshotFromCache: Boolean(teamFromCache),
+        });
         showNotice("ليس لديك صلاحية حفظ الترانيم على السيرفر.", "error");
         return false;
       }
@@ -1223,14 +1271,18 @@ function AppShell() {
         return true;
       }
 
+      let firestoreWriteCompleted = false;
       try {
         setSavingHymn(true);
         setSaveError(null);
+        setSaveErrorCode("");
+        setSaveErrorWriteCompleted(false);
 
         if (selectedHymnId) {
           await setDoc(doc(db, "hymns", selectedHymnId), payload, {
             merge: true,
           });
+          firestoreWriteCompleted = true;
           const savedCopy = {
             ...existingHymn,
             id: selectedHymnId,
@@ -1284,6 +1336,7 @@ function AppShell() {
           ...payload,
           createdAt,
         });
+        firestoreWriteCompleted = true;
         const savedCopy = {
           id: created.id,
           title,
@@ -1339,7 +1392,20 @@ function AppShell() {
           setPendingSyncRevision((revision) => revision + 1);
         }
         setSaveError(error?.message || "save failed");
-        showNotice(`تعذر الحفظ على السيرفر: ${error.message}`, "error");
+        setSaveErrorCode(error?.code || "unknown");
+        setSaveErrorWriteCompleted(firestoreWriteCompleted);
+        logSaveFailure(error, {
+          authenticatedUser,
+          teamData,
+          teamFromCache,
+          savePermissions,
+          selectedHymnId,
+          hymnId: state.hymn?.id,
+          isDirty,
+          isOffline: isBrowserOffline(),
+          firestoreWriteCompleted,
+        });
+        showNotice(`تعذر الحفظ على السيرفر. حاول مرة أخرى.`, "error");
         return false;
       } finally {
         setSavingHymn(false);
@@ -1350,12 +1416,15 @@ function AppShell() {
       markHymnSaved,
       navigateHymn,
       hymns,
+      isDirty,
+      logSaveFailure,
       selectedHymnId,
       setHymns,
       showNotice,
       state.hymn,
       state.lastSavedHymn,
       teamData,
+      teamFromCache,
     ],
   );
 
@@ -2323,130 +2392,157 @@ function AppShell() {
           <p>محرر ترانيم احترافي لكتابة الكوردات وعرضها</p>
         </div>
 
-        <div className="row wrap">
-          <div
-            className={`saveStatus saveStatus--${saveState.status}`}
-            role="status"
-          >
-            <span className="saveStatusDot" aria-hidden="true" />
-            <span>{saveState.label}</span>
-            {saveState.retryable ? (
+        <div className="topBarControls">
+          <div className="headerActionGroup headerActionGroup--primary">
+            <div
+              className={`saveStatus saveStatus--${saveState.status}`}
+              role="status"
+            >
+              <span className="saveStatusDot" aria-hidden="true" />
+              <span>
+                {saveErrorWriteCompleted
+                  ? "تم تأكيد كتابة الخادم؛ تعذّر إكمال التحديث المحلي"
+                  : saveState.label}
+              </span>
+              {saveState.status === "error" && saveErrorCode ? (
+                <>
+                  <span className="saveErrorCode" dir="ltr">
+                    {saveErrorCode}
+                  </span>
+                  {saveErrorWriteCompleted ? (
+                    <span className="saveWriteCompleted">
+                      اكتملت كتابة الخادم
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+            {state.mode === "edit" && showFirebaseSaveBtn ? (
               <button
                 type="button"
-                className="btn btnSmall"
-                onClick={onRetrySave}
+                className="btn primary headerSaveButton"
+                onClick={saveError ? onRetrySave : onSaveHymnToFirebase}
+                disabled={
+                  savingHymn ||
+                  saveErrorWriteCompleted ||
+                  (!isDirty && !saveError)
+                }
               >
-                إعادة المحاولة
+                {savingHymn ? (
+                  <span className="headerSaveSpinner" aria-hidden="true" />
+                ) : saveState.status === "saved" ? (
+                  <span aria-hidden="true">✓</span>
+                ) : (
+                  <svg
+                    className="headerSaveIcon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M5 3.75h12l3.25 3.25v13.25H3.75V3.75H5Z"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M7.5 3.75v6h8v-6M7.5 20.25v-7h9v7"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+                <span>
+                  {savingHymn
+                    ? "جارٍ الحفظ..."
+                    : saveErrorWriteCompleted
+                      ? "تمت الكتابة على الخادم"
+                      : saveError
+                        ? "إعادة المحاولة"
+                        : isDirty
+                          ? "حفظ التعديلات"
+                          : "محفوظ"}
+                </span>
               </button>
             ) : null}
           </div>
-          {state.mode === "edit" && showFirebaseSaveBtn ? (
-            <button
-              type="button"
-              className="btn primary headerSaveButton"
-              onClick={saveError ? onRetrySave : onSaveHymnToFirebase}
-              disabled={savingHymn || (!isDirty && !saveError)}
-            >
-              {savingHymn ? (
-                <span className="headerSaveSpinner" aria-hidden="true" />
-              ) : saveState.status === "saved" ? (
-                <span aria-hidden="true">✓</span>
-              ) : (
-                <svg
-                  className="headerSaveIcon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
+
+          <div className="headerActionCluster">
+            <div className="headerActionGroup">
+              {isAdmin ? (
+                <button
+                  className={`btn ${state.mode === "edit" ? "primary" : ""}`}
+                  onClick={() => setMode("edit")}
                 >
-                  <path
-                    d="M5 3.75h12l3.25 3.25v13.25H3.75V3.75H5Z"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M7.5 3.75v6h8v-6M7.5 20.25v-7h9v7"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-              <span>
-                {savingHymn
-                  ? "جارٍ الحفظ..."
-                  : saveError
-                    ? "إعادة المحاولة"
-                    : isDirty
-                      ? "حفظ التعديلات"
-                      : "محفوظ"}
-              </span>
-            </button>
-          ) : null}
-          {isAdmin ? (
-            <button
-              className={`btn ${state.mode === "edit" ? "primary" : ""}`}
-              onClick={() => setMode("edit")}
-            >
-              وضع التعديل
-            </button>
-          ) : null}
-          <button
-            className={`btn ${state.mode === "view" ? "primary" : ""}`}
-            onClick={() => setMode("view")}
-          >
-            وضع العرض
-          </button>
-          {isAdmin ? (
-            <>
-              <button className="btn" onClick={onSaveProjectFile}>
-                حفظ ملف المشروع
+                  وضع التعديل
+                </button>
+              ) : null}
+              <button
+                className={`btn ${state.mode === "view" ? "primary" : ""}`}
+                onClick={() => setMode("view")}
+              >
+                وضع العرض
               </button>
-              <button className="btn" onClick={onOpenProjectClick}>
-                استيراد ملف المشروع
+            </div>
+
+            <div className="headerActionGroup">
+              {isAdmin ? (
+                <>
+                  <button className="btn" onClick={onSaveProjectFile}>
+                    حفظ ملف المشروع
+                  </button>
+                  <button className="btn" onClick={onOpenProjectClick}>
+                    استيراد ملف المشروع
+                  </button>
+                </>
+              ) : null}
+              <button className="btn" onClick={onTriggerRefresh}>
+                تحديث / مزامنة
               </button>
-            </>
-          ) : null}
-          <button className="btn" onClick={onTriggerRefresh}>
-            تحديث / مزامنة
-          </button>
-          <button className="btn" onClick={onExport} disabled={loadingExport}>
-            {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => setOutputModeOpen(true)}
-            aria-haspopup="dialog"
-          >
-            إخراج
-          </button>
-          <button
-            className="btn"
-            onClick={onCopyHymnLink}
-            disabled={!selectedHymnId}
-          >
-            نسخ الرابط
-          </button>
-          {!authLoading && !currentUser ? (
-            <button className="btn primary" onClick={onAdminSignIn}>
-              دخول أدمن
-            </button>
-          ) : null}
-          {!authLoading && currentUser ? (
-            <button className="btn" onClick={onAdminSignOut}>
-              خروج
-            </button>
-          ) : null}
-          {canManageTeam ? (
-            <button
-              type="button"
-              className="btn primary"
-              onClick={() => setShowAdminDashboard(true)}
-            >
-              لوحة الصلاحيات
-            </button>
-          ) : null}
+              <button className="btn" onClick={onExport} disabled={loadingExport}>
+                {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setOutputModeOpen(true)}
+                aria-haspopup="dialog"
+              >
+                إخراج
+              </button>
+              <button
+                className="btn"
+                onClick={onCopyHymnLink}
+                disabled={!selectedHymnId}
+              >
+                نسخ الرابط
+              </button>
+            </div>
+
+            <div className="headerActionGroup headerActionGroup--utility">
+              {!authLoading && !currentUser ? (
+                <button className="btn primary" onClick={onAdminSignIn}>
+                  دخول أدمن
+                </button>
+              ) : null}
+              {!authLoading && currentUser ? (
+                <button className="btn" onClick={onAdminSignOut}>
+                  خروج
+                </button>
+              ) : null}
+              {canManageTeam ? (
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => setShowAdminDashboard(true)}
+                >
+                  لوحة الصلاحيات
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           {isAdmin ? (
             <input
               ref={projectFileInputRef}
@@ -2660,7 +2756,7 @@ function AppShell() {
                   <span>حصرية لي فقط</span>
                 </label>
               ) : null}
-              {showFirebaseSaveBtn ? (
+              {showFirebaseSaveBtn && state.mode !== "edit" ? (
                 <button
                   className="btn primary"
                   onClick={onSaveHymnToFirebase}

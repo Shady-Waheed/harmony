@@ -260,15 +260,16 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  min-height: 40px;
+  min-height: 42px;
   border-radius: 999px;
-  padding: 0.45rem 0.8rem;
+  padding: 0.42rem 0.82rem;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .saveStatusDot {
@@ -302,9 +303,25 @@ body {
   background: var(--danger-soft);
 }
 
+.saveErrorCode {
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 0.08rem 0.32rem;
+  font-family: var(--font-chord);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.saveWriteCompleted {
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
 .headerSaveButton {
   gap: 0.5rem;
   white-space: nowrap;
+  min-height: 46px;
+  padding-inline: 1rem;
 }
 
 .headerSaveButton:disabled {
@@ -577,17 +594,67 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
+  padding: 0.5rem 0 0;
+}
+
+.topBarControls {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.headerActionCluster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.headerActionGroup {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.headerActionGroup--primary {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
 .topBar h1 {
   margin: 0;
-  font-size: 2rem;
+  font-size: clamp(1.45rem, 2vw, 2rem);
   letter-spacing: 0.2px;
 }
 
 .topBar p {
   margin: 0.3rem 0 0;
   color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.topBar > div:first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.topBar .btn,
+.topBar .saveStatus {
+  flex: 0 0 auto;
+}
+
+.headerActionGroup .headerSaveButton {
+  min-width: max-content;
 }
 
 .card {
@@ -2580,16 +2647,33 @@ body {
     gap: 0.8rem;
   }
 
-  .topBar .row.wrap {
+  .topBarControls {
     width: 100%;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.45rem;
   }
 
-  .topBar .row.wrap .btn {
+  .headerActionGroup,
+  .headerActionCluster,
+  .headerActionGroup--primary {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .headerActionGroup {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .headerActionGroup .btn,
+  .headerActionGroup .saveStatus,
+  .headerActionGroup--primary .btn,
+  .headerActionGroup--primary .saveStatus {
     width: 100%;
     min-width: 0;
+  }
+
+  .headerActionGroup--primary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   }
 
   .sidebarHeader {
@@ -2780,11 +2864,14 @@ body {
     font-size: 0.91rem;
   }
 
-  .topBar .row.wrap .btn {
-    width: 100%;
+  .headerActionGroup,
+  .headerActionCluster,
+  .headerActionGroup--primary {
+    gap: 0.4rem;
   }
 
-  .topBar .row.wrap {
+  .headerActionGroup,
+  .headerActionGroup--primary {
     grid-template-columns: 1fr;
   }
 
