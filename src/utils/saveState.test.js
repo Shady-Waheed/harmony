@@ -72,6 +72,16 @@ describe("save notifications", () => {
     ).toContain("الحساب لا يملك صلاحية الحفظ");
   });
 
+  it("keeps a missing existing hymn as a local draft instead of recreating its old ID", () => {
+    const notification = resolveSaveErrorNotification({
+      code: "not-found",
+    });
+
+    expect(notification.type).toBe("error");
+    expect(notification.message).toContain("غير موجودة على السيرفر");
+    expect(notification.message).toContain("لم يتم إنشاؤها بالمعرّف القديم");
+  });
+
   it("asks unauthenticated users to sign in again", () => {
     expect(
       resolveSaveErrorNotification({ code: "unauthenticated" }).message,

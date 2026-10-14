@@ -93,6 +93,14 @@ export function resolveSaveErrorNotification(
     };
   }
 
+  if (code === "not-found") {
+    return {
+      type: "error",
+      message:
+        "الترنيمة غير موجودة على السيرفر؛ احتُفظ بالمسودة المحلية ولم يتم إنشاؤها بالمعرّف القديم.",
+    };
+  }
+
   if (code === "unauthenticated") {
     return {
       type: "error",

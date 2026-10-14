@@ -21,6 +21,7 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   waitForPendingWrites,
   where,
 } from "firebase/firestore";
@@ -80,6 +81,7 @@ import {
   areHymnContentsEqual,
   decodeStoredHymn,
   encodeHymnForFirestore,
+  resolveHymnWriteMode,
 } from "./utils/hymnFirestore";
 import {
   decodeStoredSetlist,
@@ -928,6 +930,7 @@ function AppShell() {
 
     hymnSyncInFlightRef.current = true;
     const syncPendingDrafts = async () => {
+      let syncingHymnId = "";
       try {
         for (let attempt = 0; attempt < 50; attempt += 1) {
           if (
@@ -941,6 +944,7 @@ function AppShell() {
           if (!entry?.hymn?.id) break;
 
           const hymn = entry.hymn;
+          syncingHymnId = hymn.id;
           const latestDraft = getDraft(hymn.id, userUid);
           if (isDraftStale(entry, latestDraft)) {
             continue;
@@ -966,6 +970,14 @@ function AppShell() {
             );
             break;
           }
+          if (!entry.isNew && !existingHymn) {
+            markDraftConflict(hymn.id, userUid);
+            showNotice(
+              "تعذّر تحديد نسخة الترنيمة على السيرفر؛ احتُفظ بالمسودة المحلية ولم يتم إنشاء مستند بالمعرّف القديم.",
+              "error",
+            );
+            break;
+          }
           const canonicalPayload = encodeHymnForFirestore(hymn);
           const writeMetadata = buildHymnWriteMetadata({
             currentUserUid: userUid,
@@ -973,19 +985,25 @@ function AppShell() {
             existingHymn,
             requestedExclusive: hymn.isExclusive,
           });
-          await setDoc(
-            doc(db, "hymns", hymn.id),
-            {
-              title: canonicalPayload.title,
-              key: canonicalPayload.key,
-              sections: canonicalPayload.sections,
-              schemaVersion: canonicalPayload.schemaVersion,
-              ...writeMetadata,
-              updatedAt: serverTimestamp(),
-              ...(!existingHymn ? { createdAt: Timestamp.now() } : {}),
-            },
-            { merge: true },
-          );
+          const hymnRef = doc(db, "hymns", hymn.id);
+          const writeMode = resolveHymnWriteMode({
+            hymnId: hymn.id,
+            isNew: entry.isNew,
+          });
+          const hymnPayload = {
+            title: canonicalPayload.title,
+            key: canonicalPayload.key,
+            sections: canonicalPayload.sections,
+            schemaVersion: canonicalPayload.schemaVersion,
+            ...writeMetadata,
+            updatedAt: serverTimestamp(),
+            ...(writeMode === "create" ? { createdAt: Timestamp.now() } : {}),
+          };
+          if (writeMode === "create") {
+            await setDoc(hymnRef, hymnPayload, { merge: true });
+          } else {
+            await updateDoc(hymnRef, hymnPayload);
+          }
 
           if (currentUserUidRef.current !== userUid) break;
           if (
@@ -1033,6 +1051,14 @@ function AppShell() {
         if (isPermissionFailure(error)) {
           showNotice(
             "ليس لديك صلاحية تحديث هذه الترنيمة على السيرفر.",
+            "error",
+          );
+          return;
+        }
+        if (error?.code === "not-found") {
+          if (syncingHymnId) markDraftConflict(syncingHymnId, userUid);
+          showNotice(
+            "الترنيمة غير موجودة على السيرفر؛ احتُفظ بالمسودة المحلية ولم يتم إنشاؤها بالمعرّف القديم.",
             "error",
           );
           return;
@@ -1254,7 +1280,10 @@ function AppShell() {
 
       const canonicalPayload = encodeHymnForFirestore(state.hymn);
       const existingHymn = selectedHymnId
-        ? hymns.find((item) => item.id === selectedHymnId)
+        ? hymns.find((item) => item.id === selectedHymnId) ||
+          (state.lastSavedHymn?.id === selectedHymnId
+            ? state.lastSavedHymn
+            : null)
         : null;
       const synchronizedExistingHymn = selectedHymnId
         ? synchronizedHymnsRef.current.find(
@@ -1265,10 +1294,14 @@ function AppShell() {
       const isNewHymn = selectedHymnId
         ? Boolean(currentDraft?.isNew)
         : true;
+      const writeMode = resolveHymnWriteMode({
+        hymnId: selectedHymnId,
+        isNew: isNewHymn,
+      });
       const writeMetadata = buildHymnWriteMetadata({
         currentUserUid: authenticatedUser.uid,
         isBootstrapAdmin: savePermissions.isSuperAdmin,
-        existingHymn,
+        existingHymn: writeMode === "update" ? existingHymn : null,
         requestedExclusive: state.hymn.isExclusive,
       });
       const payload = {
@@ -1348,11 +1381,9 @@ function AppShell() {
           return true;
         }
 
-        if (selectedHymnId) {
+        if (writeMode === "update") {
           lastDirectHymnWriteAtRef.current = Date.now();
-          await setDoc(doc(db, "hymns", selectedHymnId), payload, {
-            merge: true,
-          });
+          await updateDoc(doc(db, "hymns", selectedHymnId), payload);
           firestoreWriteCompleted = true;
           const savedCopy = {
             ...existingHymn,
@@ -1404,10 +1435,19 @@ function AppShell() {
 
         const createdAt = Timestamp.now();
         lastDirectHymnWriteAtRef.current = Date.now();
-        const created = await addDoc(collection(db, "hymns"), {
-          ...payload,
-          createdAt,
-        });
+        const created = selectedHymnId
+          ? { id: selectedHymnId }
+          : await addDoc(collection(db, "hymns"), {
+              ...payload,
+              createdAt,
+            });
+        if (selectedHymnId) {
+          await setDoc(
+            doc(db, "hymns", selectedHymnId),
+            { ...payload, createdAt },
+            { merge: true },
+          );
+        }
         firestoreWriteCompleted = true;
         const savedCopy = {
           id: created.id,
@@ -1478,7 +1518,7 @@ function AppShell() {
           selectedHymnId,
           hymnId: state.hymn?.id,
           projectId: firebaseApp?.options?.projectId,
-          writeOperation: selectedHymnId ? "update" : "create",
+          writeOperation: writeMode,
           payloadValidation: {
             titleIsString: typeof payload.title === "string",
             keyIsString: typeof payload.key === "string",

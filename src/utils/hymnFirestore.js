@@ -181,6 +181,10 @@ export function encodeHymnForFirestore(hymn) {
   });
 }
 
+export function resolveHymnWriteMode({ hymnId, isNew }) {
+  return isNew || !hymnId ? "create" : "update";
+}
+
 export function buildHymnWriteMetadata({
   currentUserUid,
   isBootstrapAdmin,
