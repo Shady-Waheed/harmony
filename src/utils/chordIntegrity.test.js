@@ -76,6 +76,25 @@ describe("line chord normalization", () => {
     expect(normalized.gapInversions).toEqual([[""]]);
   });
 
+  it("preserves an empty after-word slot so it can be edited", () => {
+    const line = {
+      lyrics: "يا سيدي",
+      afterWordChords: [[""], []],
+      afterWordInversions: [[""], []],
+    };
+
+    const normalized = normalizeLineStructure(line);
+    const renormalized = normalizeLineStructure(normalized);
+
+    expect(normalized.afterWordChords).toEqual([[""], []]);
+    expect(renormalized.afterWordChords).toEqual([[""], []]);
+    expect(buildDisplayCells(renormalized).map((cell) => cell.type)).toEqual([
+      "word",
+      "after",
+      "word",
+    ]);
+  });
+
   it("keeps mixed word, letter, before, after, and gap chord positions intact", () => {
     const line = {
       lyrics: "يا سيدي أنت",
