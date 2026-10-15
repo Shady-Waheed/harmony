@@ -871,7 +871,7 @@ body {
   width: 100%;
 }
 
-.headerToolsMenu[open] {
+.headerToolsMenu.isOpen {
   z-index: 9999;
 }
 
@@ -892,7 +892,7 @@ body {
   overflow-wrap: anywhere;
 }
 
-.headerToolsMenu > summary,
+.headerToolsMenuToggle,
 .sidebarGroup > summary {
   min-height: 42px;
   display: flex;
@@ -912,14 +912,10 @@ body {
   -webkit-backdrop-filter: blur(12px);
 }
 
-.headerToolsMenu > summary {
+.headerToolsMenuToggle {
   display: none;
   justify-content: flex-start;
   list-style: none;
-}
-
-.headerToolsMenu > summary::-webkit-details-marker {
-  display: none;
 }
 
 .headerMenuIcon {
@@ -939,12 +935,12 @@ body {
   white-space: nowrap;
 }
 
-.headerToolsMenu > summary:hover,
+.headerToolsMenuToggle:hover,
 .sidebarGroup > summary:hover {
   border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
 }
 
-.headerToolsMenu > summary:focus-visible,
+.headerToolsMenuToggle:focus-visible,
 .sidebarGroup > summary:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent);
   outline-offset: 2px;
@@ -965,7 +961,7 @@ body {
   box-shadow: none;
 }
 
-.headerToolsMenu:not([open]) > .headerToolsContent {
+.headerToolsMenu > .headerToolsContent {
   display: grid;
 }
 
@@ -3111,7 +3107,7 @@ body {
     width: auto;
   }
 
-  .headerToolsMenu > summary {
+  .headerToolsMenuToggle {
     display: flex;
     min-width: 88px;
   }
@@ -3137,7 +3133,7 @@ body {
     -webkit-backdrop-filter: blur(24px);
   }
 
-  .headerToolsMenu[open] > .headerToolsContent {
+  .headerToolsMenu.isOpen > .headerToolsContent {
     display: grid;
   }
 

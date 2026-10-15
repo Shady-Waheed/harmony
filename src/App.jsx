@@ -223,6 +223,7 @@ function AppShell() {
   const { routeHymnId, navigateHymn } = useHymnRoute();
   const [loadingExport, setLoadingExport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [headerToolsOpen, setHeaderToolsOpen] = useState(false);
   const [outputModeOpen, setOutputModeOpen] = useState(false);
   const [hymns, setHymns] = useState([]);
   const hymnsRef = useRef(hymns);
@@ -2403,23 +2404,31 @@ function AppShell() {
           </div>
         </div>
 
-        <details
-          className="headerToolsMenu"
-          onClick={(event) => {
-            if (event.target.closest("button")) {
-              event.currentTarget.open = false;
-            }
-          }}
-        >
-          <summary aria-label="فتح قائمة الأدوات">
+        <div className={`headerToolsMenu ${headerToolsOpen ? "isOpen" : ""}`}>
+          <button
+            type="button"
+            className="headerToolsMenuToggle"
+            aria-label="فتح قائمة الأدوات"
+            aria-expanded={headerToolsOpen}
+            aria-controls="headerToolsContent"
+            onClick={() => setHeaderToolsOpen((open) => !open)}
+          >
             <span className="headerMenuIcon" aria-hidden="true">
               <span />
               <span />
               <span />
             </span>
             <span className="headerMenuLabel">القائمة</span>
-          </summary>
-          <div className="headerToolsContent">
+          </button>
+          <div
+            id="headerToolsContent"
+            className="headerToolsContent"
+            onClick={(event) => {
+              if (event.target.closest("button")) {
+                setHeaderToolsOpen(false);
+              }
+            }}
+          >
             <section className="headerToolsSection">
               <h2>العرض والتصدير</h2>
               <div className="headerToolsActions">
@@ -2529,7 +2538,7 @@ function AppShell() {
               </div>
             </section>
           </div>
-        </details>
+        </div>
       </header>
 
       <main className="content withSidebar">
