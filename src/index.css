@@ -3113,7 +3113,6 @@ body {
   }
 
   .headerToolsContent {
-    display: none;
     position: absolute;
     inset-block-start: calc(100% + 8px);
     inset-inline-start: 0;
@@ -3131,6 +3130,10 @@ body {
       0 0 0 100vmax rgba(4, 8, 18, 0.28);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
+  }
+
+  .headerToolsMenu:not(.isOpen) > .headerToolsContent {
+    display: none;
   }
 
   .headerToolsMenu.isOpen > .headerToolsContent {
