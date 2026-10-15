@@ -2318,155 +2318,218 @@ function AppShell() {
       lang="ar"
     >
       <header className="topBar">
-        <div>
+        <div className="topBarIdentity">
           <h1>Harmony Notes</h1>
           <p>محرر ترانيم احترافي لكتابة الكوردات وعرضها</p>
         </div>
 
-        <div className="row wrap topBarActions">
-          <div
-            className={`saveStatus saveStatus--${saveState.status}`}
-            role="status"
-          >
-            <span className="saveStatusDot" aria-hidden="true" />
-            <span>{saveState.label}</span>
-            {saveState.retryable ? (
+        <div className="topBarControls">
+          <div className="headerSaveCluster">
+            <div
+              className={`saveStatus saveStatus--${saveState.status}`}
+              role="status"
+            >
+              <span className="saveStatusDot" aria-hidden="true" />
+              <span>{saveState.label}</span>
+              {saveState.retryable ? (
+                <button
+                  type="button"
+                  className="btn btnSmall"
+                  onClick={onRetrySave}
+                >
+                  إعادة المحاولة
+                </button>
+              ) : null}
+            </div>
+            {state.mode === "edit" && showFirebaseSaveBtn ? (
               <button
                 type="button"
-                className="btn btnSmall"
-                onClick={onRetrySave}
+                className="btn primary headerSaveButton"
+                onClick={saveError ? onRetrySave : onSaveHymnToFirebase}
+                disabled={savingHymn || (!isDirty && !saveError)}
               >
-                إعادة المحاولة
+                {savingHymn ? (
+                  <span className="headerSaveSpinner" aria-hidden="true" />
+                ) : saveState.status === "saved" ? (
+                  <span aria-hidden="true">✓</span>
+                ) : (
+                  <svg
+                    className="headerSaveIcon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M5 3.75h12l3.25 3.25v13.25H3.75V3.75H5Z"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M7.5 3.75v6h8v-6M7.5 20.25v-7h9v7"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+                <span>
+                  {savingHymn
+                    ? "جارٍ الحفظ..."
+                    : saveError
+                      ? "إعادة المحاولة"
+                      : isDirty
+                        ? "حفظ التعديلات"
+                        : "محفوظ"}
+                </span>
               </button>
             ) : null}
           </div>
-          {state.mode === "edit" && showFirebaseSaveBtn ? (
-            <button
-              type="button"
-              className="btn primary headerSaveButton"
-              onClick={saveError ? onRetrySave : onSaveHymnToFirebase}
-              disabled={savingHymn || (!isDirty && !saveError)}
-            >
-              {savingHymn ? (
-                <span className="headerSaveSpinner" aria-hidden="true" />
-              ) : saveState.status === "saved" ? (
-                <span aria-hidden="true">✓</span>
-              ) : (
-                <svg
-                  className="headerSaveIcon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M5 3.75h12l3.25 3.25v13.25H3.75V3.75H5Z"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M7.5 3.75v6h8v-6M7.5 20.25v-7h9v7"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-              <span>
-                {savingHymn
-                  ? "جارٍ الحفظ..."
-                  : saveError
-                    ? "إعادة المحاولة"
-                    : isDirty
-                      ? "حفظ التعديلات"
-                      : "محفوظ"}
-              </span>
-            </button>
-          ) : null}
-          {isAdmin ? (
-            <button
-              className={`btn ${state.mode === "edit" ? "primary" : ""}`}
-              onClick={() => setMode("edit")}
-            >
-              وضع التعديل
-            </button>
-          ) : null}
-          <button
-            className={`btn ${state.mode === "view" ? "primary" : ""}`}
-            onClick={() => setMode("view")}
-          >
-            وضع العرض
-          </button>
-          <button
-            type="button"
-            className="btn themeToggleButton"
-            onClick={toggleTheme}
-            aria-label={
-              isDark ? "التحويل إلى الوضع النهاري" : "التحويل إلى الوضع الليلي"
-            }
-          >
-            {isDark ? "الوضع النهاري" : "الوضع الليلي"}
-          </button>
-          {isAdmin ? (
-            <>
-              <button className="btn" onClick={onSaveProjectFile}>
-                حفظ ملف المشروع
+          <div className="headerActionGroup headerModeGroup">
+            {isAdmin ? (
+              <button
+                className={`btn ${state.mode === "edit" ? "primary" : ""}`}
+                onClick={() => setMode("edit")}
+              >
+                وضع التعديل
               </button>
-              <button className="btn" onClick={onOpenProjectClick}>
-                استيراد ملف المشروع
-              </button>
-            </>
-          ) : null}
-          <button className="btn" onClick={onTriggerRefresh}>
-            تحديث / مزامنة
-          </button>
-          <button className="btn" onClick={onExport} disabled={loadingExport}>
-            {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => setOutputModeOpen(true)}
-            aria-haspopup="dialog"
-          >
-            إخراج
-          </button>
-          <button
-            className="btn"
-            onClick={onCopyHymnLink}
-            disabled={!selectedHymnId}
-          >
-            نسخ الرابط
-          </button>
-          {!authLoading && !currentUser ? (
-            <button className="btn primary" onClick={onAdminSignIn}>
-              دخول أدمن
-            </button>
-          ) : null}
-          {!authLoading && currentUser ? (
-            <button className="btn" onClick={onAdminSignOut}>
-              خروج
-            </button>
-          ) : null}
-          {canManageTeam ? (
+            ) : null}
             <button
-              type="button"
-              className="btn primary"
-              onClick={() => setShowAdminDashboard(true)}
+              className={`btn ${state.mode === "view" ? "primary" : ""}`}
+              onClick={() => setMode("view")}
             >
-              لوحة الصلاحيات
+              وضع العرض
             </button>
-          ) : null}
-          {isAdmin ? (
-            <input
-              ref={projectFileInputRef}
-              type="file"
-              accept={`${PROJECT_EXTENSION},application/json`}
-              onChange={onImportProjectFile}
-              hidden
-            />
-          ) : null}
+          </div>
         </div>
+
+        <details
+          className="headerToolsMenu"
+          onClick={(event) => {
+            if (event.target.closest("button")) {
+              event.currentTarget.open = false;
+            }
+          }}
+        >
+          <summary aria-label="فتح قائمة الأدوات">
+            <span className="headerMenuIcon" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="headerMenuLabel">القائمة</span>
+          </summary>
+          <div className="headerToolsContent">
+            <section className="headerToolsSection">
+              <h2>العرض والتصدير</h2>
+              <div className="headerToolsActions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={toggleTheme}
+                  aria-label={
+                    isDark
+                      ? "التحويل إلى الوضع النهاري"
+                      : "التحويل إلى الوضع الليلي"
+                  }
+                >
+                  {isDark ? "الوضع النهاري" : "الوضع الليلي"}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={onExport}
+                  disabled={loadingExport}
+                >
+                  {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setOutputModeOpen(true)}
+                  aria-haspopup="dialog"
+                >
+                  إخراج
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={onCopyHymnLink}
+                  disabled={!selectedHymnId}
+                >
+                  نسخ الرابط
+                </button>
+              </div>
+            </section>
+            {isAdmin ? (
+              <section className="headerToolsSection">
+                <h2>ملف المشروع</h2>
+                <div className="headerToolsActions">
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={onSaveProjectFile}
+                  >
+                    حفظ ملف المشروع
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={onOpenProjectClick}
+                  >
+                    استيراد ملف المشروع
+                  </button>
+                </div>
+                <input
+                  ref={projectFileInputRef}
+                  type="file"
+                  accept={`${PROJECT_EXTENSION},application/json`}
+                  onChange={onImportProjectFile}
+                  hidden
+                />
+              </section>
+            ) : null}
+            <section className="headerToolsSection">
+              <h2>إجراءات إضافية</h2>
+              <div className="headerToolsActions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={onTriggerRefresh}
+                >
+                  تحديث / مزامنة
+                </button>
+                {!authLoading && !currentUser ? (
+                  <button
+                    type="button"
+                    className="btn primary"
+                    onClick={onAdminSignIn}
+                  >
+                    دخول أدمن
+                  </button>
+                ) : null}
+                {!authLoading && currentUser ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={onAdminSignOut}
+                  >
+                    خروج
+                  </button>
+                ) : null}
+                {canManageTeam ? (
+                  <button
+                    type="button"
+                    className="btn primary"
+                    onClick={() => setShowAdminDashboard(true)}
+                  >
+                    لوحة الصلاحيات
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          </div>
+        </details>
       </header>
 
       <main className="content withSidebar">
