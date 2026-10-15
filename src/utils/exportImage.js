@@ -303,7 +303,10 @@ export async function exportNodeToPng(
       width: desktopWidth,
       height: rootForCapture.scrollHeight,
       scrollY: -window.scrollY,
-      windowWidth: document.documentElement.offsetWidth,
+      windowWidth: Math.max(
+        document.documentElement.offsetWidth,
+        desktopWidth,
+      ),
       style: {
         width: `${desktopWidth}px`,
         height: "auto",

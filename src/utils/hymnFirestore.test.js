@@ -7,7 +7,6 @@ import {
   encodeHymnForFirestore,
   migrateLegacyHymnData,
   normalizeCanonicalHymn,
-  resolveHymnWriteMode,
 } from "./hymnFirestore.js";
 import {
   flattenedLegacyFixture,
@@ -19,19 +18,6 @@ import {
 } from "./hymnFirestore.fixtures.js";
 
 describe("canonical hymn model", () => {
-  it("creates explicitly new local hymns and updates only selected existing hymns", () => {
-    expect(resolveHymnWriteMode({ hymnId: "local-new", isNew: true })).toBe(
-      "create",
-    );
-    expect(
-      resolveHymnWriteMode({ hymnId: "server-existing", isNew: false }),
-    ).toBe("update");
-    expect(
-      resolveHymnWriteMode({ hymnId: "missing-old-id", isNew: false }),
-    ).toBe("update");
-    expect(resolveHymnWriteMode({ hymnId: "", isNew: false })).toBe("create");
-  });
-
   it("compares server hymns semantically across Firestore and canonical encodings", () => {
     const canonical = decodeStoredHymn(simpleHymnFixture);
     const encoded = encodeHymnForFirestore(simpleHymnFixture);
@@ -43,28 +29,26 @@ describe("canonical hymn model", () => {
   });
 
   it("preserves an existing exclusive owner when a bootstrap Admin saves content", () => {
-    const metadata = buildHymnWriteMetadata({
-      currentUserUid: "ADMIN_UID_1",
-      isBootstrapAdmin: true,
-      existingHymn: {
-        ownerUid: "original-owner",
-        createdBy: "original-creator",
-        updatedBy: "original-creator",
-        isExclusive: true,
-        exclusiveOwnerUid: "exclusive-owner",
-      },
-      requestedExclusive: true,
-    });
-
-    expect(metadata).toEqual({
+    expect(
+      buildHymnWriteMetadata({
+        currentUserUid: "ADMIN_UID_1",
+        isBootstrapAdmin: true,
+        existingHymn: {
+          ownerUid: "original-owner",
+          createdBy: "original-creator",
+          updatedBy: "original-creator",
+          isExclusive: true,
+          exclusiveOwnerUid: "exclusive-owner",
+        },
+        requestedExclusive: true,
+      }),
+    ).toEqual({
       ownerUid: "original-owner",
       createdBy: "original-creator",
       updatedBy: "ADMIN_UID_1",
       isExclusive: true,
       exclusiveOwnerUid: "exclusive-owner",
     });
-    expect(metadata.ownerUid).not.toBe("ADMIN_UID_1");
-    expect(metadata.createdBy).not.toBe("ADMIN_UID_1");
   });
 
   it("clears exclusive ownership when an Admin explicitly makes a hymn public", () => {

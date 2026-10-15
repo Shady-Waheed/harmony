@@ -782,6 +782,12 @@ body {
   -webkit-backdrop-filter: blur(12px);
 }
 
+.topBarActions {
+  grid-column: 1 / -1;
+  width: 100%;
+  justify-content: flex-start;
+}
+
 .topBarControls {
   display: flex;
   flex-wrap: wrap;
@@ -2686,29 +2692,6 @@ body {
 .exportSheet .chordPreviewPopup,
 .exportSheet .sheetMetaHint {
   display: none !important;
-}
-
-.app.dark .exportSheet {
-  background: #201c1b !important;
-  color: #f6eee0 !important;
-}
-
-.app.dark .exportSheet .sheetHeader h1,
-.app.dark .exportSheet .sheetSection h2,
-.app.dark .exportSheet .lyric {
-  color: #f6eee0 !important;
-}
-
-.app.dark .exportSheet .sheetSection h2::after,
-.app.dark .exportSheet .sheetLine {
-  border-color: rgba(229, 185, 105, 0.2);
-}
-
-.app.dark .exportSheet .chord,
-.app.dark .exportSheet .sheetKeyPill,
-.app.dark .exportSheet .sheetSectionIndex {
-  background: #3a2d1e !important;
-  color: #f0c477 !important;
 }
 
 /* Reference-style export: clean white page, flat red chords, continuous lyrics. */

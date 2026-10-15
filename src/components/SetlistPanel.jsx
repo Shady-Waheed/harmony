@@ -63,7 +63,7 @@ export default function SetlistPanel({
   return (
     <div className="setlistPanel">
       <div className="row between sidebarHeader">
-        <h3>قائمة الخدمة المحلية</h3>
+        <h3>سيت ليست</h3>
         <button
           type="button"
           className="btn"
@@ -160,15 +160,14 @@ export default function SetlistPanel({
             <p className="sidebarHint">لا توجد قوائم خدمة مشتركة بعد.</p>
           ) : (
             <div
-              className="sharedSetlistPicker"
-              role="group"
-              aria-label="اختيار قائمة خدمة"
+              className="row wrap"
+              style={{ gap: "0.4rem", marginBottom: "0.5rem" }}
             >
               {sharedSetlists.map((setlist) => (
                 <button
                   key={setlist.id}
                   type="button"
-                  className={`btn sharedSetlistOption ${selectedSharedSetlistId === setlist.id ? "primary" : ""}`}
+                  className={`btn ${selectedSharedSetlistId === setlist.id ? "primary" : ""}`}
                   onClick={() => onSelectSharedSetlist?.(setlist.id)}
                 >
                   {setlist.name}

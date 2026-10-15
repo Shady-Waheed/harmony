@@ -21,17 +21,10 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
-  updateDoc,
   waitForPendingWrites,
   where,
 } from "firebase/firestore";
-import {
-  app as firebaseApp,
-  auth,
-  db,
-  googleProvider,
-  hasFirebaseConfig,
-} from "./firebase";
+import { auth, db, googleProvider, hasFirebaseConfig } from "./firebase";
 import {
   canReadExclusiveHymn,
   canAccessTeamDashboard,
@@ -81,7 +74,6 @@ import {
   areHymnContentsEqual,
   decodeStoredHymn,
   encodeHymnForFirestore,
-  resolveHymnWriteMode,
 } from "./utils/hymnFirestore";
 import {
   decodeStoredSetlist,
@@ -98,10 +90,7 @@ import {
   saveServiceModeToStorage,
 } from "./utils/serviceMode";
 import {
-  resolveSaveAttempt,
-  resolveSaveErrorNotification,
   resolveSaveState,
-  showSaveSuccessNotification,
   shouldBlockBeforeUnload,
   shouldPromptBeforeDiscard,
 } from "./utils/saveState";
@@ -231,8 +220,6 @@ function AppShell() {
     undo,
     redo,
   } = useHymnStore();
-  const isDirtyRef = useRef(isDirty);
-  isDirtyRef.current = isDirty;
   const { routeHymnId, navigateHymn } = useHymnRoute();
   const [loadingExport, setLoadingExport] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -249,11 +236,7 @@ function AppShell() {
   const [favoriteIds, setFavoriteIds] = useState(readFavoriteIds);
   const [recentHymnIds, setRecentHymnIds] = useState(readRecentHymnIds);
   const [savingHymn, setSavingHymn] = useState(false);
-  const saveInFlightRef = useRef(false);
   const [saveError, setSaveError] = useState(null);
-  const [saveErrorCode, setSaveErrorCode] = useState("");
-  const [saveDiagnostic, setSaveDiagnostic] = useState(null);
-  const [saveErrorWriteCompleted, setSaveErrorWriteCompleted] = useState(false);
   const [deletingHymn, setDeletingHymn] = useState(false);
   const [notice, setNotice] = useState(null);
   const [pendingUnsafeTransition, setPendingUnsafeTransition] = useState(null);
@@ -277,7 +260,6 @@ function AppShell() {
   const [teamFromCache, setTeamFromCache] = useState(false);
   const [pendingFirestoreWrites, setPendingFirestoreWrites] = useState(false);
   const pendingSyncNoticeRef = useRef(false);
-  const lastDirectHymnWriteAtRef = useRef(0);
   const hymnSyncInFlightRef = useRef(false);
   const lastRouteAttemptRef = useRef("");
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
@@ -339,6 +321,8 @@ function AppShell() {
 
   const showFirebaseSaveBtn = canWriteHymns && hasFirebaseConfig;
   const showFirebaseDeleteBtn = canDelete && hasFirebaseConfig;
+  const showFirebaseSidebarActions =
+    showFirebaseSaveBtn || showFirebaseDeleteBtn;
 
   const visibleHymns = useMemo(
     () =>
@@ -480,71 +464,8 @@ function AppShell() {
   const showNotice = useCallback((message, type = "info") => {
     setNotice({ message, type });
     window.clearTimeout(noticeTimeoutRef.current);
-    const duration = type === "error" ? 7000 : type === "success" ? 4000 : 5000;
-    noticeTimeoutRef.current = window.setTimeout(
-      () => setNotice(null),
-      duration,
-    );
+    noticeTimeoutRef.current = window.setTimeout(() => setNotice(null), 2800);
   }, []);
-
-  const runSaveFollowup = useCallback(
-    async (afterSave, isOffline = false) => {
-      if (!afterSave) return true;
-      try {
-        await afterSave();
-        return true;
-      } catch (error) {
-        console.warn(
-          "[save follow-up failed]",
-          error?.code || error?.name || "unknown",
-        );
-        showNotice(
-          isOffline
-            ? "تم حفظ التغييرات على الجهاز فقط، لكن تعذّر إكمال الإجراء التالي."
-            : "تم حفظ التغييرات بنجاح، لكن تعذّر إكمال الإجراء التالي.",
-          "info",
-        );
-        return false;
-      }
-    },
-    [showNotice],
-  );
-
-  const logSaveFailure = useCallback(
-    (error, context = {}) => {
-      const authenticatedUid = String(context.authenticatedUser?.uid || "");
-      const memberRow =
-        authenticatedUid &&
-        context.teamData?.members &&
-        !Array.isArray(context.teamData.members)
-          ? context.teamData.members[authenticatedUid]
-          : null;
-      const safeContext = {
-        code: error?.code || "unknown",
-        message: error?.message || "save failed",
-        userUid: authenticatedUid || null,
-        teamMemberFound: Boolean(memberRow && typeof memberRow === "object"),
-        teamCanSaveFirebase: memberRow?.canSaveFirebase === true,
-        teamSnapshotFromCache: Boolean(context.teamFromCache),
-        savePermissions: context.savePermissions
-          ? {
-              canSaveFirebase: context.savePermissions.canSaveFirebase,
-              isSuperAdmin: context.savePermissions.isSuperAdmin,
-            }
-          : null,
-        hymnId: context.selectedHymnId || context.hymnId || null,
-        projectId: context.projectId || null,
-        writeOperation: context.writeOperation || null,
-        payloadValidation: context.payloadValidation || null,
-        isDirty: Boolean(context.isDirty),
-        isOffline: Boolean(context.isOffline),
-        firestoreWriteCompleted: Boolean(context.firestoreWriteCompleted),
-      };
-      console.warn("[save failed]", safeContext);
-      return safeContext;
-    },
-    [],
-  );
 
   const closeOutputMode = useCallback(() => {
     setOutputModeOpen(false);
@@ -930,7 +851,6 @@ function AppShell() {
 
     hymnSyncInFlightRef.current = true;
     const syncPendingDrafts = async () => {
-      let syncingHymnId = "";
       try {
         for (let attempt = 0; attempt < 50; attempt += 1) {
           if (
@@ -944,7 +864,6 @@ function AppShell() {
           if (!entry?.hymn?.id) break;
 
           const hymn = entry.hymn;
-          syncingHymnId = hymn.id;
           const latestDraft = getDraft(hymn.id, userUid);
           if (isDraftStale(entry, latestDraft)) {
             continue;
@@ -970,14 +889,6 @@ function AppShell() {
             );
             break;
           }
-          if (!entry.isNew && !existingHymn) {
-            markDraftConflict(hymn.id, userUid);
-            showNotice(
-              "تعذّر تحديد نسخة الترنيمة على السيرفر؛ احتُفظ بالمسودة المحلية ولم يتم إنشاء مستند بالمعرّف القديم.",
-              "error",
-            );
-            break;
-          }
           const canonicalPayload = encodeHymnForFirestore(hymn);
           const writeMetadata = buildHymnWriteMetadata({
             currentUserUid: userUid,
@@ -985,25 +896,19 @@ function AppShell() {
             existingHymn,
             requestedExclusive: hymn.isExclusive,
           });
-          const hymnRef = doc(db, "hymns", hymn.id);
-          const writeMode = resolveHymnWriteMode({
-            hymnId: hymn.id,
-            isNew: entry.isNew,
-          });
-          const hymnPayload = {
-            title: canonicalPayload.title,
-            key: canonicalPayload.key,
-            sections: canonicalPayload.sections,
-            schemaVersion: canonicalPayload.schemaVersion,
-            ...writeMetadata,
-            updatedAt: serverTimestamp(),
-            ...(writeMode === "create" ? { createdAt: Timestamp.now() } : {}),
-          };
-          if (writeMode === "create") {
-            await setDoc(hymnRef, hymnPayload, { merge: true });
-          } else {
-            await updateDoc(hymnRef, hymnPayload);
-          }
+          await setDoc(
+            doc(db, "hymns", hymn.id),
+            {
+              title: canonicalPayload.title,
+              key: canonicalPayload.key,
+              sections: canonicalPayload.sections,
+              schemaVersion: canonicalPayload.schemaVersion,
+              ...writeMetadata,
+              updatedAt: serverTimestamp(),
+              ...(!existingHymn ? { createdAt: Timestamp.now() } : {}),
+            },
+            { merge: true },
+          );
 
           if (currentUserUidRef.current !== userUid) break;
           if (
@@ -1051,14 +956,6 @@ function AppShell() {
         if (isPermissionFailure(error)) {
           showNotice(
             "ليس لديك صلاحية تحديث هذه الترنيمة على السيرفر.",
-            "error",
-          );
-          return;
-        }
-        if (error?.code === "not-found") {
-          if (syncingHymnId) markDraftConflict(syncingHymnId, userUid);
-          showNotice(
-            "الترنيمة غير موجودة على السيرفر؛ احتُفظ بالمسودة المحلية ولم يتم إنشاؤها بالمعرّف القديم.",
             "error",
           );
           return;
@@ -1207,11 +1104,7 @@ function AppShell() {
       .then(() => {
         if (!cancelled && !pendingSyncNoticeRef.current) {
           pendingSyncNoticeRef.current = true;
-          const directSaveJustConfirmed =
-            Date.now() - lastDirectHymnWriteAtRef.current < 10000;
-          if (!directSaveJustConfirmed) {
-            showNotice("تم رفع كل التعديلات إلى السيرفر.", "success");
-          }
+          showNotice("تم رفع كل التعديلات إلى السيرفر.", "success");
         }
       })
       .catch((err) => {
@@ -1228,46 +1121,12 @@ function AppShell() {
 
   const onSaveHymnToFirebase = useCallback(
     async ({ afterSave } = {}) => {
-      const saveAttempt = resolveSaveAttempt({
-        isDirty: isDirtyRef.current,
-        isSaving: saveInFlightRef.current,
-        firestoreWriteCompleted: saveErrorWriteCompleted,
-      });
-      if (saveAttempt === "in-progress") {
-        return false;
-      }
-      if (saveAttempt === "already-written") {
-        showNotice(
-          "تم تأكيد الكتابة على السيرفر؛ لن نكررها بسبب تعذّر التحديث المحلي.",
-          "info",
-        );
-        return false;
-      }
-      if (saveAttempt === "unchanged") {
-        showNotice("مفيش تغييرات جديدة للحفظ.", "info");
-        return false;
-      }
-
       const authenticatedUser = auth?.currentUser || null;
       const savePermissions = resolvePermissions(
         authenticatedUser,
         teamData || {},
       );
       if (!savePermissions.canSaveFirebase) {
-        const authenticatedUid = String(authenticatedUser?.uid || "");
-        const memberRow =
-          authenticatedUid &&
-          teamData?.members &&
-          !Array.isArray(teamData.members)
-            ? teamData.members[authenticatedUid]
-            : null;
-        console.warn("[save blocked] permission denied", {
-          userUid: authenticatedUid || null,
-          teamMemberFound: Boolean(memberRow && typeof memberRow === "object"),
-          teamCanSaveFirebase: memberRow?.canSaveFirebase === true,
-          isSuperAdmin: savePermissions.isSuperAdmin,
-          teamSnapshotFromCache: Boolean(teamFromCache),
-        });
         showNotice("ليس لديك صلاحية حفظ الترانيم على السيرفر.", "error");
         return false;
       }
@@ -1280,10 +1139,7 @@ function AppShell() {
 
       const canonicalPayload = encodeHymnForFirestore(state.hymn);
       const existingHymn = selectedHymnId
-        ? hymns.find((item) => item.id === selectedHymnId) ||
-          (state.lastSavedHymn?.id === selectedHymnId
-            ? state.lastSavedHymn
-            : null)
+        ? hymns.find((item) => item.id === selectedHymnId)
         : null;
       const synchronizedExistingHymn = selectedHymnId
         ? synchronizedHymnsRef.current.find(
@@ -1294,14 +1150,10 @@ function AppShell() {
       const isNewHymn = selectedHymnId
         ? Boolean(currentDraft?.isNew)
         : true;
-      const writeMode = resolveHymnWriteMode({
-        hymnId: selectedHymnId,
-        isNew: isNewHymn,
-      });
       const writeMetadata = buildHymnWriteMetadata({
         currentUserUid: authenticatedUser.uid,
         isBootstrapAdmin: savePermissions.isSuperAdmin,
-        existingHymn: writeMode === "update" ? existingHymn : null,
+        existingHymn,
         requestedExclusive: state.hymn.isExclusive,
       });
       const payload = {
@@ -1338,145 +1190,100 @@ function AppShell() {
         return false;
       }
 
-      saveInFlightRef.current = true;
-      setSavingHymn(true);
-      setSaveError(null);
-      setSaveErrorCode("");
-      setSaveDiagnostic(null);
-      setSaveErrorWriteCompleted(false);
-      let localDraftSaved = false;
-      let firestoreWriteCompleted = false;
-      let writeOperation = writeMode;
+      writeDraft(state.hymn.id, state.hymn, {
+        baseHymn: state.lastSavedHymn,
+        isNew: isNewHymn,
+      });
+      if (isBrowserOffline()) {
+        const localHymnId = String(selectedHymnId || state.hymn.id || "");
+        writeDraft(
+          localHymnId,
+          { ...state.hymn, id: localHymnId, ...writeMetadata },
+          {
+            baseHymn: state.lastSavedHymn,
+            isNew: isNewHymn,
+          },
+        );
+        markDraftPendingSync(localHymnId);
+        setPendingSyncRevision((revision) => revision + 1);
+        setSelectedHymnId(localHymnId);
+        setHymns((previous) =>
+          filterAuthorizedHymns(
+            mergeOfflineHymnResults({
+              cachedHymns: previous,
+              drafts: getAllDrafts(authenticatedUser.uid),
+            }),
+            authenticatedUser,
+            canReadExclusiveHymn,
+          ),
+        );
+        navigateHymn(localHymnId, { replace: true });
+        showNotice(offlineSaveNotice("save"), "success");
+        if (afterSave) await afterSave();
+        return true;
+      }
+
       try {
-        writeDraft(state.hymn.id, state.hymn, {
-          baseHymn: state.lastSavedHymn,
-          isNew: isNewHymn,
-        });
-        localDraftSaved = true;
-        if (isBrowserOffline()) {
-          const localHymnId = String(selectedHymnId || state.hymn.id || "");
-          writeDraft(
-            localHymnId,
-            { ...state.hymn, id: localHymnId, ...writeMetadata },
-            {
-              baseHymn: state.lastSavedHymn,
-              isNew: isNewHymn,
-            },
-          );
-          markDraftPendingSync(localHymnId);
-          setPendingSyncRevision((revision) => revision + 1);
-          setSelectedHymnId(localHymnId);
-          setHymns((previous) =>
-            filterAuthorizedHymns(
-              mergeOfflineHymnResults({
-                cachedHymns: previous,
-                drafts: getAllDrafts(authenticatedUser.uid),
-              }),
-              authenticatedUser,
-              canReadExclusiveHymn,
-            ),
-          );
-          navigateHymn(localHymnId, { replace: true });
-          if (!(await runSaveFollowup(afterSave, true))) return true;
-          showSaveSuccessNotification(showNotice, { isOffline: true });
-          return true;
-        }
+        setSavingHymn(true);
+        setSaveError(null);
 
-        if (writeMode === "update") {
-          lastDirectHymnWriteAtRef.current = Date.now();
-          let savedHymnId = selectedHymnId;
-          let savedMetadata = writeMetadata;
-          try {
-            await updateDoc(doc(db, "hymns", selectedHymnId), payload);
-          } catch (error) {
-            if (error?.code !== "not-found") throw error;
-
-            savedMetadata = buildHymnWriteMetadata({
-              currentUserUid: authenticatedUser.uid,
-              isBootstrapAdmin: savePermissions.isSuperAdmin,
-              existingHymn: null,
-              requestedExclusive: state.hymn.isExclusive,
-            });
-            const createdAt = Timestamp.now();
-            const created = await addDoc(collection(db, "hymns"), {
-              ...payload,
-              ...savedMetadata,
-              createdAt,
-            });
-            savedHymnId = created.id;
-            writeOperation = "create-after-not-found";
-            clearDraft(selectedHymnId, undefined, authenticatedUser.uid);
-            setSelectedHymnId(savedHymnId);
-            loadHymn(
-              {
-                ...state.hymn,
-                id: savedHymnId,
-                title,
-                isExclusive: savedMetadata.isExclusive,
-                exclusiveOwnerUid: savedMetadata.exclusiveOwnerUid,
-              },
-              { ignoreDraft: true, mode: "edit" },
-            );
-            navigateHymn(savedHymnId, { replace: true });
-          }
-          firestoreWriteCompleted = true;
+        if (selectedHymnId) {
+          await setDoc(doc(db, "hymns", selectedHymnId), payload, {
+            merge: true,
+          });
           const savedCopy = {
-            ...(savedHymnId === selectedHymnId ? existingHymn : {}),
-            id: savedHymnId,
+            ...existingHymn,
+            id: selectedHymnId,
             title,
             key: payload.key,
             sections: payload.sections,
             schemaVersion: payload.schemaVersion,
-            ...savedMetadata,
+            ...writeMetadata,
             updatedAt: Date.now(),
           };
           synchronizedHymnsRef.current = mergeHymnQueryResults(
             synchronizedHymnsRef.current.filter(
-              (item) =>
-                item.id !== selectedHymnId && item.id !== savedHymnId,
+              (item) => item.id !== selectedHymnId,
             ),
             [savedCopy],
           );
           await offlineAccountStore.update(authenticatedUser.uid, {
             hymns: synchronizedHymnsRef.current,
           });
-          setHymns((prev) => [
-            savedCopy,
-            ...prev.filter(
-              (item) =>
-                item.id !== selectedHymnId && item.id !== savedHymnId,
+          setHymns((prev) =>
+            prev.map((item) =>
+              item.id === selectedHymnId
+                ? {
+                    ...item,
+                    title,
+                    key: payload.key,
+                    sections: payload.sections,
+                    isExclusive: writeMetadata.isExclusive,
+                    exclusiveOwnerUid: writeMetadata.exclusiveOwnerUid,
+                    updatedAt: Date.now(),
+                  }
+                : item,
             ),
-          ]);
+          );
           markHymnSaved({
             ...state.hymn,
-            id: savedHymnId,
+            id: selectedHymnId,
             title,
             key: payload.key,
-            isExclusive: savedMetadata.isExclusive,
-            exclusiveOwnerUid: savedMetadata.exclusiveOwnerUid,
+            isExclusive: writeMetadata.isExclusive,
+            exclusiveOwnerUid: writeMetadata.exclusiveOwnerUid,
           });
-          navigateHymn(savedHymnId, { replace: true });
-          if (!(await runSaveFollowup(afterSave))) return true;
-          showSaveSuccessNotification(showNotice);
+          navigateHymn(selectedHymnId, { replace: true });
+          showNotice("تم تحديث الترنيمة.", "success");
+          if (afterSave) await afterSave();
           return true;
         }
 
         const createdAt = Timestamp.now();
-        lastDirectHymnWriteAtRef.current = Date.now();
-        const created = selectedHymnId
-          ? { id: selectedHymnId }
-          : await addDoc(collection(db, "hymns"), {
-              ...payload,
-              createdAt,
-            });
-        if (selectedHymnId) {
-          await setDoc(
-            doc(db, "hymns", selectedHymnId),
-            { ...payload, createdAt },
-            { merge: true },
-          );
-        }
-        firestoreWriteCompleted = true;
+        const created = await addDoc(collection(db, "hymns"), {
+          ...payload,
+          createdAt,
+        });
         const savedCopy = {
           id: created.id,
           title,
@@ -1518,59 +1325,23 @@ function AppShell() {
           { ignoreDraft: true, mode: "edit" },
         );
         navigateHymn(created.id, { replace: true });
-        if (!(await runSaveFollowup(afterSave))) return true;
-        showSaveSuccessNotification(showNotice);
+        showNotice("تم حفظ ترنيمة جديدة.", "success");
+        if (afterSave) await afterSave();
         return true;
       } catch (error) {
-        if (!firestoreWriteCompleted) {
-          lastDirectHymnWriteAtRef.current = 0;
-        }
         if (
-          !firestoreWriteCompleted &&
-          (isBrowserOffline() ||
-            ["unavailable", "deadline-exceeded", "network-request-failed"].includes(
-              error?.code,
-            ))
+          isBrowserOffline() ||
+          ["unavailable", "deadline-exceeded", "network-request-failed"].includes(
+            error?.code,
+          )
         ) {
           markDraftPendingSync(state.hymn.id);
           setPendingSyncRevision((revision) => revision + 1);
         }
         setSaveError(error?.message || "save failed");
-        setSaveErrorCode(error?.code || "unknown");
-        setSaveErrorWriteCompleted(firestoreWriteCompleted);
-        const diagnostic = logSaveFailure(error, {
-          authenticatedUser,
-          teamData,
-          teamFromCache,
-          savePermissions,
-          selectedHymnId,
-          hymnId: state.hymn?.id,
-          projectId: firebaseApp?.options?.projectId,
-          writeOperation,
-          payloadValidation: {
-            titleIsString: typeof payload.title === "string",
-            keyIsString: typeof payload.key === "string",
-            sectionsIsArray: Array.isArray(payload.sections),
-            updatedByMatchesAuth: payload.updatedBy === authenticatedUser.uid,
-            exclusiveMetadataIsValid:
-              typeof payload.isExclusive === "boolean" &&
-              typeof payload.exclusiveOwnerUid === "string" &&
-              (!payload.isExclusive || payload.exclusiveOwnerUid.length > 0),
-          },
-          isDirty,
-          isOffline: isBrowserOffline(),
-          firestoreWriteCompleted,
-        });
-        setSaveDiagnostic(diagnostic);
-        const notification = resolveSaveErrorNotification(error, {
-          isOffline: isBrowserOffline(),
-          localDraftSaved,
-          firestoreWriteCompleted,
-        });
-        showNotice(notification.message, notification.type);
+        showNotice(`تعذر الحفظ على السيرفر: ${error.message}`, "error");
         return false;
       } finally {
-        saveInFlightRef.current = false;
         setSavingHymn(false);
       }
     },
@@ -1579,17 +1350,12 @@ function AppShell() {
       markHymnSaved,
       navigateHymn,
       hymns,
-      isDirty,
-      logSaveFailure,
-      runSaveFollowup,
       selectedHymnId,
       setHymns,
       showNotice,
       state.hymn,
       state.lastSavedHymn,
-      saveErrorWriteCompleted,
       teamData,
-      teamFromCache,
     ],
   );
 
@@ -2539,13 +2305,7 @@ function AppShell() {
           />
         </main>
         {notice ? (
-          <div
-            className={`toastNotice ${notice.type}`}
-            role={notice.type === "error" ? "alert" : "status"}
-            aria-live={notice.type === "error" ? "assertive" : "polite"}
-          >
-            {notice.message}
-          </div>
+          <div className={`toastNotice ${notice.type}`}>{notice.message}</div>
         ) : null}
       </div>
     );
@@ -2553,19 +2313,76 @@ function AppShell() {
 
   return (
     <div
-      className={`app ${state.theme} ${
-        outputModeOpen ? "outputModeActive" : ""
-      } ${state.mode === "edit" && isAdmin ? "editingMode" : ""}`}
+      className={`app ${state.theme} ${outputModeOpen ? "outputModeActive" : ""}`}
       dir="rtl"
       lang="ar"
     >
       <header className="topBar">
-        <div className="topBarIdentity">
-          <p className="appBrand">Harmony Notes</p>
-          <h1>{state.hymn.title || "ترنيمة بدون عنوان"}</h1>
+        <div>
+          <h1>Harmony Notes</h1>
+          <p>محرر ترانيم احترافي لكتابة الكوردات وعرضها</p>
         </div>
 
-        <div className="headerActionGroup headerModeGroup" aria-label="وضع العمل">
+        <div className="row wrap topBarActions">
+          <div
+            className={`saveStatus saveStatus--${saveState.status}`}
+            role="status"
+          >
+            <span className="saveStatusDot" aria-hidden="true" />
+            <span>{saveState.label}</span>
+            {saveState.retryable ? (
+              <button
+                type="button"
+                className="btn btnSmall"
+                onClick={onRetrySave}
+              >
+                إعادة المحاولة
+              </button>
+            ) : null}
+          </div>
+          {state.mode === "edit" && showFirebaseSaveBtn ? (
+            <button
+              type="button"
+              className="btn primary headerSaveButton"
+              onClick={saveError ? onRetrySave : onSaveHymnToFirebase}
+              disabled={savingHymn || (!isDirty && !saveError)}
+            >
+              {savingHymn ? (
+                <span className="headerSaveSpinner" aria-hidden="true" />
+              ) : saveState.status === "saved" ? (
+                <span aria-hidden="true">✓</span>
+              ) : (
+                <svg
+                  className="headerSaveIcon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M5 3.75h12l3.25 3.25v13.25H3.75V3.75H5Z"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M7.5 3.75v6h8v-6M7.5 20.25v-7h9v7"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+              <span>
+                {savingHymn
+                  ? "جارٍ الحفظ..."
+                  : saveError
+                    ? "إعادة المحاولة"
+                    : isDirty
+                      ? "حفظ التعديلات"
+                      : "محفوظ"}
+              </span>
+            </button>
+          ) : null}
           {isAdmin ? (
             <button
               className={`btn ${state.mode === "edit" ? "primary" : ""}`}
@@ -2580,232 +2397,66 @@ function AppShell() {
           >
             وضع العرض
           </button>
-        </div>
-
-        <div className="topBarControls">
-          <div className="headerSaveCluster">
-            <div
-              className={`saveStatus saveStatus--${saveState.status}`}
-              role="status"
-            >
-              <span className="saveStatusDot" aria-hidden="true" />
-              <span>
-                {saveErrorWriteCompleted
-                  ? "تم تأكيد كتابة الخادم؛ تعذّر إكمال التحديث المحلي"
-                  : saveState.label}
-              </span>
-              {saveState.status === "error" && saveErrorCode ? (
-                <span className="saveErrorCode" dir="ltr">
-                  {saveErrorCode}
-                </span>
-              ) : null}
-            </div>
-            {showFirebaseSaveBtn ? (
-              <button
-                type="button"
-                className="btn primary headerSaveButton"
-                onClick={saveError ? onRetrySave : onSaveHymnToFirebase}
-                disabled={
-                  savingHymn ||
-                  saveErrorWriteCompleted
-                }
-              >
-                {savingHymn ? (
-                  <span className="headerSaveSpinner" aria-hidden="true" />
-                ) : saveState.status === "saved" ? (
-                  <span aria-hidden="true">✓</span>
-                ) : (
-                  <svg
-                    className="headerSaveIcon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M5 3.75h12l3.25 3.25v13.25H3.75V3.75H5Z"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M7.5 3.75v6h8v-6M7.5 20.25v-7h9v7"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-                <span>
-                  {savingHymn
-                    ? "جارٍ الحفظ..."
-                    : saveErrorWriteCompleted
-                      ? "تمت الكتابة على الخادم"
-                      : saveError
-                        ? "إعادة المحاولة"
-                        : isDirty
-                          ? "حفظ التعديلات"
-                          : "محفوظ"}
-                </span>
+          <button
+            type="button"
+            className="btn themeToggleButton"
+            onClick={toggleTheme}
+            aria-label={
+              isDark ? "التحويل إلى الوضع النهاري" : "التحويل إلى الوضع الليلي"
+            }
+          >
+            {isDark ? "الوضع النهاري" : "الوضع الليلي"}
+          </button>
+          {isAdmin ? (
+            <>
+              <button className="btn" onClick={onSaveProjectFile}>
+                حفظ ملف المشروع
               </button>
-            ) : null}
-          </div>
-          {saveDiagnostic ? (
-            <details className="saveDiagnosticDetails">
-              <summary>تفاصيل آمنة للتشخيص</summary>
-              <dl>
-                <div>
-                  <dt>رمز الخطأ</dt>
-                  <dd dir="ltr">{saveDiagnostic.code}</dd>
-                </div>
-                <div>
-                  <dt>مشروع Firebase</dt>
-                  <dd dir="ltr">{saveDiagnostic.projectId || "غير معروف"}</dd>
-                </div>
-                <div>
-                  <dt>UID المستخدم</dt>
-                  <dd dir="ltr">{saveDiagnostic.userUid || "غير مسجل"}</dd>
-                </div>
-                <div>
-                  <dt>نوع الكتابة</dt>
-                  <dd>
-                    {saveDiagnostic.writeOperation === "update"
-                      ? "تحديث ترنيمة"
-                      : "إنشاء ترنيمة"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>صلاحية الحفظ المحلية</dt>
-                  <dd>
-                    {saveDiagnostic.savePermissions?.canSaveFirebase
-                      ? "مسموحة"
-                      : "غير مسموحة"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>مشرف أساسي</dt>
-                  <dd>{saveDiagnostic.savePermissions?.isSuperAdmin ? "نعم" : "لا"}</dd>
-                </div>
-                <div>
-                  <dt>عضو الفريق / canSaveFirebase</dt>
-                  <dd>
-                    {saveDiagnostic.teamMemberFound ? "موجود" : "غير موجود"} /{" "}
-                    {saveDiagnostic.teamCanSaveFirebase ? "مسموحة" : "غير مفعّلة"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>بيانات الفريق من الذاكرة المؤقتة</dt>
-                  <dd>{saveDiagnostic.teamSnapshotFromCache ? "نعم" : "لا"}</dd>
-                </div>
-                <div>
-                  <dt>تأكيد الكتابة على السيرفر</dt>
-                  <dd>
-                    {saveDiagnostic.firestoreWriteCompleted ? "نعم" : "لا"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>حقول الطلب المطلوبة</dt>
-                  <dd>
-                    {saveDiagnostic.payloadValidation
-                      ? Object.values(saveDiagnostic.payloadValidation).every(Boolean)
-                        ? "مكتملة"
-                        : "يوجد حقل غير صالح"
-                      : "غير متاحة"}
-                  </dd>
-                </div>
-              </dl>
-              <p>لا تشمل هذه التفاصيل كلمات مرور أو رموز دخول أو محتوى الترنيمة.</p>
-            </details>
+              <button className="btn" onClick={onOpenProjectClick}>
+                استيراد ملف المشروع
+              </button>
+            </>
           ) : null}
-
-          <details className="headerToolsMenu">
-              <summary>أدوات وإجراءات</summary>
-              <div className="headerToolsContent">
-                <section className="headerToolsSection" aria-labelledby="header-output-label">
-                  <h2 id="header-output-label">العرض والتصدير</h2>
-                  <div className="headerToolsActions">
-                    <button className="btn" onClick={onExport} disabled={loadingExport}>
-                      {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => setOutputModeOpen(true)}
-                      aria-haspopup="dialog"
-                    >
-                      إعدادات العرض والإخراج
-                    </button>
-                    <button
-                      className="btn"
-                      onClick={onCopyHymnLink}
-                      disabled={!selectedHymnId}
-                    >
-                      نسخ رابط الترنيمة
-                    </button>
-                  </div>
-                </section>
-                {isAdmin ? (
-                  <section className="headerToolsSection" aria-labelledby="header-project-label">
-                    <h2 id="header-project-label">ملف المشروع</h2>
-                    <div className="headerToolsActions">
-                      <button className="btn" onClick={onSaveProjectFile}>
-                        حفظ ملف المشروع
-                      </button>
-                      <button className="btn" onClick={onOpenProjectClick}>
-                        استيراد ملف المشروع
-                      </button>
-                    </div>
-                  </section>
-                ) : null}
-                <section className="headerToolsSection" aria-labelledby="header-extra-label">
-                  <h2 id="header-extra-label">إجراءات إضافية</h2>
-                  <div className="headerToolsActions">
-                    <button className="btn" onClick={onTriggerRefresh}>
-                      تحديث / مزامنة المكتبة
-                    </button>
-                    <button type="button" className="btn" onClick={toggleTheme}>
-                      {isDark ? "الوضع النهاري" : "الوضع الليلي"}
-                    </button>
-                    {isAdmin ? (
-                      <button
-                        type="button"
-                        className="btn danger"
-                        onClick={onResetProject}
-                      >
-                        ابدأ من الأول...
-                      </button>
-                    ) : null}
-                  </div>
-                </section>
-                <section
-                  className="headerToolsSection"
-                  aria-labelledby="header-account-label"
-                >
-                  <h2 id="header-account-label">الحساب والإدارة</h2>
-                  <div className="headerToolsActions">
-                    {!authLoading && !currentUser ? (
-                      <button className="btn" onClick={onAdminSignIn}>
-                        دخول المشرف
-                      </button>
-                    ) : null}
-                    {!authLoading && currentUser ? (
-                      <button className="btn" onClick={onAdminSignOut}>
-                        تسجيل الخروج
-                      </button>
-                    ) : null}
-                    {canManageTeam ? (
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => setShowAdminDashboard(true)}
-                      >
-                        إدارة صلاحيات الفريق
-                      </button>
-                    ) : null}
-                  </div>
-                </section>
-              </div>
-          </details>
-
+          <button className="btn" onClick={onTriggerRefresh}>
+            تحديث / مزامنة
+          </button>
+          <button className="btn" onClick={onExport} disabled={loadingExport}>
+            {loadingExport ? "جاري التصدير..." : "تصدير PNG (HD)"}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setOutputModeOpen(true)}
+            aria-haspopup="dialog"
+          >
+            إخراج
+          </button>
+          <button
+            className="btn"
+            onClick={onCopyHymnLink}
+            disabled={!selectedHymnId}
+          >
+            نسخ الرابط
+          </button>
+          {!authLoading && !currentUser ? (
+            <button className="btn primary" onClick={onAdminSignIn}>
+              دخول أدمن
+            </button>
+          ) : null}
+          {!authLoading && currentUser ? (
+            <button className="btn" onClick={onAdminSignOut}>
+              خروج
+            </button>
+          ) : null}
+          {canManageTeam ? (
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => setShowAdminDashboard(true)}
+            >
+              لوحة الصلاحيات
+            </button>
+          ) : null}
           {isAdmin ? (
             <input
               ref={projectFileInputRef}
@@ -2852,7 +2503,7 @@ function AppShell() {
                 ? "مستخدم مسجل (قراءة فقط)"
                 : "وضع القراءة فقط"}
           </p>
-          <section className="hymnLibrary" aria-label="مكتبة الترانيم">
+          <section className="hymnLibrary" aria-label="My library">
             <div className="row between sidebarHeader">
               <h3>مكتبتي</h3>
               {selectedHymnIsAccessible ? (
@@ -2906,7 +2557,7 @@ function AppShell() {
                 <p className="sidebarHint">لا توجد ترانيم مفضلة متاحة.</p>
               )}
             </details>
-            <details className="libraryGroup">
+            <details className="libraryGroup" open>
               <summary>
                 <span>استُخدمت مؤخرًا</span>
                 <small>{recentHymns.length}</small>
@@ -3005,33 +2656,43 @@ function AppShell() {
             </div>
           ) : null}
 
-          {showFirebaseDeleteBtn || (isSuperAdmin && showFirebaseSaveBtn) ? (
-            <details className="sidebarGroup hymnAdminActions">
-              <summary>إدارة الترنيمة</summary>
-              <div className="row wrap sidebarActions">
-                {isSuperAdmin ? (
-                  <label className="adminDashToggle">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(state.hymn.isExclusive)}
-                      onChange={(e) =>
-                        updateHymn({ isExclusive: e.target.checked })
-                      }
-                    />
-                    <span>حصرية لي فقط</span>
-                  </label>
-                ) : null}
-                {showFirebaseDeleteBtn ? (
-                  <button
-                    className="btn danger"
-                    onClick={onDeleteHymnFromFirebase}
-                    disabled={!selectedHymnId || deletingHymn}
-                  >
-                    {deletingHymn ? "جاري الحذف..." : "حذف الترانيمة"}
-                  </button>
-                ) : null}
-              </div>
-            </details>
+          {showFirebaseSidebarActions ? (
+            <div className="row wrap sidebarActions">
+              {isSuperAdmin ? (
+                <label className="adminDashToggle">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(state.hymn.isExclusive)}
+                    onChange={(e) =>
+                      updateHymn({ isExclusive: e.target.checked })
+                    }
+                  />
+                  <span>حصرية لي فقط</span>
+                </label>
+              ) : null}
+              {showFirebaseSaveBtn ? (
+                <button
+                  className="btn primary"
+                  onClick={onSaveHymnToFirebase}
+                  disabled={savingHymn}
+                >
+                  {savingHymn
+                    ? "جاري الحفظ..."
+                    : selectedHymnId
+                      ? "تحديث"
+                      : "حفظ"}
+                </button>
+              ) : null}
+              {showFirebaseDeleteBtn ? (
+                <button
+                  className="btn danger"
+                  onClick={onDeleteHymnFromFirebase}
+                  disabled={!selectedHymnId || deletingHymn}
+                >
+                  {deletingHymn ? "جاري الحذف..." : "حذف الترانيمة"}
+                </button>
+              ) : null}
+            </div>
           ) : null}
           {isAdmin ? (
             <div className="draftActions">
@@ -3040,26 +2701,23 @@ function AppShell() {
                   مسودة محلية — غير محفوظة على السيرفر
                 </p>
               ) : null}
-              <details className="sidebarGroup">
-                <summary>إدارة المسودة المحلية</summary>
-                <div className="row wrap sidebarActions">
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={onSaveDraftClick}
-                  >
-                    حفظ مسودة محلية
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={onDiscardDraftClick}
-                    disabled={!isDirty || !state.lastSavedHymn}
-                  >
-                    تجاهل المسودة
-                  </button>
-                </div>
-              </details>
+              <div className="row wrap sidebarActions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={onSaveDraftClick}
+                >
+                  حفظ مسودة
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={onDiscardDraftClick}
+                  disabled={!isDirty || !state.lastSavedHymn}
+                >
+                  تجاهل المسودة
+                </button>
+              </div>
             </div>
           ) : null}
           {!hasFirebaseConfig ? (
@@ -3146,30 +2804,27 @@ function AppShell() {
             </ul>
           ) : null}
 
-          <details className="sidebarGroup serviceListsGroup">
-            <summary>قوائم الخدمة</summary>
-            <SetlistPanel
-              key={currentUser?.uid || "guest"}
-              currentId={selectedHymnId}
-              currentTitle={state.hymn.title}
-              userUid={currentUser?.uid || "guest"}
-              canAdd={Boolean(selectedHymnId)}
-              canManageSharedSetlists={canManageSharedSetlists}
-              sharedSetlists={sharedSetlists}
-              selectedSharedSetlistId={selectedSharedSetlistId}
-              onSelectSharedSetlist={setSelectedSharedSetlistId}
-              onCreateSharedSetlist={onCreateSharedSetlist}
-              onDeleteSharedSetlist={onDeleteSharedSetlist}
-              onRenameSharedSetlist={onRenameSharedSetlist}
-              onAddCurrentToSharedSetlist={onAddCurrentToSharedSetlist}
-              onMoveSharedSetlistItem={onMoveSharedSetlistItem}
-              onRemoveSharedSetlistItem={onRemoveSharedSetlistItem}
-              onStartServiceMode={onStartServiceMode}
-              sharedSetlistItems={selectedSharedSetlistItems}
-              sharedSetlistsLoading={sharedSetlistsLoading}
-              onOpen={onOpenSetlistHymn}
-            />
-          </details>
+          <SetlistPanel
+            key={currentUser?.uid || "guest"}
+            currentId={selectedHymnId}
+            currentTitle={state.hymn.title}
+            userUid={currentUser?.uid || "guest"}
+            canAdd={Boolean(selectedHymnId)}
+            canManageSharedSetlists={canManageSharedSetlists}
+            sharedSetlists={sharedSetlists}
+            selectedSharedSetlistId={selectedSharedSetlistId}
+            onSelectSharedSetlist={setSelectedSharedSetlistId}
+            onCreateSharedSetlist={onCreateSharedSetlist}
+            onDeleteSharedSetlist={onDeleteSharedSetlist}
+            onRenameSharedSetlist={onRenameSharedSetlist}
+            onAddCurrentToSharedSetlist={onAddCurrentToSharedSetlist}
+            onMoveSharedSetlistItem={onMoveSharedSetlistItem}
+            onRemoveSharedSetlistItem={onRemoveSharedSetlistItem}
+            onStartServiceMode={onStartServiceMode}
+            sharedSetlistItems={selectedSharedSetlistItems}
+            sharedSetlistsLoading={sharedSetlistsLoading}
+            onOpen={onOpenSetlistHymn}
+          />
         </aside>
 
         <div className="editorPane">
@@ -3184,13 +2839,26 @@ function AppShell() {
       {state.mode === "edit" && isAdmin ? (
         <section className="previewWrap">
           <h3>معاينة مباشرة</h3>
-          <HymnView
-            ref={viewRef}
-            isExporting={isExporting}
-            hideMusicianControls
-          />
+          <HymnView ref={viewRef} isExporting={isExporting} />
         </section>
       ) : null}
+
+      {isAdmin ? (
+        <button className="floatingResetBtn" onClick={onResetProject}>
+          ابدأ من الأول
+        </button>
+      ) : null}
+
+      <button
+        className={`floatingThemeBtn ${isDark ? "toLight" : "toDark"}`}
+        onClick={toggleTheme}
+        title={isDark ? "الوضع النهاري" : "الوضع الليلي"}
+        aria-label={
+          isDark ? "التحويل إلى الوضع النهاري" : "التحويل إلى الوضع الليلي"
+        }
+      >
+        {isDark ? "☀" : "✦"}
+      </button>
 
       {outputModeOpen ? <OutputMode onClose={closeOutputMode} /> : null}
 
@@ -3227,13 +2895,7 @@ function AppShell() {
       ) : null}
 
       {notice ? (
-        <div
-          className={`toastNotice ${notice.type}`}
-          role={notice.type === "error" ? "alert" : "status"}
-          aria-live={notice.type === "error" ? "assertive" : "polite"}
-        >
-          {notice.message}
-        </div>
+        <div className={`toastNotice ${notice.type}`}>{notice.message}</div>
       ) : null}
     </div>
   );
