@@ -4338,6 +4338,47 @@ body {
   }
 }
 
+@media (max-width: 768px) {
+  .app.editingMode {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app.editingMode .headerSaveButton {
+    position: fixed;
+    inset-inline: 0;
+    bottom: max(0.65rem, env(safe-area-inset-bottom, 0px));
+    z-index: 100;
+    width: min(calc(100vw - 1.5rem), 420px);
+    min-height: 48px;
+    margin-inline: auto;
+    justify-content: center;
+    box-shadow: var(--shadow);
+  }
+
+  .app.editingMode .editorPane,
+  .app.editingMode .editorPane > .card,
+  .app.editingMode .sectionCard,
+  .app.editingMode .lineEditor,
+  .app.editingMode .wordComposer,
+  .app.editingMode .wordBlockWrap {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app.editingMode .wordComposer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app.editingMode .wordBlockWrap {
+    width: 100%;
+  }
+
+  .app.editingMode .letterEditorRun {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
 @media print {
   body,
   .app {

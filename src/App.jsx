@@ -2553,7 +2553,9 @@ function AppShell() {
 
   return (
     <div
-      className={`app ${state.theme} ${outputModeOpen ? "outputModeActive" : ""}`}
+      className={`app ${state.theme} ${
+        outputModeOpen ? "outputModeActive" : ""
+      } ${state.mode === "edit" && isAdmin ? "editingMode" : ""}`}
       dir="rtl"
       lang="ar"
     >
