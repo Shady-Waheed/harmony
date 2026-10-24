@@ -61,7 +61,7 @@ function TransposeControls({ hymnKey, transposeOffset, onTranspose, onReset }) {
   );
 }
 
-function ChordDetailCard({ entry }) {
+function ChordDetailCard({ entry, onClose }) {
   const info = getChordPianoInfo(entry?.chord, entry?.inversion);
   if (!info.notes?.length) return null;
 
@@ -69,6 +69,14 @@ function ChordDetailCard({ entry }) {
     <div className="chordDetailPanel" role="dialog" aria-label="Chord details">
       <div className="chordDetailHeader">
         <span className="chordDetailName">{info.label || entry?.chord}</span>
+        <button
+          type="button"
+          className="chordDetailClose"
+          onClick={onClose}
+          aria-label="Close chord details"
+        >
+          ×
+        </button>
         {info.inversion ? (
           <span className="chordDetailTag">{info.inversion}</span>
         ) : null}
@@ -307,7 +315,12 @@ function ChordLabels({
                 />
               ) : null}
             </button>
-            {isActive ? <ChordDetailCard entry={entry} /> : null}
+            {isActive ? (
+              <ChordDetailCard
+                entry={entry}
+                onClose={() => onSelectChord?.(null)}
+              />
+            ) : null}
           </span>
         );
       })}

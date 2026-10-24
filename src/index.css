@@ -1993,6 +1993,23 @@ body {
   font-family: var(--font-chord);
 }
 
+.chordDetailClose {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .chordDetailTag {
   padding: 0.14rem 0.38rem;
   border-radius: 999px;
@@ -4667,5 +4684,96 @@ body {
 
   .wordBlockWrap {
     padding: 0.38rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet) .sheetLine {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    column-gap: clamp(0.35rem, 2vw, 0.7rem);
+    row-gap: 1.15rem;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet) .cell {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
+    .lyric-word-container {
+    min-width: 0;
+    max-width: 100%;
+    flex-shrink: 1;
+    white-space: normal;
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
+    .lyric-word-container--multi {
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
+    .lyricWordChords {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
+    .lyric-word-container--multi
+    .lyricWordText {
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    text-align: center;
+    text-align-last: center;
+    letter-spacing: normal;
+    white-space: normal;
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
+    .lyricWordText {
+    white-space: normal;
+    font-size: clamp(1.05rem, 4.4vw, 1.4rem) !important;
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
+    .chord {
+    box-sizing: border-box;
+    min-width: 2.5rem !important;
+    min-height: 2.5rem !important;
+    padding: 0.15rem 0.2rem !important;
+    font-size: clamp(0.95rem, 4vw, 1.15rem) !important;
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
+    .chordDetailPanel {
+    box-sizing: border-box;
+    width: min(360px, calc(100vw - 1rem));
+    max-height: min(40dvh, 14rem);
+    padding: 0.55rem 0.65rem;
+    bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
+    .chord.isActive
+    .chordPreviewPopup {
+    display: none;
+  }
+
+  body:has(.hymn-viewer-container .chordDetailPanel) .floatingThemeBtn {
+    bottom: calc(11rem + env(safe-area-inset-bottom, 0px));
   }
 }
