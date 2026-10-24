@@ -1950,7 +1950,7 @@ body {
   z-index: 30;
   width: min(260px, calc(100vw - 2rem));
   transform: translateX(-50%);
-  background: var(--panel);
+  background: var(--sheet-bg);
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow);
@@ -2181,12 +2181,14 @@ body {
 }
 
 .sheetLine:has(.chord.hasPreview:hover),
-.sheetLine:has(.chord.hasPreview:focus-within) {
+.sheetLine:has(.chord.hasPreview:focus-within),
+.sheetLine:has(.chord.isActive) {
   z-index: 80;
 }
 
 .cell:has(.chord.hasPreview:hover),
-.cell:has(.chord.hasPreview:focus-within) {
+.cell:has(.chord.hasPreview:focus-within),
+.cell:has(.chord.isActive) {
   position: relative;
   z-index: 81;
 }
