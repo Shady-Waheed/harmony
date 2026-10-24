@@ -265,7 +265,12 @@ function inferIntervalsFromSuffix(rawSuffix) {
   if (!suffix) return [0, 4, 7];
 
   let intervals;
-  if (suffix.includes("dim")) {
+  const isAddChord = suffix.includes("add");
+  if (suffix.includes("dim7")) {
+    intervals = [0, 3, 6, 9];
+  } else if (suffix.includes("m7b5")) {
+    intervals = [0, 3, 6, 10];
+  } else if (suffix.includes("dim")) {
     intervals = [0, 3, 6];
   } else if (suffix.includes("aug") || suffix.includes("+")) {
     intervals = [0, 4, 8];
@@ -279,23 +284,52 @@ function inferIntervalsFromSuffix(rawSuffix) {
     intervals = [0, 4, 7];
   }
 
-  if (suffix.includes("maj7")) {
-    intervals.push(11);
-  } else if (suffix.includes("7")) {
-    intervals.push(10);
+  if (!isAddChord && !suffix.includes("dim7") && !suffix.includes("m7b5")) {
+    const hasSeventhOrExtension =
+      suffix.includes("7") ||
+      suffix.includes("9") ||
+      suffix.includes("11") ||
+      suffix.includes("13");
+    if (hasSeventhOrExtension) {
+      intervals.push(suffix.includes("maj") ? 11 : 10);
+    }
   }
 
   if (suffix.includes("6")) {
     intervals.push(9);
   }
 
-  if (suffix.includes("add9") || suffix.includes("9")) {
+  if (suffix.includes("add2")) {
+    intervals.push(2);
+  }
+  if (suffix.includes("add4")) {
+    intervals.push(5);
+  }
+  const hasNaturalNinth =
+    (suffix.includes("9") ||
+      (!isAddChord &&
+        (suffix.includes("13") && !suffix.includes("b13") ||
+          (suffix.includes("11") && !suffix.includes("#11"))))) &&
+    !suffix.includes("b9") &&
+    !suffix.includes("#9");
+  if (suffix.includes("add9") || hasNaturalNinth) {
     intervals.push(14);
   }
-  if (suffix.includes("11")) {
+  if (suffix.includes("add11")) {
+    intervals.push(17);
+  } else if (suffix.includes("#11")) {
+    intervals.push(18);
+  } else if (
+    suffix.includes("11") ||
+    (!isAddChord && suffix.includes("13") && !suffix.includes("b13"))
+  ) {
     intervals.push(17);
   }
-  if (suffix.includes("13")) {
+  if (suffix.includes("add13")) {
+    intervals.push(21);
+  } else if (suffix.includes("b13")) {
+    intervals.push(20);
+  } else if (suffix.includes("13")) {
     intervals.push(21);
   }
 
@@ -317,7 +351,11 @@ function inferIntervalsFromSuffix(rawSuffix) {
     intervals.push(15);
   }
 
-  return [...new Set(intervals.map((item) => ((item % 12) + 12) % 12))];
+  if (suffix.includes("b13")) {
+    intervals = intervals.filter((item) => item % 12 !== 9);
+  }
+
+  return [...new Set(intervals)].sort((a, b) => a - b);
 }
 
 export function getChordNoteIndexes(chord, inversion = "") {
@@ -471,9 +509,7 @@ export function getChordVoicingKeyIndexes(chord, inversion = "") {
           ? 3
           : 0;
 
-  let orderedIntervals = rotateArray(baseIntervals, inversionSteps).map(
-    (item) => ((item % 12) + 12) % 12,
-  );
+  let orderedIntervals = rotateArray(baseIntervals, inversionSteps);
 
   if (bass) {
     const bassIndex = NOTE_INDEX[bass];

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { transposeHymnShape } from "../store/hymnStore.jsx";
+import { getChordVoicingKeyIndexes } from "./chords.js";
 import {
   getChordPianoInfo,
   getDisplayedKey,
@@ -44,6 +45,46 @@ describe("piano musician tools", () => {
     expect(getChordPianoInfo("G/B").notes).toEqual(["G", "B", "D"]);
     expect(getChordPianoInfo("C/E").bass).toBe("E");
     expect(getChordPianoInfo("C/E").notes).toEqual(["C", "E", "G"]);
+  });
+
+  it("includes added tones and extended chord tones in note and keyboard previews", () => {
+    const cases = [
+      ["Cadd2", ["C", "D", "E", "G"]],
+      ["Cadd4", ["C", "E", "F", "G"]],
+      ["Cadd9", ["C", "E", "G", "D"]],
+      ["Cadd11", ["C", "E", "G", "F"]],
+      ["Cadd13", ["C", "E", "G", "A"]],
+      ["Csus2", ["C", "D", "G"]],
+      ["Csus4", ["C", "F", "G"]],
+      ["Cdim", ["C", "D#", "F#"]],
+      ["Caug", ["C", "E", "G#"]],
+      ["C6", ["C", "E", "G", "A"]],
+      ["C7", ["C", "E", "G", "A#"]],
+      ["Cm7", ["C", "D#", "G", "A#"]],
+      ["Cmaj9", ["C", "E", "G", "B", "D"]],
+      ["Cmaj11", ["C", "E", "G", "B", "D", "F"]],
+      ["Cmaj13", ["C", "E", "G", "B", "D", "F", "A"]],
+      ["Cm9", ["C", "D#", "G", "A#", "D"]],
+      ["Cm11", ["C", "D#", "G", "A#", "D", "F"]],
+      ["Cm13", ["C", "D#", "G", "A#", "D", "F", "A"]],
+      ["Cm7b5", ["C", "Eb", "Gb", "Bb"]],
+      ["Cdim7", ["C", "D#", "F#", "A"]],
+      ["C7b5", ["C", "E", "Gb", "Bb"]],
+      ["C7#5", ["C", "E", "G#", "A#"]],
+      ["C7b9", ["C", "E", "G", "Bb", "Db"]],
+      ["C7b13", ["C", "E", "G", "Bb", "Ab"]],
+      ["C7#9", ["C", "E", "G", "A#", "D#"]],
+      ["C11", ["C", "E", "G", "A#", "D", "F"]],
+      ["C7#11", ["C", "E", "G", "A#", "F#"]],
+      ["C13", ["C", "E", "G", "A#", "D", "F", "A"]],
+    ];
+
+    for (const [chord, notes] of cases) {
+      expect(getChordPianoInfo(chord).notes, chord).toEqual(notes);
+    }
+
+    expect(getChordPianoInfo("Gadd2").notes).toEqual(["G", "A", "B", "D"]);
+    expect(getChordVoicingKeyIndexes("Gadd2")).toEqual([7, 9, 11, 14]);
   });
 
   it("supports compact transpose labels and reset states", () => {
