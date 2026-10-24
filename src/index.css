@@ -4765,20 +4765,29 @@ body {
     max-height: min(40dvh, 14rem);
     padding: 0.55rem 0.65rem;
     bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
-    background: color-mix(in srgb, var(--panel) 82%, var(--sheet-bg));
+    background: var(--sheet-bg);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.42);
+  }
+
+  .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
+    .chord:not(.isActive)
+    .chordPreviewPopup {
+    opacity: 0;
+    visibility: hidden;
   }
 
   .hymn-viewer-container:not(.outputHymnSheet):not(.exportSheet)
     .chord.isActive
     .chordPreviewPopup {
     position: fixed;
-    top: max(0.5rem, env(safe-area-inset-top, 0px));
+    top: auto;
     right: auto;
-    bottom: auto;
+    bottom: calc(10.5rem + env(safe-area-inset-bottom, 0px));
     left: 50%;
     width: min(300px, calc(100vw - 1rem));
     min-width: 0;
     max-width: calc(100vw - 1rem);
+    z-index: 1102;
     opacity: 1;
     visibility: visible;
     transform: translateX(-50%) !important;
