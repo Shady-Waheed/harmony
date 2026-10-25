@@ -4,6 +4,32 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App.jsx'
 import './index.css'
 
+let orientationLockWarningShown = false
+
+function lockInstalledAppOrientation() {
+  const isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true
+  const orientation = window.screen.orientation
+
+  if (!isStandalone || typeof orientation?.lock !== 'function') return
+
+  orientation.lock('portrait').catch((error) => {
+    if (!orientationLockWarningShown) {
+      orientationLockWarningShown = true
+      console.warn('[PWA] تعذر تثبيت اتجاه التطبيق على الوضع الرأسي:', error)
+    }
+  })
+}
+
+lockInstalledAppOrientation()
+window.addEventListener('pageshow', lockInstalledAppOrientation)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    lockInstalledAppOrientation()
+  }
+})
+
 registerSW({
   immediate: true,
   onOfflineReady() {
