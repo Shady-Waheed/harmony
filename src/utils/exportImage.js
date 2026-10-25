@@ -150,7 +150,7 @@ function createExportClone(node, desktopWidth = 800, dark = true) {
 
   clone
     .querySelectorAll(
-      ".sidebar-logo, .watermark-box, .previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .floatingThemeBtn, .toastNotice, .syncBadge, .roleBadge",
+      ".sidebar-logo, .watermark-box, .previewWrap, .topBar, aside, .sidebar, .hymnList, .floatingResetBtn, .toastNotice, .syncBadge, .roleBadge",
     )
     .forEach((nodeItem) => {
       nodeItem.style.display = "none";

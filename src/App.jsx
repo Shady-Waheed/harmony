@@ -2921,17 +2921,6 @@ function AppShell() {
         </button>
       ) : null}
 
-      <button
-        className={`floatingThemeBtn ${isDark ? "toLight" : "toDark"}`}
-        onClick={toggleTheme}
-        title={isDark ? "الوضع النهاري" : "الوضع الليلي"}
-        aria-label={
-          isDark ? "التحويل إلى الوضع النهاري" : "التحويل إلى الوضع الليلي"
-        }
-      >
-        {isDark ? "☀" : "✦"}
-      </button>
-
       {outputModeOpen ? <OutputMode onClose={closeOutputMode} /> : null}
 
       {pendingUnsafeTransition ? (

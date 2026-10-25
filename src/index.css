@@ -1238,40 +1238,6 @@ body {
   transform: translateY(-1px);
 }
 
-.floatingThemeBtn {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 35;
-  width: 46px;
-  height: 46px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.15rem;
-  box-shadow: var(--shadow-sm);
-  transition: var(--interactive-transition);
-}
-
-.floatingThemeBtn:hover {
-  transform: translateY(-1px);
-}
-
-.floatingThemeBtn.toDark {
-  background: #121a34;
-  color: #b7c4ff;
-  border-color: color-mix(in srgb, #2c3f7e 65%, var(--border));
-}
-
-.floatingThemeBtn.toLight {
-  background: #fff3c9;
-  color: #9f6700;
-  border-color: color-mix(in srgb, #ffd369 72%, var(--border));
-}
-
 .toastNotice {
   position: fixed;
   right: 16px;
@@ -3459,13 +3425,6 @@ body {
     font-size: 0.85rem;
   }
 
-  .floatingThemeBtn {
-    right: 10px;
-    bottom: 10px;
-    width: 44px;
-    height: 44px;
-  }
-
   .sidebarActions .btn {
     flex: 1 1 100%;
     width: 100%;
@@ -4448,7 +4407,6 @@ body {
   .miniRemoveBtn,
   .sheetMetaHint,
   .floatingResetBtn,
-  .floatingThemeBtn,
   .hymnsSidebar {
     display: none !important;
   }
@@ -4800,7 +4758,4 @@ body {
     transform: none !important;
   }
 
-  body:has(.hymn-viewer-container .chordDetailPanel) .floatingThemeBtn {
-    bottom: calc(11rem + env(safe-area-inset-bottom, 0px));
-  }
 }
