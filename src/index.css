@@ -4363,6 +4363,10 @@ body {
     box-shadow: var(--shadow);
   }
 
+  .app.editingMode .floatingResetBtn {
+    bottom: calc(4.2rem + env(safe-area-inset-bottom, 0px));
+  }
+
   .app.editingMode .editorPane,
   .app.editingMode .editorPane > .card,
   .app.editingMode .sectionCard,
